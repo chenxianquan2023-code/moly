@@ -7,7 +7,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdirSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
@@ -351,6 +351,18 @@ app.post('/api/auth/reset-password', (req, res) => {
   user.password = String(newPassword);
   return res.json({ success: true, message: '密码已重置' });
 });
+
+// 生产环境：托管前端打包后的静态文件
+const distPath = join(__dirname, '..', 'dist');
+if (process.env.NODE_ENV === 'production' && existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(join(distPath, 'index.html'));
+    }
+  });
+  console.log('[Moly] 生产模式：已托管前端静态文件');
+}
 
 const server = app.listen(PORT, () => {
   console.log(`[Moly Auth] API running at http://localhost:${PORT}`);
