@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moly Editor - V1.5 Integrated Workflow</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
+    <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: { main: '#0a0a0a', panel: '#121212', card: '#1C1C1E', hover: '#262626', border: '#ffffff1a' },
+                        brand: { blue: '#0066FF', hover: '#0052cc' }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #e5e5e5;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        /* 隐藏 Canvas 默认的选中边框，由自定义逻辑接管 */
+        .canvas-container {
+            background-image: radial-gradient(#222 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #0066FF;
+        }
+
+        .toggle-checkbox:checked+.toggle-label {
+            background-color: #0066FF;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app" class="h-screen flex flex-col">
+
+        <header
+            class="h-14 border-b border-bg-border bg-bg-panel flex items-center justify-between px-5 z-50 flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <div
+                    class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                    Moly</div>
+                <div class="h-4 w-[1px] bg-bg-border"></div>
+                <div class="flex items-center gap-2 text-sm text-gray-400">
+                    <span>工作流</span>
+                    <i class="ph ph-caret-right text-xs"></i>
+                    <span class="text-white">AI 电商虚拟试穿</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-5 text-gray-400">
+                <div
+                    class="flex items-center gap-2 text-xs bg-bg-card border border-bg-border px-3 py-1.5 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    节点引擎就绪
+                </div>
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-400 border border-white/20">
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+
+            <aside
+                class="w-80 bg-bg-panel border-r border-bg-border flex flex-col p-4 gap-6 overflow-y-auto z-20 flex-shrink-0">
+
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-300 font-medium">1. 模特图输入</span>
+                    </div>
+                    <div class="h-48 rounded-xl border border-dashed border-bg-border bg-bg-card hover:border-blue-500/50 hover:bg-bg-hover transition-all cursor-pointer relative group overflow-hidden flex flex-col items-center justify-center"
+                        @click="triggerUpload('model')">
+                        <img v-if="inputs.model" :src="inputs.model" class="w-full h-full object-cover">
+                        <div v-else class="flex flex-col items-center gap-2 text-gray-500">
+                            <i class="ph ph-plus text-2xl group-hover:text-blue-400 transition-colors"></i>
+                            <span class="text-xs">点击上传模特</span>
+                        </div>
+                    </div>
+                    <input type="file" ref="modelInput" class="hidden" accept="image/*"
+                        @change="(e) => handleFileChange(e, 'model')">
+                    <button
+                        class="bg-bg-card border border-bg-border text-xs text-gray-400 py-2 rounded hover:text-white"
+                        @click="useDemoImage('model')">使用示例图片</button>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-300 font-medium">2. 服装图输入</span>
+                    </div>
+                    <div class="h-48 rounded-xl border border-dashed border-bg-border bg-bg-card hover:border-blue-500/50 hover:bg-bg-hover transition-all cursor-pointer relative group overflow-hidden flex flex-col items-center justify-center"
+                        @click="triggerUpload('garment')">
+                        <img v-if="inputs.garment" :src="inputs.garment" class="w-full h-full object-contain p-2">
+                        <div v-else class="flex flex-col items-center gap-2 text-gray-500">
+                            <i class="ph ph-t-shirt text-2xl group-hover:text-blue-400 transition-colors"></i>
+                            <span class="text-xs">点击上传服装</span>
+                        </div>
+                    </div>
+                    <input type="file" ref="garmentInput" class="hidden" accept="image/*"
+                        @change="(e) => handleFileChange(e, 'garment')">
+                    <button
+                        class="bg-bg-card border border-bg-border text-xs text-gray-400 py-2 rounded hover:text-white"
+                        @click="useDemoImage('garment')">使用示例图片</button>
+                </div>
+            </aside>
+
+            <main class="flex-1 relative bg-bg-main overflow-hidden flex flex-col" ref="canvasWrapper">
+
+                <div
+                    class="absolute bottom-6 left-6 flex items-center gap-2 bg-bg-panel/90 backdrop-blur border border-bg-border rounded-lg p-2 shadow-2xl z-30">
+                    <button @click="fitView" class="p-2 hover:bg-white/10 rounded text-gray-400 hover:text-white"
+                        title="适应屏幕"><i class="ph ph-corners-out"></i></button>
+                    <div class="w-[1px] h-4 bg-white/10"></div>
+                    <button @click="adjustZoom(-0.1)"
+                        class="p-2 hover:bg-white/10 rounded text-gray-400 hover:text-white"><i
+                            class="ph ph-minus"></i></button>
+                    <span class="text-xs font-mono text-gray-400 w-10 text-center">{{ Math.round(zoomLevel * 100)
+                        }}%</span>
+                    <button @click="adjustZoom(0.1)"
+                        class="p-2 hover:bg-white/10 rounded text-gray-400 hover:text-white"><i
+                            class="ph ph-plus"></i></button>
+                </div>
+
+                <canvas id="c"></canvas>
+            </main>
+
+            <aside class="w-80 bg-bg-panel border-l border-bg-border flex flex-col z-20 flex-shrink-0">
+                <div class="p-5 border-b border-bg-border">
+                    <h2 class="text-sm font-semibold text-white mb-1">生成配置</h2>
+                    <p class="text-xs text-gray-500">配置 Moly 融合参数</p>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    <div v-for="(field, index) in config" :key="index" class="space-y-3">
+                        <div v-if="field.type === 'select'">
+                            <label class="text-xs text-gray-400 block mb-2">{{ field.label }}</label>
+                            <div class="relative">
+                                <select v-model="field.value" @change="updateConfigNode"
+                                    class="w-full bg-bg-card text-sm text-white border border-bg-border rounded-lg px-3 py-2.5 outline-none appearance-none cursor-pointer hover:border-blue-500/50 transition-colors">
+                                    <option v-for="opt in field.options" :value="opt.value">{{ opt.label }}</option>
+                                </select>
+                                <i
+                                    class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"></i>
+                            </div>
+                        </div>
+
+                        <div v-if="field.type === 'toggle'"
+                            class="flex items-center justify-between group cursor-pointer"
+                            @click="field.value = !field.value; updateConfigNode()">
+                            <div class="flex flex-col">
+                                <span class="text-sm text-gray-300 group-hover:text-white transition-colors">{{
+                                    field.label }}</span>
+                                <span class="text-[10px] text-gray-500">{{ field.desc }}</span>
+                            </div>
+                            <div class="w-10 h-5 rounded-full relative transition-colors duration-200"
+                                :class="field.value ? 'bg-brand-blue' : 'bg-gray-700'">
+                                <div class="w-3 h-3 bg-white rounded-full absolute top-1 transition-all duration-200 shadow-sm"
+                                    :class="field.value ? 'left-6' : 'left-1'"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 border-t border-bg-border bg-bg-panel z-30">
+                    <div class="flex justify-between items-center text-xs text-gray-500 mb-3">
+                        <span>预估消耗</span>
+                        <span class="text-yellow-500 flex items-center gap-1"><i class="ph ph-lightning-fill"></i> 3
+                            积分</span>
+                    </div>
+                    <button @click="startGeneration" :disabled="isGenerating || !inputs.model || !inputs.garment"
+                        class="w-full bg-brand-blue hover:bg-brand-hover disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 group">
+                        <i v-if="!isGenerating" class="ph ph-magic-wand group-hover:scale-110 transition-transform"></i>
+                        <i v-else class="ph ph-spinner animate-spin"></i>
+                        <span>{{ isGenerating ? '正在融合...' : '生成虚拟试穿' }}</span>
+                    </button>
+                </div>
+            </aside>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, onMounted, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                // --- 状态管理 ---
+                const canvasWrapper = ref(null);
+                const modelInput = ref(null);
+                const garmentInput = ref(null);
+
+                // 输入数据
+                const inputs = reactive({ model: null, garment: null });
+                const isGenerating = ref(false);
+                const zoomLevel = ref(1);
+
+                // 配置项
+                const config = reactive([
+                    {
+                        type: 'select', label: '模特动作 (Action)', value: 'arms_crossed',
+                        options: [
+                            { label: '双手抱臂 (Arms Crossed)', value: 'arms_crossed' },
+                            { label: '自然站立 (Standing)', value: 'standing' },
+                            { label: '插兜 (Hands in Pocket)', value: 'pocket' }
+                        ]
+                    },
+                    { type: 'toggle', label: '保持背景', desc: 'Keep Background', value: true },
+                    { type: 'toggle', label: '光影增强', desc: 'Lighting Match', value: false }
+                ]);
+
+                // Fabric 引用
+                let canvas = null;
+                const nodes = {}; // 存储节点对象 { key: fabricGroup }
+
+                // ---------------------------------------------------------
+                // 1. 核心：创建节点 (Node Factory)
+                // ---------------------------------------------------------
+                const createNode = (id, type, x, y, title, contentData) => {
+                    const w = 240;
+                    let h = 300; // 默认高度 (图片节点)
+                    if (type === 'text') h = 160;
+                    if (type === 'config') h = 200;
+
+                    // A. 背景容器
+                    const rect = new fabric.Rect({
+                        width: w, height: h,
+                        fill: '#18181b', stroke: '#333', strokeWidth: 1,
+                        rx: 12, ry: 12,
+                        shadow: new fabric.Shadow({ color: 'rgba(0,0,0,0.5)', blur: 20, offsetY: 5 }),
+                        originX: 'center', originY: 'center'
+                    });
+
+                    // B. 标题栏
+                    const titleBarH = 36;
+                    const titleBar = new fabric.Rect({
+                        width: w, height: titleBarH,
+                        fill: '#27272a',
+                        rx: 12, ry: 12,
+                        originX: 'center', originY: 'center',
+                        top: -h / 2 + titleBarH / 2
+                    });
+                    // 遮罩标题栏下半圆角
+                    const titleBarCover = new fabric.Rect({
+                        width: w, height: titleBarH / 2, fill: '#27272a',
+                        originX: 'center', originY: 'center', top: -h / 2 + titleBarH - titleBarH / 4
+                    });
+
+                    const titleText = new fabric.Text(title, {
+                        fontSize: 13, fill: '#e4e4e7',
+                        originX: 'left', originY: 'center',
+                        left: -w / 2 + 15, top: -h / 2 + titleBarH / 2,
+                        fontFamily: 'Inter', fontWeight: 600
+                    });
+
+                    // C. 端口 (Ports)
+                    const portColor = '#71717a';
+                    const portIn = new fabric.Circle({
+                        radius: 5, fill: '#18181b', stroke: portColor, strokeWidth: 2,
+                        originX: 'center', originY: 'center', left: -w / 2, top: 0,
+                        name: 'portIn'
+                    });
+                    const portOut = new fabric.Circle({
+                        radius: 5, fill: '#18181b', stroke: portColor, strokeWidth: 2,
+                        originX: 'center', originY: 'center', left: w / 2, top: 0,
+                        name: 'portOut'
+                    });
+
+                    // D. 内容区
+                    let contentObj;
+                    const contentTop = titleBarH / 2; // 内容区域中心偏移
+
+                    if (type === 'image') {
+                        // 图片占位符 (深灰色块)
+                        contentObj = new fabric.Rect({
+                            width: w - 20, height: h - titleBarH - 20,
+                            fill: '#09090b', rx: 8, ry: 8,
+                            originX: 'center', originY: 'center',
+                            top: contentTop, name: 'contentPlaceholder'
+                        });
+                    } else {
+                        // 文本框
+                        contentObj = new fabric.Textbox(contentData || '', {
+                            width: w - 30, fontSize: 12, fill: '#a1a1aa',
+                            originX: 'center', originY: 'center',
+                            top: contentTop,
+                            splitByGrapheme: true, lineHeight: 1.5,
+                            fontFamily: 'Inter', name: 'contentText'
+                        });
+                    }
+
+                    // E. 组装
+                    const objs = [rect, titleBar, titleBarCover, titleText, contentObj];
+
+                    // 根据 ID 决定端口显示
+                    const isSource = ['prompt', 'model', 'garment'].includes(id); // 左侧
+                    const isProcess = id === 'process'; // 中间
+                    const isResult = id === 'result'; // 右侧
+
+                    if (isSource || isProcess) objs.push(portOut);
+                    if (isProcess || isResult) objs.push(portIn);
+
+                    const group = new fabric.Group(objs, {
+                        left: x, top: y,
+                        originX: 'center', originY: 'center',
+                        subTargetCheck: false, hasControls: false, hasBorders: true,
+                        borderColor: '#0066FF', borderScaleFactor: 2, padding: 5,
+                        lockRotation: true
+                    });
+
+                    group.id = id;
+                    group.nodeType = type;
+                    // 端口偏移量 (用于连线计算)
+                    group.ports = {
+                        in: (isProcess || isResult) ? { x: -w / 2, y: 0 } : null,
+                        out: (isSource || isProcess) ? { x: w / 2, y: 0 } : null
+                    };
+
+                    return group;
+                };
+
+                // ---------------------------------------------------------
+                // 2. 连线系统 (Bezier Curves)
+                // ---------------------------------------------------------
+                const updateConnections = (node) => {
+                    if (!node.connections) return;
+                    node.connections.forEach(conn => {
+                        const from = conn.from;
+                        const to = conn.to;
+
+                        // 计算世界坐标
+                        const start = {
+                            x: from.left + (from.ports.out.x * from.scaleX),
+                            y: from.top + (from.ports.out.y * from.scaleY)
+                        };
+                        const end = {
+                            x: to.left + (to.ports.in.x * to.scaleX),
+                            y: to.top + (to.ports.in.y * to.scaleY)
+                        };
+
+                        // 三次贝塞尔曲线控制点
+                        const dist = Math.abs(end.x - start.x);
+                        const tension = 0.5;
+                        const cp1 = { x: start.x + dist * tension, y: start.y };
+                        const cp2 = { x: end.x - dist * tension, y: end.y };
+
+                        const pathStr = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`;
+                        conn.line.set({ path: new fabric.Path(pathStr).path });
+                    });
+                };
+
+                const connectNodes = (fromId, toId) => {
+                    const fromNode = nodes[fromId];
+                    const toNode = nodes[toId];
+                    if (!fromNode || !toNode) return;
+
+                    const line = new fabric.Path('M 0 0 L 0 0', {
+                        stroke: '#52525b', strokeWidth: 2, fill: '',
+                        selectable: false, evented: false, objectCaching: false
+                    });
+
+                    canvas.add(line);
+                    canvas.sendToBack(line);
+
+                    const conn = { from: fromNode, to: toNode, line: line };
+
+                    if (!fromNode.connections) fromNode.connections = [];
+                    fromNode.connections.push(conn);
+                    if (!toNode.connections) toNode.connections = [];
+                    toNode.connections.push(conn);
+
+                    updateConnections(fromNode);
+                };
+
+                // ---------------------------------------------------------
+                // 3. 场景初始化 (Layout)
+                // ---------------------------------------------------------
+                const initScene = () => {
+                    canvas.clear();
+                    canvas.setBackgroundColor('#0a0a0a', canvas.renderAll.bind(canvas));
+
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+                    const colSpacing = 350;
+                    const rowSpacing = 320;
+
+                    // 左侧列
+                    nodes.prompt = createNode('prompt', 'text', cx - colSpacing, cy - rowSpacing + 50, '● 提示词 (Prompt)', '描述您希望的模特动作...\n例如：双手抱臂，眼神自信，身处街头背景');
+                    nodes.model = createNode('model', 'image', cx - colSpacing, cy, '● 模特图 (Model)', null);
+                    nodes.garment = createNode('garment', 'image', cx - colSpacing, cy + rowSpacing - 50, '● 服装图 (Garment)', null);
+
+                    // 中间列
+                    nodes.process = createNode('process', 'config', cx, cy, '⚙ 融合配置 (Process)', getConfigText());
+
+                    // 右侧列
+                    nodes.result = createNode('result', 'image', cx + colSpacing, cy, '■ 最终结果 (Result)', null);
+
+                    // 添加节点
+                    Object.values(nodes).forEach(n => canvas.add(n));
+
+                    // 建立连线
+                    connectNodes('prompt', 'process');
+                    connectNodes('model', 'process');
+                    connectNodes('garment', 'process');
+                    connectNodes('process', 'result');
+
+                    // 绑定拖动事件
+                    canvas.on('object:moving', (e) => updateConnections(e.target));
+
+                    fitView();
+                };
+
+                // ---------------------------------------------------------
+                // 4. 逻辑交互 (Sync)
+                // ---------------------------------------------------------
+
+                // 加载图片到节点 (核心修复：替换 Group 内容)
+                const loadImgToNode = (id, url) => {
+                    const node = nodes[id];
+                    if (!node) return;
+
+                    fabric.Image.fromURL(url, (img) => {
+                        // 1. 获取占位符尺寸
+                        // 假设 rect 是第一个元素
+                        const bgRect = node.getObjects()[0];
+                        const titleH = 36;
+                        const w = bgRect.width - 24;
+                        const h = bgRect.height - titleH - 24;
+
+                        // 2. Cover 模式缩放
+                        const scale = Math.max(w / img.width, h / img.height);
+
+                        img.set({
+                            originX: 'center', originY: 'center',
+                            scaleX: scale, scaleY: scale,
+                            top: titleH / 2, // 偏移标题
+                            clipPath: new fabric.Rect({
+                                width: img.width, height: img.height,
+                                originX: 'center', originY: 'center',
+                                rx: 8 / scale, ry: 8 / scale // 反向圆角
+                            })
+                        });
+
+                        // 3. 移除旧图
+                        const oldImgs = node.getObjects().filter(o => o.type === 'image');
+                        oldImgs.forEach(o => node.remove(o));
+
+                        // 4. 添加新图
+                        node.add(img);
+                        node.setDirty(true);
+                        canvas.requestRenderAll();
+                    });
+                };
+
+                const triggerUpload = (type) => {
+                    if (type === 'model') modelInput.value.click();
+                    else garmentInput.value.click();
+                };
+
+                const handleFileChange = (e, type) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const url = URL.createObjectURL(file);
+                    inputs[type] = url;
+                    loadImgToNode(type, url); // 同步到 Canvas
+                };
+
+                // 演示用快捷方式
+                const useDemoImage = (type) => {
+                    const url = type === 'model'
+                        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'
+                        : 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=600&auto=format&fit=crop';
+                    inputs[type] = url;
+                    loadImgToNode(type, url);
+                };
+
+                // 更新配置节点文字
+                const getConfigText = () => {
+                    const action = config[0].options.find(o => o.value === config[0].value).label;
+                    const keepBg = config[1].value ? 'YES' : 'NO';
+                    const lighting = config[2].value ? 'YES' : 'NO';
+                    return `配置参数:\n• 动作: ${action}\n• 保留背景: ${keepBg}\n• 光影增强: ${lighting}\n• 权重: 1.0`;
+                };
+
+                const updateConfigNode = () => {
+                    const node = nodes.process;
+                    if (!node) return;
+                    // 找到文本对象
+                    const textObj = node.getObjects().find(o => o.name === 'contentText');
+                    if (textObj) {
+                        textObj.set('text', getConfigText());
+                        canvas.requestRenderAll();
+                    }
+                };
+
+                const startGeneration = () => {
+                    if (!inputs.model || !inputs.garment) {
+                        alert("请先在左侧上传模特和服装图");
+                        return;
+                    }
+                    isGenerating.value = true;
+
+                    // 连线流动动画
+                    const processNode = nodes.process;
+                    const resultNode = nodes.result;
+
+                    // 模拟过程
+                    setTimeout(() => {
+                        const resUrl = 'https://plus.unsplash.com/premium_photo-1673356301535-2cc32e9244d3?q=80&w=600&auto=format&fit=crop';
+                        loadImgToNode('result', resUrl);
+                        isGenerating.value = false;
+
+                        // 聚焦结果
+                        canvas.animate({
+                            'viewportTransform': [1, 0, 0, 1, -resultNode.left + canvas.width / 2, -resultNode.top + canvas.height / 2]
+                        }, { duration: 800, onChange: canvas.renderAll.bind(canvas), easing: fabric.util.ease.easeOutExpo });
+                    }, 2500);
+                };
+
+                // 画布操作
+                const adjustZoom = (delta) => {
+                    let z = zoomLevel.value + delta;
+                    if (z < 0.2) z = 0.2; if (z > 3) z = 3;
+                    zoomLevel.value = z;
+                    canvas.zoomToPoint({ x: canvas.width / 2, y: canvas.height / 2 }, z);
+                };
+                const fitView = () => {
+                    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                    zoomLevel.value = 1;
+                    canvas.absolutePan({ x: canvas.width / 2 - canvas.width / 2, y: canvas.height / 2 - canvas.height / 2 });
+                };
+
+                onMounted(() => {
+                    const wrapper = canvasWrapper.value;
+                    canvas = new fabric.Canvas('c', {
+                        width: wrapper.clientWidth, height: wrapper.clientHeight,
+                        backgroundColor: '#0a0a0a', selection: false,
+                        fireRightClick: true
+                    });
+
+                    // 拖拽画布
+                    let isDrag = false, lastX, lastY;
+                    canvas.on('mouse:down', (o) => {
+                        if (o.e.altKey || o.e.button === 2) { isDrag = true; lastX = o.e.clientX; lastY = o.e.clientY; }
+                    });
+                    canvas.on('mouse:move', (o) => {
+                        if (isDrag) {
+                            const vpt = canvas.viewportTransform;
+                            vpt[4] += o.e.clientX - lastX;
+                            vpt[5] += o.e.clientY - lastY;
+                            canvas.requestRenderAll();
+                            lastX = o.e.clientX; lastY = o.e.clientY;
+                        }
+                    });
+                    canvas.on('mouse:up', () => isDrag = false);
+                    canvas.on('mouse:wheel', (o) => {
+                        let z = canvas.getZoom(); z *= 0.999 ** o.e.deltaY;
+                        if (z > 3) z = 3; if (z < 0.2) z = 0.2;
+                        canvas.zoomToPoint({ x: o.e.offsetX, y: o.e.offsetY }, z);
+                        zoomLevel.value = z;
+                        o.e.preventDefault(); o.e.stopPropagation();
+                    });
+
+                    window.addEventListener('resize', () => {
+                        canvas.setWidth(wrapper.clientWidth); canvas.setHeight(wrapper.clientHeight);
+                    });
+
+                    initScene();
+                });
+
+                return {
+                    canvasWrapper, modelInput, garmentInput, inputs, config, isGenerating, zoomLevel,
+                    triggerUpload, handleFileChange, useDemoImage, startGeneration,
+                    adjustZoom, fitView, updateConfigNode
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

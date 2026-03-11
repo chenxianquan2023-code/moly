@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moly - Component Based Architecture</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/@phosphor-icons/web" rel="stylesheet">
+
+    <link href="https://cdn.jsdelivr.net/npm/@vue-flow/core@1.33.2/dist/style.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@vue-flow/controls@latest/dist/style.css" rel="stylesheet">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+            "@vue-flow/core": "https://cdn.jsdelivr.net/npm/@vue-flow/core@1.33.2/dist/vue-flow-core.mjs",
+            "@vue-flow/background": "https://cdn.jsdelivr.net/npm/@vue-flow/background@1.3.0/dist/vue-flow-background.mjs",
+            "@vue-flow/controls": "https://cdn.jsdelivr.net/npm/@vue-flow/controls@1.1.1/dist/vue-flow-controls.mjs"
+        }
+    }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bg: { main: '#09090b', panel: '#121212', card: '#1C1C1E', border: '#ffffff1a' },
+                        primary: '#0066FF'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #09090b;
+            color: #e5e5e5;
+            overflow: hidden;
+        }
+
+        /* --- 节点通用样式 --- */
+        .omni-node-card {
+            background: #000000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            width: 240px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.2s;
+        }
+
+        .vue-flow__node.selected .omni-node-card {
+            border-color: #0066FF;
+            box-shadow: 0 0 0 1px #0066FF;
+        }
+
+        .node-header {
+            background: #1C1C1E;
+            padding: 8px 12px;
+            border-bottom: 1px solid #333;
+            font-size: 12px;
+            font-weight: 600;
+            color: #e4e4e7;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .node-body {
+            padding: 10px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 文本域样式 */
+        .custom-textarea {
+            width: 100%;
+            height: 80px;
+            background: transparent;
+            color: #a1a1aa;
+            font-size: 11px;
+            resize: none;
+            outline: none;
+            line-height: 1.5;
+        }
+
+        /* 图片容器样式 */
+        .img-container {
+            width: 100%;
+            height: 200px;
+            background: #09090b;
+            border: 1px solid #27272a;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* 连线句柄样式 */
+        .vue-flow__handle {
+            width: 8px;
+            height: 8px;
+            background: #1C1C1E;
+            border: 2px solid #666;
+            transition: 0.2s;
+        }
+
+        .vue-flow__handle:hover {
+            background: #0066FF;
+            border-color: white;
+            transform: scale(1.2);
+        }
+
+        /* 左侧上传样式 */
+        .upload-card:hover {
+            border-color: #0066FF;
+            background: #262626;
+        }
+
+        /* 连线样式 */
+        .vue-flow__edge-path {
+            stroke: #666;
+            stroke-width: 1.5;
+        }
+
+        .vue-flow__edge.selected .vue-flow__edge-path {
+            stroke: #0066FF;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app" class="h-screen flex flex-col font-sans">
+
+        <header
+            class="h-14 bg-bg-panel border-b border-bg-border flex items-center justify-between px-5 z-50 flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <div
+                    class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                    Moly</div>
+                <div class="h-4 w-[1px] bg-bg-border"></div>
+                <div class="text-xs text-gray-400 flex items-center gap-2">
+                    <span>工作流</span> <i class="ph ph-caret-right text-[10px]"></i> <span class="text-white">AI
+                        电商虚拟试穿</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-gray-400">
+                <div
+                    class="flex items-center gap-2 text-xs bg-bg-card border border-bg-border px-3 py-1.5 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    组件化引擎 V2.5
+                </div>
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-400 border border-white/20">
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+
+            <aside class="w-80 bg-bg-panel border-r border-bg-border flex flex-col p-4 gap-6 z-20 overflow-y-auto">
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between items-center text-sm"><span class="text-gray-300 font-medium">1.
+                            模特图输入</span></div>
+                    <div class="h-48 rounded-xl border border-dashed border-bg-border bg-bg-card upload-card cursor-pointer relative group overflow-hidden flex flex-col items-center justify-center gap-2"
+                        @click="triggerUpload('model')">
+                        <img v-if="inputs.model" :src="inputs.model" class="w-full h-full object-cover">
+                        <div v-else
+                            class="flex flex-col items-center gap-2 text-gray-500 group-hover:text-blue-400 transition-colors">
+                            <i class="ph ph-plus text-2xl"></i><span class="text-xs">点击上传模特</span>
+                        </div>
+                    </div>
+                    <input type="file" ref="modelInput" class="hidden" accept="image/*"
+                        @change="e => handleFile(e, 'model')">
+                    <button
+                        class="w-full py-2 border border-bg-border bg-bg-card rounded text-xs text-gray-400 hover:text-white transition"
+                        @click="useDemo('model')">使用示例图片</button>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <div class="flex justify-between items-center text-sm"><span class="text-gray-300 font-medium">2.
+                            服装图输入</span></div>
+                    <div class="h-48 rounded-xl border border-dashed border-bg-border bg-bg-card upload-card cursor-pointer relative group overflow-hidden flex flex-col items-center justify-center gap-2"
+                        @click="triggerUpload('garment')">
+                        <img v-if="inputs.garment" :src="inputs.garment" class="w-full h-full object-contain p-2">
+                        <div v-else
+                            class="flex flex-col items-center gap-2 text-gray-500 group-hover:text-blue-400 transition-colors">
+                            <i class="ph ph-t-shirt text-2xl"></i><span class="text-xs">点击上传服装</span>
+                        </div>
+                    </div>
+                    <input type="file" ref="garmentInput" class="hidden" accept="image/*"
+                        @change="e => handleFile(e, 'garment')">
+                    <button
+                        class="w-full py-2 border border-bg-border bg-bg-card rounded text-xs text-gray-400 hover:text-white transition"
+                        @click="useDemo('garment')">使用示例图片</button>
+                </div>
+            </aside>
+
+            <main class="flex-1 bg-black relative">
+                <vue-flow v-model="elements" :node-types="nodeTypes" :default-viewport="{ zoom: 0.85 }" :min-zoom="0.2"
+                    :max-zoom="4" fit-view-on-init>
+                    <background pattern-color="#333" :gap="20"></background>
+                    <controls style="background: #1C1C1E; border-color: #333; fill: white;"></controls>
+                </vue-flow>
+            </main>
+
+            <aside class="w-80 bg-bg-panel border-l border-bg-border flex flex-col z-20">
+                <div class="p-5 border-b border-bg-border">
+                    <h2 class="text-sm font-semibold text-white mb-1">生成设置</h2>
+                    <p class="text-xs text-gray-500">配置 AI 如何融合服装</p>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                    <div>
+                        <label class="text-xs text-gray-400 block mb-2">模特动作 (Action)</label>
+                        <div class="relative">
+                            <select v-model="config.action" @change="syncConfig"
+                                class="w-full bg-bg-card border border-bg-border text-sm text-white rounded px-3 py-2.5 outline-none appearance-none cursor-pointer">
+                                <option value="双手抱臂">双手抱臂 (Arms Crossed)</option>
+                                <option value="自然站立">自然站立 (Standing)</option>
+                                <option value="插兜">插兜 (Pocket)</option>
+                            </select>
+                            <i
+                                class="ph ph-caret-down absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"></i>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between group cursor-pointer" @click="toggleConfig('keepBg')">
+                        <div>
+                            <div class="text-sm text-gray-300 group-hover:text-white">保留背景</div>
+                            <div class="text-[10px] text-gray-500">Keep Background</div>
+                        </div>
+                        <div class="w-10 h-5 rounded-full relative transition-colors"
+                            :class="config.keepBg ? 'bg-primary' : 'bg-[#27272a]'">
+                            <div class="w-3 h-3 bg-white rounded-full absolute top-1 transition-all"
+                                :class="config.keepBg ? 'left-6' : 'left-1'"></div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between group cursor-pointer"
+                        @click="toggleConfig('lighting')">
+                        <div>
+                            <div class="text-sm text-gray-300 group-hover:text-white">光影增强</div>
+                            <div class="text-[10px] text-gray-500">Lighting Match</div>
+                        </div>
+                        <div class="w-10 h-5 rounded-full relative transition-colors"
+                            :class="config.lighting ? 'bg-primary' : 'bg-[#27272a]'">
+                            <div class="w-3 h-3 bg-white rounded-full absolute top-1 transition-all"
+                                :class="config.lighting ? 'left-6' : 'left-1'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-5 border-t border-bg-border bg-bg-panel z-30">
+                    <div class="flex justify-between items-center text-xs text-gray-500 mb-3">
+                        <span>预估消耗</span>
+                        <span class="text-yellow-500 flex items-center gap-1"><i class="ph ph-lightning-fill"></i> 3
+                            积分</span>
+                    </div>
+                    <button @click="startGenerate" :disabled="isGenerating || !inputs.model || !inputs.garment"
+                        class="w-full bg-primary hover:bg-blue-600 disabled:bg-[#1e3a8a] disabled:text-blue-300 disabled:cursor-not-allowed text-white font-medium py-3 rounded-lg transition-all shadow-lg flex items-center justify-center gap-2">
+                        <i v-if="!isGenerating" class="ph ph-magic-wand"></i>
+                        <i v-else class="ph ph-spinner animate-spin"></i>
+                        <span>{{ isGenerating ? '生成中...' : '生成虚拟试穿' }}</span>
+                    </button>
+                </div>
+            </aside>
+
+        </div>
+    </div>
+
+    <script type="module">
+        import { createApp, ref, reactive, markRaw } from 'vue';
+        import { VueFlow, useVueFlow, Handle } from '@vue-flow/core';
+        import { Background } from '@vue-flow/background';
+        import { Controls } from '@vue-flow/controls';
+
+        // --- 1. 定义独立组件 ---
+
+        // Prompt Node Component
+        const PromptNode = {
+            props: ['data'],
+            components: { Handle },
+            template: `
+            <div class="omni-node-card">
+                <div class="node-header">
+                    <i class="ph ph-text-aa text-gray-400"></i> {{ data.label }}
+                </div>
+                <div class="node-body">
+                    <textarea class="custom-textarea" readonly>{{ data.text }}</textarea>
+                </div>
+                <Handle type="source" position="right" />
+            </div>
+        `
+        };
+
+        // Image Node Component (Model, Garment, Result)
+        const ImageNode = {
+            props: ['data'],
+            components: { Handle },
+            template: `
+            <div class="omni-node-card">
+                <div class="node-header">
+                    <i class="ph" :class="data.icon"></i> {{ data.label }}
+                </div>
+                <div class="node-body">
+                    <div class="img-container">
+                        <img v-if="data.url" :src="data.url" class="w-full h-full object-cover animate-fade-in">
+                        <div v-else-if="data.loading" class="flex flex-col items-center gap-2 text-blue-500">
+                            <i class="ph ph-spinner animate-spin text-2xl"></i>
+                            <span class="text-xs">Processing...</span>
+                        </div>
+                        <div v-else class="text-xs text-gray-600">等待输入</div>
+                    </div>
+                </div>
+                <Handle v-if="!data.isEnd" type="source" position="right" />
+                <Handle v-if="!data.isStart" type="target" position="left" />
+            </div>
+        `
+        };
+
+        // Process Node Component (Config)
+        const ProcessNode = {
+            props: ['data'],
+            components: { Handle },
+            template: `
+            <div class="omni-node-card" style="border-color: #333;">
+                <div class="node-header">
+                    <i class="ph ph-gear text-gray-400"></i> {{ data.label }}
+                </div>
+                <div class="node-body space-y-2">
+                    <div class="text-[10px] text-gray-500">配置参数 (Read-only):</div>
+                    <div class="text-[11px] text-gray-300 space-y-1.5 font-mono">
+                        <div class="flex justify-between"><span>• 动作:</span> <span class="text-white">{{ data.config.action }}</span></div>
+                        <div class="flex justify-between"><span>• 保留背景:</span> <span :class="data.config.keepBg ? 'text-green-400' : 'text-red-400'">{{ data.config.keepBg ? 'YES' : 'NO' }}</span></div>
+                        <div class="flex justify-between"><span>• 光影增强:</span> <span :class="data.config.lighting ? 'text-green-400' : 'text-red-400'">{{ data.config.lighting ? 'YES' : 'NO' }}</span></div>
+                    </div>
+                </div>
+                <Handle type="target" position="left" />
+                <Handle type="source" position="right" />
+            </div>
+        `
+        };
+
+        // --- 2. 主应用逻辑 ---
+        createApp({
+            components: { VueFlow, Background, Controls },
+            setup() {
+                // Refs & State
+                const modelInput = ref(null);
+                const garmentInput = ref(null);
+                const isGenerating = ref(false);
+                const inputs = reactive({ model: null, garment: null });
+                const config = reactive({ action: '双手抱臂', keepBg: true, lighting: false });
+
+                // 注册组件类型
+                const nodeTypes = {
+                    prompt: markRaw(PromptNode),
+                    image: markRaw(ImageNode),
+                    process: markRaw(ProcessNode)
+                };
+
+                // 初始节点数据
+                const elements = ref([
+                    { id: 'prompt', type: 'prompt', position: { x: 50, y: 50 }, data: { label: '● 提示词 (Prompt)', text: '描述您希望的模特动作...\n例如：双手抱臂，眼神自信，身处街头背景' } },
+                    { id: 'model', type: 'image', position: { x: 50, y: 300 }, data: { label: '● 模特图 (Model)', icon: 'ph-user', url: null, isStart: true } },
+                    { id: 'garment', type: 'image', position: { x: 50, y: 650 }, data: { label: '● 服装图 (Garment)', icon: 'ph-t-shirt', url: null, isStart: true } },
+                    { id: 'process', type: 'process', position: { x: 450, y: 350 }, data: { label: '⚙ 融合配置 (Process)', config: { ...config } } },
+                    { id: 'result', type: 'image', position: { x: 850, y: 350 }, data: { label: '■ 最终结果 (Result)', icon: 'ph-image', url: null, loading: false, isEnd: true } },
+
+                    // Edges
+                    { id: 'e1', source: 'prompt', target: 'process', animated: false },
+                    { id: 'e2', source: 'model', target: 'process', animated: false },
+                    { id: 'e3', source: 'garment', target: 'process', animated: false },
+                    { id: 'e4', source: 'process', target: 'result', animated: false },
+                ]);
+
+                // --- 业务逻辑方法 ---
+                const syncImage = (id, url) => {
+                    const node = elements.value.find(n => n.id === id);
+                    if (node) node.data.url = url;
+                };
+
+                const syncConfig = () => {
+                    const node = elements.value.find(n => n.id === 'process');
+                    if (node) node.data.config = { ...config };
+                };
+                const toggleConfig = (key) => { config[key] = !config[key]; syncConfig(); };
+
+                const triggerUpload = (type) => type === 'model' ? modelInput.value.click() : garmentInput.value.click();
+                const handleFile = (e, type) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const url = URL.createObjectURL(file);
+                        inputs[type] = url;
+                        syncImage(type, url);
+                    }
+                };
+                const useDemo = (type) => {
+                    const url = type === 'model'
+                        ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop'
+                        : 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=600&auto=format&fit=crop';
+                    inputs[type] = url;
+                    syncImage(type, url);
+                };
+
+                const startGenerate = () => {
+                    isGenerating.value = true;
+                    const resNode = elements.value.find(n => n.id === 'result');
+                    resNode.data.loading = true;
+                    resNode.data.url = null;
+                    elements.value.forEach(el => { if (el.source) el.animated = true; });
+
+                    setTimeout(() => {
+                        resNode.data.loading = false;
+                        resNode.data.url = 'https://plus.unsplash.com/premium_photo-1673356301535-2cc32e9244d3?q=80&w=600&auto=format&fit=crop';
+                        isGenerating.value = false;
+                        elements.value.forEach(el => { if (el.source) el.animated = false; });
+                    }, 2000);
+                };
+
+                return {
+                    modelInput, garmentInput, isGenerating,
+                    inputs, config, elements, nodeTypes,
+                    triggerUpload, handleFile, useDemo,
+                    syncConfig, toggleConfig, startGenerate
+                };
+            }
+        }).mount('#app');
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10 AI Loading Effects Collection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/@phosphor-icons/web" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #050505;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* 基础卡片样式 */
+        .card {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 3/4;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #333;
+            background: #111;
+        }
+
+        .bg-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* 模拟生成中的底图状态 */
+            transition: 0.3s;
+        }
+
+        /* =========================================
+           1. Holo Scan (全息扫描 - 经典款)
+           ========================================= */
+        .effect-scan .scan-beam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50%;
+            background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.3));
+            border-bottom: 2px solid #60a5fa;
+            box-shadow: 0 0 15px rgba(96, 165, 250, 0.8);
+            animation: scan-move 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+
+        @keyframes scan-move {
+            0% {
+                top: -50%;
+            }
+
+            100% {
+                top: 100%;
+            }
+        }
+
+        /* =========================================
+           2. Quantum Orbit (量子轨道 - 科技感)
+           ========================================= */
+        .effect-orbit .ring {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            border-radius: 50%;
+            border: 1px solid transparent;
+        }
+
+        .effect-orbit .r1 {
+            width: 60px;
+            height: 60px;
+            border-top-color: #a855f7;
+            animation: spin 1s linear infinite;
+        }
+
+        .effect-orbit .r2 {
+            width: 40px;
+            height: 40px;
+            border-bottom-color: #3b82f6;
+            animation: spin 2s linear infinite reverse;
+        }
+
+        .effect-orbit .r3 {
+            width: 80px;
+            height: 80px;
+            border-left-color: rgba(255, 255, 255, 0.2);
+            animation: spin 3s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* =========================================
+           3. Cyber Glitch (赛博故障 - 硬核)
+           ========================================= */
+        .effect-glitch .overlay {
+            background: rgba(0, 255, 0, 0.05);
+            mix-blend-mode: overlay;
+        }
+
+        .effect-glitch .glitch-text {
+            animation: glitch-anim 0.3s infinite;
+            text-shadow: 2px 0 #ff0000, -2px 0 #0000ff;
+        }
+
+        @keyframes glitch-anim {
+            0% {
+                transform: translate(0);
+            }
+
+            20% {
+                transform: translate(-2px, 2px);
+            }
+
+            40% {
+                transform: translate(-2px, -2px);
+            }
+
+            60% {
+                transform: translate(2px, 2px);
+            }
+
+            80% {
+                transform: translate(2px, -2px);
+            }
+
+            100% {
+                transform: translate(0);
+            }
+        }
+
+        /* =========================================
+           4. Dreamy Aurora (梦幻极光 - 艺术)
+           ========================================= */
+        .effect-aurora {
+            background: linear-gradient(-45deg, #ee775240, #e73c7e40, #23a6d540, #23d5ab40);
+            background-size: 400% 400%;
+            animation: gradient-flow 3s ease infinite;
+            backdrop-filter: blur(5px);
+        }
+
+        @keyframes gradient-flow {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        /* =========================================
+           5. Focus Breathe (呼吸聚焦 - 柔和)
+           ========================================= */
+        .effect-focus .blur-layer {
+            animation: focus-pulse 2s ease-in-out infinite;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes focus-pulse {
+
+            0%,
+            100% {
+                backdrop-filter: blur(8px);
+                opacity: 0.8;
+            }
+
+            50% {
+                backdrop-filter: blur(2px);
+                opacity: 0.4;
+            }
+        }
+
+        /* =========================================
+           6. Glass Shimmer (玻璃流光 - 高级)
+           ========================================= */
+        .effect-shimmer .shimmer-line {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transform: skewX(-20deg);
+            animation: shimmer-slide 2s infinite;
+        }
+
+        @keyframes shimmer-slide {
+            100% {
+                left: 200%;
+            }
+        }
+
+        /* =========================================
+           7. Digital Rain (数据流 - 极客)
+           ========================================= */
+        .effect-rain {
+            background: rgba(0, 0, 0, 0.7);
+            font-family: monospace;
+            font-size: 10px;
+            color: #0f0;
+            overflow: hidden;
+            opacity: 0.8;
+        }
+
+        .rain-col {
+            position: absolute;
+            top: -100%;
+            animation: rain-fall linear infinite;
+            text-orientation: upright;
+            writing-mode: vertical-rl;
+        }
+
+        @keyframes rain-fall {
+            to {
+                top: 100%;
+            }
+        }
+
+        /* =========================================
+           8. Radar Sweep (雷达扫描 - 探测)
+           ========================================= */
+        .effect-radar .radar-scan {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: conic-gradient(from 0deg, transparent 0deg, rgba(59, 130, 246, 0.5) 360deg);
+            border-radius: 50%;
+            animation: radar-spin 2s linear infinite;
+            mask-image: radial-gradient(transparent 40%, black 100%);
+            -webkit-mask-image: radial-gradient(transparent 40%, black 100%);
+        }
+
+        @keyframes radar-spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* =========================================
+           9. Sound Wave (声波律动 - 语音)
+           ========================================= */
+        .effect-wave .bar {
+            width: 4px;
+            background: #fff;
+            border-radius: 2px;
+            animation: wave-bounce 1s ease-in-out infinite;
+        }
+
+        @keyframes wave-bounce {
+
+            0%,
+            100% {
+                height: 10px;
+                opacity: 0.5;
+            }
+
+            50% {
+                height: 30px;
+                opacity: 1;
+            }
+        }
+
+        /* =========================================
+           10. Pixel Load (像素构建 - 复古)
+           ========================================= */
+        .effect-pixel {
+            background-image: radial-gradient(#fff 2px, transparent 0);
+            background-size: 10px 10px;
+            animation: pixel-fade 1s steps(2) infinite;
+            backdrop-filter: blur(2px) contrast(200%);
+        }
+
+        @keyframes pixel-fade {
+            0% {
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+    </style>
+</head>
+
+<body class="p-10 min-h-screen">
+
+    <div class="max-w-6xl mx-auto">
+        <div class="text-center mb-10">
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">10
+                AI Loading Animations</h1>
+            <p class="text-gray-500 mt-2">Pure CSS • No JS Libraries • Copy & Paste</p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-60">
+                <div class="absolute inset-0 bg-black/40 effect-scan overflow-hidden">
+                    <div class="scan-beam"></div>
+                    <div class="absolute bottom-4 w-full text-center">
+                        <div class="text-xs text-blue-300 font-mono animate-pulse">SCANNING...</div>
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">1. Holo Scan
+                </div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-40">
+                <div class="absolute inset-0 bg-black/60 effect-orbit flex items-center justify-center">
+                    <div class="ring r1"></div>
+                    <div class="ring r2"></div>
+                    <div class="ring r3"></div>
+                    <div class="absolute text-[10px] tracking-widest text-white/80">AI CORE</div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">2. Orbit
+                </div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-50 grayscale contrast-125">
+                <div class="absolute inset-0 effect-glitch overlay flex items-center justify-center">
+                    <div class="glitch-text text-green-400 font-mono font-bold tracking-widest text-lg">INITIALIZING
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">3. Glitch
+                </div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-80">
+                <div class="absolute inset-0 effect-aurora flex items-center justify-center">
+                    <div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+                        <span
+                            class="text-xs font-semibold text-white tracking-wide shadow-black drop-shadow-md">CREATING
+                            MAGIC</span>
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">4. Aurora
+                </div>
+            </div>
+
+            <div class="card group relative bg-black">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400" class="bg-img">
+                <div class="absolute inset-0 effect-focus flex items-center justify-center">
+                    <div class="absolute inset-0 blur-layer bg-black/40"></div>
+                    <i class="ph ph-aperture text-3xl text-white/80 animate-spin-slow relative z-10"></i>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">5. Focus
+                </div>
+            </div>
+
+            <div class="card group relative overflow-hidden">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-60">
+                <div class="absolute inset-0 effect-shimmer bg-white/5">
+                    <div class="shimmer-line"></div>
+                    <div class="absolute bottom-4 left-4">
+                        <div class="h-1 w-16 bg-gray-600 rounded overflow-hidden">
+                            <div class="h-full bg-white animate-[width_2s_ease-in-out_infinite]" style="width: 50%">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">6. Shimmer
+                </div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-30">
+                <div class="absolute inset-0 effect-rain flex justify-around">
+                    <div class="rain-col" style="animation-duration: 2s; animation-delay: 0s;">10101</div>
+                    <div class="rain-col" style="animation-duration: 1.5s; animation-delay: 0.5s;">0110</div>
+                    <div class="rain-col" style="animation-duration: 2.5s; animation-delay: 0.2s;">11001</div>
+                    <div class="rain-col" style="animation-duration: 1.8s; animation-delay: 0.8s;">001</div>
+                </div>
+                <div class="absolute bottom-4 w-full text-center text-green-500 font-mono text-xs z-10">UPLOADING...
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">7. Data</div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-40">
+                <div class="absolute inset-0 effect-radar flex items-center justify-center bg-black/50">
+                    <div
+                        class="relative w-[150px] h-[150px] border border-blue-500/30 rounded-full flex items-center justify-center">
+                        <div class="radar-scan"></div>
+                        <div class="w-1 h-1 bg-blue-400 rounded-full absolute"></div>
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">8. Radar
+                </div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-50">
+                <div class="absolute inset-0 effect-wave flex items-center justify-center gap-1 bg-black/40">
+                    <div class="bar" style="animation-delay: 0s"></div>
+                    <div class="bar" style="animation-delay: 0.1s"></div>
+                    <div class="bar" style="animation-delay: 0.2s"></div>
+                    <div class="bar" style="animation-delay: 0.3s"></div>
+                    <div class="bar" style="animation-delay: 0.1s"></div>
+                </div>
+                <div class="absolute bottom-4 w-full text-center text-xs text-gray-300">VOICE GEN</div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">9. Wave</div>
+            </div>
+
+            <div class="card group relative">
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=400"
+                    class="bg-img opacity-50">
+                <div class="absolute inset-0 effect-pixel flex items-center justify-center">
+                    <div class="bg-black px-3 py-1 rounded border border-white/20">
+                        <span class="font-mono text-xs text-white">RENDERING...</span>
+                    </div>
+                </div>
+                <div class="absolute top-2 left-2 text-[10px] bg-black/50 px-2 py-1 rounded text-gray-400">10. Pixel
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+
+</html>
