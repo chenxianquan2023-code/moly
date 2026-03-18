@@ -1,7 +1,7 @@
 /**
  * Moly 认证 API 服务（验证码、注册、登录、手机扫码上传）
  * 运行: node server/index.js  (默认端口 3001)
- * 开发时 Vite 会代理 /api -> http://localhost:3001
+ * 开发时 Vite 会代理 /api -> http://localhost:3001（见 vite.config.ts）
  */
 
 import 'dotenv/config';
@@ -353,7 +353,77 @@ app.post('/api/auth/reset-password', (req, res) => {
 });
 
 // ============================================================
-// Amazon 商品页面抓取（真实数据）
+// Amazon 商品页面抓取 — Jina Reader（Markdown 模式）
+// ============================================================
+
+const AMAZON_MARKET_DOMAINS = {
+  us: 'https://www.amazon.com',
+  uk: 'https://www.amazon.co.uk',
+  de: 'https://www.amazon.de',
+  jp: 'https://www.amazon.co.jp',
+  ca: 'https://www.amazon.ca',
+};
+
+// POST /api/amazon/fetch-markdown   body: { asin, market? }
+app.post('/api/amazon/fetch-markdown', async (req, res) => {
+  const { asin, market } = req.body || {};
+  if (!asin || !/^[A-Z0-9]{10}$/i.test(String(asin).trim())) {
+    return res.status(400).json({ success: false, message: '无效的 ASIN' });
+  }
+
+  const cleanAsin = String(asin).trim().toUpperCase();
+  const domain = AMAZON_MARKET_DOMAINS[market] || AMAZON_MARKET_DOMAINS.us;
+  const amazonUrl = `${domain}/dp/${cleanAsin}`;
+  const jinaUrl = `https://r.jina.ai/${amazonUrl}`;
+
+  console.log(`[Jina] Fetching markdown for: ${amazonUrl}`);
+
+  try {
+    const response = await fetch(jinaUrl, {
+      headers: {
+        'Accept': 'text/markdown',
+        'X-Return-Format': 'markdown',
+        'X-Timeout': '30',
+      },
+      signal: AbortSignal.timeout(35000),
+    });
+
+    if (!response.ok) {
+      console.error(`[Jina] HTTP ${response.status} for ${cleanAsin}`);
+      return res.json({
+        success: false,
+        message: `Jina Reader 返回 HTTP ${response.status}`,
+      });
+    }
+
+    const markdown = await response.text();
+
+    if (!markdown || markdown.length < 100) {
+      return res.json({
+        success: false,
+        message: '获取到的页面内容过少，该 ASIN 可能不存在',
+      });
+    }
+
+    console.log(`[Jina] Got ${markdown.length} chars of markdown for ${cleanAsin}`);
+
+    return res.json({
+      success: true,
+      asin: cleanAsin,
+      url: amazonUrl,
+      markdown,
+    });
+  } catch (err) {
+    console.error(`[Jina] Fetch error for ${cleanAsin}:`, err.message);
+    return res.json({
+      success: false,
+      message: `Jina Reader 抓取失败: ${err.message}`,
+    });
+  }
+});
+
+// ============================================================
+// Amazon 商品页面抓取（真实数据 — 旧版 HTML 解析，保留兼容）
 // ============================================================
 
 const AMAZON_DOMAINS = {

@@ -158,6 +158,12 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'aplus-generation',
+                    name: 'tools-aplus-generation',
+                    component: () => import('../views/tools/aplus/APlusGenerationView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: ':toolId',
                     name: 'tools-tool',
                     component: () => import('../views/tools/ToolComingSoonView.vue'),

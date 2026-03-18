@@ -31,13 +31,27 @@
           前往生成 <ArrowRightOutlined />
         </div>
       </div>
+
+      <div class="addon-card" @click="goToAPlus">
+        <div class="card-badge">增值</div>
+        <div class="card-icon aplus-icon">
+          <FileTextOutlined />
+        </div>
+        <div class="card-body">
+          <h4 class="card-title">AI A+ 页面</h4>
+          <p class="card-desc">基于 Listing 与竞品策略，生成模块化 A+ 文案与配图，符合 Amazon A+ 规范</p>
+        </div>
+        <div class="card-action">
+          前往生成 <ArrowRightOutlined />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { PictureOutlined, VideoCameraOutlined, ArrowRightOutlined } from '@ant-design/icons-vue'
+import { PictureOutlined, VideoCameraOutlined, FileTextOutlined, ArrowRightOutlined } from '@ant-design/icons-vue'
 
 const router = useRouter()
 
@@ -47,6 +61,10 @@ function goToPromoImage() {
 
 function goToPromoVideo() {
   router.push('/workflow/marketing')
+}
+
+function goToAPlus() {
+  router.push('/tools/aplus-generation')
 }
 </script>
 
@@ -73,8 +91,12 @@ function goToPromoVideo() {
 
 .addon-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -129,6 +151,11 @@ function goToPromoVideo() {
   &.promo-video-icon {
     background: linear-gradient(135deg, #fef3c7, #fde68a);
     color: #d97706;
+  }
+
+  &.aplus-icon {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    color: #059669;
   }
 }
 

@@ -18,7 +18,7 @@
 
     <main class="create-main">
       <StepIndicator
-        :steps="['商品信息', '竞品分析', 'AI 生成', '结果预览']"
+        :steps="['商品信息', '市场洞察', 'AI 生成', '结果预览']"
         :current="store.currentStep"
       />
 
@@ -36,22 +36,51 @@
             </button>
             <button
               class="btn-next"
-              :disabled="!store.hasProductInfo"
-              @click="store.nextStep()"
+              @click="handleStep0Next"
             >
-              下一步：竞品分析 <ArrowRightOutlined />
+              下一步：市场洞察 <ArrowRightOutlined />
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Step 1: 竞品分析 -->
+      <!-- 缺项预览 Modal -->
+      <div v-if="showMissingFieldsModal" class="modal-mask" @click.self="showMissingFieldsModal = false">
+        <div class="missing-fields-modal">
+          <h4 class="modal-title">请完善以下必填项</h4>
+          <p class="modal-desc">以下信息将直接影响 Listing 质量，建议填写后再继续。</p>
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>缺项</th>
+                <th>若未填写，AI 可能…</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="key in missingFieldsList" :key="key">
+                <td>{{ REQUIRED_FIELD_LABELS[key] || key }}</td>
+                <td>{{ MISSING_FIELD_PREVIEWS[key] || '可能影响生成质量' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="modal-actions">
+            <button class="btn-fill" @click="showMissingFieldsModal = false">
+              返回填写
+            </button>
+            <button class="btn-force" @click="forceContinue">
+              强制继续（不推荐）
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1: 市场洞察 -->
       <div v-show="store.currentStep === 1" class="step-content">
         <CompetitorAnalysis
           @analyze="runCompetitorAnalysis"
-          @skip="store.nextStep()"
+          @skip="runMarketInsightNoCompetitors"
         />
-        <div v-if="store.hasCompetitorAnalysis" class="step-footer">
+        <div v-if="store.hasPipelineAnalysis" class="step-footer">
           <div></div>
           <div class="footer-actions">
             <button class="btn-back" @click="store.prevStep()">
@@ -121,7 +150,12 @@
             <div v-if="!store.isGenerating && !store.hasGeneratedListing" class="gen-start">
               <div class="gen-start-info">
                 <h3>准备生成 Listing</h3>
-                <p>AI 将基于你提供的商品信息{{ store.hasCompetitorAnalysis ? '和竞品分析结果' : '' }}，自动生成完整的 Amazon Listing 和合规主图。</p>
+                <p v-if="store.hasPipelineAnalysis">
+                  AI 将基于你提供的商品信息和市场洞察结果，自动生成完整的 Amazon Listing 和合规主图。
+                </p>
+                <p v-else class="gen-hint">
+                  请先完成上一步「市场洞察」，以便 AI 生成高质量 Listing。
+                </p>
                 <div class="cost-summary">
                   <div class="cost-row">
                     <span>标题 + 五点描述</span>
@@ -145,7 +179,11 @@
                   </div>
                 </div>
               </div>
-              <button class="btn-generate" @click="startGeneration">
+              <button
+                class="btn-generate"
+                :disabled="!store.hasPipelineAnalysis"
+                @click="startGeneration"
+              >
                 <ExperimentOutlined /> 开始生成
               </button>
             </div>
@@ -226,7 +264,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   RightOutlined, ThunderboltFilled, ArrowLeftOutlined, ArrowRightOutlined,
   ExperimentOutlined, LoadingOutlined, RobotOutlined,
@@ -235,6 +273,8 @@ import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useListingStore } from '@/stores/listing'
 import { listingService } from '@/services/listing.service'
+import { runAnalysisPipeline } from '@/services/pipeline'
+import { LISTING_POINTS_COST, MISSING_FIELD_PREVIEWS, REQUIRED_FIELD_LABELS } from '@/config/listing.config'
 import StepIndicator from './components/StepIndicator.vue'
 import ProductInfoForm from './components/ProductInfoForm.vue'
 import CompetitorAnalysis from './components/CompetitorAnalysis.vue'
@@ -244,6 +284,23 @@ import AddonServices from './components/AddonServices.vue'
 
 const auth = useAuthStore()
 const store = useListingStore()
+const showMissingFieldsModal = ref(false)
+
+const missingFieldsList = computed(() => store.getMissingRequiredFields())
+
+function handleStep0Next() {
+  const missing = store.getMissingRequiredFields()
+  if (missing.length === 0) {
+    store.nextStep()
+  } else {
+    showMissingFieldsModal.value = true
+  }
+}
+
+function forceContinue() {
+  showMissingFieldsModal.value = false
+  store.nextStep()
+}
 
 type GenPhase = 'idle' | 'analyze' | 'title' | 'bullets' | 'description' | 'mainImage' | 'compliance' | 'done'
 const genPhase = ref<GenPhase>('idle')
@@ -273,8 +330,9 @@ async function runCompetitorAnalysis() {
     return extracted || a.trim().substring(0, 10).toUpperCase()
   })
 
-  if (auth.points < 20) {
-    message.warning('积分不足，竞品分析需要 20 积分')
+  const cost = LISTING_POINTS_COST.marketInsightWithCompetitors
+  if (auth.points < cost) {
+    message.warning(`积分不足，市场洞察需要 ${cost} 积分`)
     return
   }
 
@@ -283,21 +341,72 @@ async function runCompetitorAnalysis() {
   store.progressMessage = '开始分析...'
 
   try {
-    const result = await listingService.analyzeCompetitors(
-      extractedAsins,
-      store.productInfo.name,
-      (p, msg) => store.updateProgress(p, msg)
+    const result = await runAnalysisPipeline(
+      {
+        mode: 'create',
+        userProduct: store.productInfo,
+        competitorAsins: extractedAsins,
+        market: store.productInfo.market,
+        language: store.productInfo.language,
+      },
+      (info) => {
+        const p = info.step && info.totalSteps ? Math.round((info.step / info.totalSteps) * 100) : info.progress ?? 0
+        store.updateProgress(p, info.message ?? '')
+      }
     )
-    store.competitorAnalysis = result
-    auth.deductPoints(20, '竞品分析')
-    message.success('竞品分析完成')
+    store.analysisReport = result.analysisReport
+    store.strategyPrompts = result.strategyPrompts
+    store.pipelineExtractedData = result.extractedData
+    auth.deductPoints(cost, '市场洞察（有竞品）')
+    message.success('市场洞察完成')
   } catch (err) {
-    message.error('竞品分析失败，请重试')
-    console.error('[ListingCreate] competitor analysis error:', err)
+    message.error('市场洞察失败，请重试')
+    console.error('[ListingCreate] market insight error:', err)
   } finally {
     store.isAnalyzing = false
   }
 }
+
+async function runMarketInsightNoCompetitors() {
+  const cost = LISTING_POINTS_COST.marketInsightWithoutCompetitors
+  if (auth.points < cost) {
+    message.warning(`积分不足，类目分析需要 ${cost} 积分`)
+    return
+  }
+
+  store.isAnalyzing = true
+  store.progress = 0
+  store.progressMessage = '正在分析类目最佳实践...'
+
+  try {
+    const result = await runAnalysisPipeline(
+      {
+        mode: 'create',
+        userProduct: store.productInfo,
+        competitorAsins: [],
+        market: store.productInfo.market,
+        language: store.productInfo.language,
+      },
+      (info) => {
+        const p = info.step && info.totalSteps ? Math.round((info.step / info.totalSteps) * 100) : info.progress ?? 0
+        store.updateProgress(p, info.message ?? '')
+      }
+    )
+    store.analysisReport = result.analysisReport
+    store.strategyPrompts = result.strategyPrompts
+    store.pipelineExtractedData = result.extractedData
+    auth.deductPoints(cost, '市场洞察（无竞品）')
+    message.success('类目最佳实践分析完成')
+    store.nextStep()
+  } catch (err) {
+    message.error('市场洞察失败，请重试')
+    console.error('[ListingCreate] market insight no-competitor error:', err)
+  } finally {
+    store.isAnalyzing = false
+  }
+}
+
+// 市场分析仅在用户点击按钮后执行：有竞品点「开始分析竞品」，无竞品点「无竞品，直接下一步」
 
 async function startGeneration() {
   const totalCost = 75
@@ -305,16 +414,19 @@ async function startGeneration() {
     message.warning(`积分不足，生成需要 ${totalCost} 积分（当前 ${auth.points}）`)
     return
   }
+  if (!store.strategyPrompts) {
+    message.warning('请先完成市场洞察')
+    return
+  }
 
   store.isGenerating = true
   store.progress = 0
 
   try {
-    // Phase 1: Analyze images
+    // Phase 1: Optional image analysis (kept for reference, not fed to strategy-based gen)
     genPhase.value = 'analyze'
-    store.updateProgress(5, '正在分析商品图片...')
+    store.updateProgress(5, '正在准备...')
 
-    let imageAnalysisStr = ''
     if (store.productInfo.images.length > 0) {
       const imageResult = await listingService.analyzeProductImages(
         store.productInfo.images,
@@ -323,16 +435,11 @@ async function startGeneration() {
         (p, msg) => store.updateProgress(Math.min(15, 5 + p * 0.1), msg)
       )
       store.imageAnalysis = imageResult
-      imageAnalysisStr = JSON.stringify(imageResult)
     }
 
-    // Phase 2-4: Generate text (title, bullets, description, keywords)
+    // Phase 2-4: Generate text from strategy
     genPhase.value = 'title'
     store.updateProgress(18, '正在生成标题...')
-
-    const competitorStr = store.competitorAnalysis
-      ? JSON.stringify(store.competitorAnalysis)
-      : undefined
 
     genPhase.value = 'bullets'
     store.updateProgress(30, '正在撰写五点描述...')
@@ -340,10 +447,14 @@ async function startGeneration() {
     genPhase.value = 'description'
     store.updateProgress(42, '正在撰写产品描述...')
 
-    const listing = await listingService.generateListingText(
-      store.productInfo,
-      imageAnalysisStr || undefined,
-      competitorStr,
+    const listing = await listingService.generateListingTextFromStrategy(
+      {
+        mode: 'create',
+        userProduct: store.productInfo,
+        strategyPrompts: store.strategyPrompts,
+        language: store.productInfo.language,
+        market: store.productInfo.market,
+      },
       (p, msg) => {
         const mapped = 18 + p * 0.37
         store.updateProgress(Math.min(55, mapped), msg)
@@ -351,14 +462,15 @@ async function startGeneration() {
     )
     store.generatedListing = listing
 
-    // Phase 5: Generate Amazon-compliant main image
+    // Phase 5: Generate Amazon-compliant main image from strategy
     genPhase.value = 'mainImage'
     store.updateProgress(58, '正在生成 Amazon 合规主图...')
 
-    const imgResult = await listingService.generateMainImage(
+    const imgResult = await listingService.generateMainImageFromStrategy(
       store.productInfo.images,
       store.productInfo.name,
       store.productInfo.features,
+      store.strategyPrompts,
       (p, msg) => store.updateProgress(Math.min(80, 58 + p * 0.22), msg)
     )
 
@@ -400,15 +512,20 @@ async function regenerateMainImage() {
     message.warning('请先上传商品实拍图')
     return
   }
+  if (!store.strategyPrompts) {
+    message.warning('无法重新生成：缺少策略数据')
+    return
+  }
 
   store.isGenerating = true
   store.updateProgress(0, '正在重新生成主图...')
 
   try {
-    const imgResult = await listingService.generateMainImage(
+    const imgResult = await listingService.generateMainImageFromStrategy(
       store.productInfo.images,
       store.productInfo.name,
       store.productInfo.features,
+      store.strategyPrompts,
       (p, msg) => store.updateProgress(Math.min(60, p * 0.6), msg)
     )
 
@@ -562,6 +679,7 @@ async function handleRegenerate(field: string) {
   padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center;
   h3 { font-size: 20px; font-weight: 700; color: #111827; margin: 0; }
   p { font-size: 14px; color: #6b7280; margin: 0; max-width: 460px; }
+  .gen-hint { color: #d97706; }
 }
 
 .cost-summary {
@@ -578,6 +696,38 @@ async function handleRegenerate(field: string) {
   display: flex; align-items: center; gap: 10px;
   padding: 16px; background: #eff6ff; border-radius: 10px;
   font-size: 14px; color: #2563eb; margin-bottom: 20px;
+}
+
+/* 缺项预览 Modal */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+
+.missing-fields-modal {
+  background: #fff; border-radius: 12px; max-width: 560px; width: 100%;
+  padding: 24px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  .modal-title { font-size: 18px; font-weight: 700; color: #111827; margin: 0 0 8px; }
+  .modal-desc { font-size: 14px; color: #6b7280; margin: 0 0 16px; }
+  .preview-table {
+    width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { font-weight: 600; color: #374151; }
+    td:first-child { font-weight: 500; color: #111827; min-width: 100px; }
+    td:last-child { color: #6b7280; }
+  }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+  .btn-fill {
+    padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 8px;
+    font-weight: 600; cursor: pointer;
+    &:hover { background: #1d4ed8; }
+  }
+  .btn-force {
+    padding: 10px 20px; background: #fff; color: #6b7280; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: 13px; cursor: pointer;
+    &:hover { background: #f9fafb; color: #374151; }
+  }
 }
 
 .spin { animation: spin 1s linear infinite; }

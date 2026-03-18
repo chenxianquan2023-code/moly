@@ -3,11 +3,15 @@
  *
  * 封装 ASIN 分析、竞品分析、Listing 文案生成、图片生成、优化等能力，
  * 底层复用 geminiService 和 imageGenerationService。
+ * 整合 Pipeline 后：分析由 runAnalysisPipeline 完成，此处提供基于策略的文案/生图。
  */
 
 import { geminiService } from './gemini.service'
 import { imageGenerationService, type GenerationResult } from './atomic/imageGeneration.service'
 import { LISTING_PROMPTS } from '@/config/listing.config'
+import { listingGenAgent } from './pipeline/agents/listingGenAgent'
+import { compareAgent } from './pipeline/agents/compareAgent'
+import type { StrategyPrompts, ExtractedProductData, AnalysisReport } from './pipeline/types'
 
 export interface AsinAnalysisResult {
   productName: string
@@ -52,6 +56,13 @@ export interface ProductInfo {
   market: string
   language: string
   images: string[]
+  brand: string
+  specs: string
+  priceRange: string
+  targetAudience: string
+  useCases: string
+  differentiators: string
+  categoryExtras?: Record<string, string>
 }
 
 export interface FetchedListing {
@@ -120,64 +131,6 @@ class ListingService {
   }
 
   /**
-   * 分析现有 Listing（通过 ASIN -- 先真实抓取再分析）
-   */
-  async analyzeByAsin(
-    asin: string,
-    onProgress?: ProgressCallback,
-    market: string = 'us'
-  ): Promise<AsinAnalysisResult> {
-    onProgress?.(5, '正在访问 Amazon 商品页面...')
-
-    const listing = await this.fetchListing(asin, market)
-
-    if (!listing || !listing.title) {
-      onProgress?.(10, '抓取失败，切换到 AI 推断模式...')
-      throw new Error(
-        '无法获取商品真实数据。可能的原因：\n' +
-        '1. ASIN 不存在或已下架\n' +
-        '2. Amazon 触发了反爬机制（请稍后重试）\n' +
-        '3. 后端服务未启动（请确认 server/index.js 正在运行）'
-      )
-    }
-
-    this._lastFetchedListing = listing
-    onProgress?.(30, `已获取商品: ${listing.title.substring(0, 50)}...`)
-
-    const prompt = LISTING_PROMPTS.analyzeRealListing({
-      asin,
-      title: listing.title,
-      bulletPoints: listing.bulletPoints,
-      description: listing.description,
-      price: listing.price,
-      rating: listing.rating,
-      reviewCount: listing.reviewCount,
-      brand: listing.brand,
-      imageCount: listing.imageUrls.length,
-    })
-
-    onProgress?.(50, '正在用 AI 深度分析真实 Listing 数据...')
-    const raw = await geminiService.generateText(prompt)
-
-    onProgress?.(85, '正在整理分析报告...')
-    const result = this.parseJson<AsinAnalysisResult>(raw, {
-      productName: listing.title,
-      category: '',
-      overallScore: 50,
-      strengths: [],
-      weaknesses: [],
-      suggestions: [],
-      keywordsFound: [],
-      keywordsMissing: [],
-    })
-
-    if (!result.productName) result.productName = listing.title
-
-    onProgress?.(100, '分析完成')
-    return result
-  }
-
-  /**
    * 获取上次抓取的 Listing 原始数据
    */
   getLastFetchedListing(): FetchedListing | null {
@@ -185,63 +138,6 @@ class ListingService {
   }
 
   private _lastFetchedListing: FetchedListing | null = null
-
-  /**
-   * 竞品分析（真实抓取 + AI 分析）
-   */
-  async analyzeCompetitors(
-    asins: string[],
-    productName: string,
-    onProgress?: ProgressCallback
-  ): Promise<CompetitorAnalysisResult> {
-    onProgress?.(5, '正在抓取竞品商品数据...')
-
-    const fetchedCompetitors: Array<{
-      asin: string; title: string; bulletPoints: string[]
-      price: string; rating: string; reviewCount: string
-    }> = []
-
-    for (let i = 0; i < asins.length; i++) {
-      onProgress?.(
-        5 + Math.round((i / asins.length) * 30),
-        `正在抓取竞品 ${i + 1}/${asins.length}: ${asins[i]}...`
-      )
-      const listing = await this.fetchListing(asins[i])
-      if (listing && listing.title) {
-        fetchedCompetitors.push({
-          asin: asins[i],
-          title: listing.title,
-          bulletPoints: listing.bulletPoints,
-          price: listing.price,
-          rating: listing.rating,
-          reviewCount: listing.reviewCount,
-        })
-      }
-    }
-
-    if (!fetchedCompetitors.length) {
-      throw new Error('所有竞品 ASIN 均未能抓取到数据，请检查 ASIN 是否正确或稍后重试')
-    }
-
-    onProgress?.(40, `已抓取 ${fetchedCompetitors.length} 个竞品，正在分析...`)
-
-    const prompt = LISTING_PROMPTS.analyzeCompetitorListings(fetchedCompetitors, productName)
-
-    onProgress?.(60, '正在用 AI 分析竞品真实数据...')
-    const raw = await geminiService.generateText(prompt)
-
-    onProgress?.(90, '正在生成洞察报告...')
-    const result = this.parseJson<CompetitorAnalysisResult>(raw, {
-      competitorHighlights: [],
-      competitorWeaknesses: [],
-      topKeywords: [],
-      pricingInsight: '',
-      differentiationOpportunities: [],
-    })
-
-    onProgress?.(100, '竞品分析完成')
-    return result
-  }
 
   /**
    * 分析商品图片
@@ -338,44 +234,6 @@ class ListingService {
   }
 
   /**
-   * 优化现有 Listing
-   */
-  async optimizeListing(
-    analysisResult: AsinAnalysisResult,
-    language: string = 'en',
-    onProgress?: ProgressCallback
-  ): Promise<GeneratedListing> {
-    onProgress?.(10, '正在制定优化方案...')
-
-    const analysisText = JSON.stringify({
-      score: analysisResult.overallScore,
-      strengths: analysisResult.strengths,
-      weaknesses: analysisResult.weaknesses,
-      suggestions: analysisResult.suggestions,
-      missingKeywords: analysisResult.keywordsMissing,
-    })
-
-    const prompt = LISTING_PROMPTS.optimizeListing({
-      analysisResult: analysisText,
-      language,
-    })
-
-    onProgress?.(30, '正在重写标题...')
-    const raw = await geminiService.generateText(prompt)
-
-    onProgress?.(70, '正在优化五点描述...')
-    const result = this.parseJson<GeneratedListing>(raw, {
-      title: '',
-      bulletPoints: [],
-      description: '',
-      searchTerms: [],
-    })
-
-    onProgress?.(100, '优化完成')
-    return result
-  }
-
-  /**
    * 生成 Amazon 合规主图（纯白背景，基于实拍图）
    */
   async generateMainImage(
@@ -392,10 +250,136 @@ class ListingService {
       'custom',
       prompt,
       referenceImages,
-      { aspectRatio: '1:1', imageSize: '2K' }
+      { aspectRatio: '1:1', imageSize: '2K', temperature: 0.5 }
     )
 
     onProgress?.(100, result.success ? '主图生成成功' : '主图生成失败')
+    return result
+  }
+
+  /**
+   * 基于 Pipeline 策略生成 Listing 文案（整合后主入口）
+   */
+  async generateListingTextFromStrategy(
+    params: {
+      mode: 'create' | 'optimize'
+      userProduct?: ProductInfo
+      userListing?: ExtractedProductData
+      strategyPrompts: StrategyPrompts
+      language: string
+      market: string
+    },
+    onProgress?: ProgressCallback
+  ): Promise<GeneratedListing> {
+    onProgress?.(10, '正在构建生成策略...')
+
+    const pipelineProgress = (info: { progress?: number; message?: string }) => {
+      const p = info.progress ?? 50
+      const msg = info.message ?? '正在生成...'
+      onProgress?.(p, msg)
+    }
+
+    const userProductForPipeline =
+      params.userProduct && params.mode === 'create'
+        ? {
+            name: params.userProduct.name,
+            category: params.userProduct.category,
+            features: params.userProduct.features,
+            market: params.userProduct.market,
+            language: params.userProduct.language,
+            images: params.userProduct.images,
+            brand: params.userProduct.brand ?? '',
+            specs: params.userProduct.specs ?? '',
+            priceRange: params.userProduct.priceRange ?? '',
+            targetAudience: params.userProduct.targetAudience ?? '',
+            useCases: params.userProduct.useCases ?? '',
+            differentiators: params.userProduct.differentiators ?? '',
+            categoryExtras: params.userProduct.categoryExtras,
+          }
+        : undefined
+
+    const result = await listingGenAgent(
+      {
+        userProduct: userProductForPipeline,
+        userListing: params.userListing,
+        strategyPrompts: params.strategyPrompts,
+        mode: params.mode,
+        language: params.language,
+        market: params.market,
+      },
+      pipelineProgress
+    )
+
+    onProgress?.(100, '文案生成完成')
+    return {
+      ...result,
+      targetAudience: result.targetAudience,
+    }
+  }
+
+  /**
+   * 基于 Pipeline 策略生成主图（完整策略作为 prompt 的一部分）
+   */
+  async generateMainImageFromStrategy(
+    referenceImages: string[],
+    productName: string,
+    features: string,
+    strategyPrompts: StrategyPrompts,
+    onProgress?: ProgressCallback
+  ): Promise<GenerationResult> {
+    onProgress?.(10, '正在准备主图生成...')
+
+    const strategyText = [
+      strategyPrompts.imageGuidancePrompt,
+      strategyPrompts.titlePrompt,
+      strategyPrompts.bulletPointsPrompt,
+      strategyPrompts.descriptionPrompt,
+      strategyPrompts.aPlusGuidancePrompt,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    const prompt =
+      'generateMainImageFromStrategy' in LISTING_PROMPTS
+        ? (LISTING_PROMPTS as typeof LISTING_PROMPTS & { generateMainImageFromStrategy: (a: string, b: string, c: string) => string }).generateMainImageFromStrategy(productName, features, strategyText)
+        : LISTING_PROMPTS.generateMainImage(productName, features)
+
+    onProgress?.(30, '正在基于策略生成 Amazon 合规主图...')
+    const result = await imageGenerationService.generate(
+      'custom',
+      prompt,
+      referenceImages,
+      { aspectRatio: '1:1', imageSize: '2K', temperature: 0.5 }
+    )
+
+    onProgress?.(100, result.success ? '主图生成成功' : '主图生成失败')
+    return result
+  }
+
+  /**
+   * 对比原 Listing 与优化后 Listing（优化模式使用）
+   */
+  async compareListing(
+    originalListing: ExtractedProductData,
+    optimizedListing: { title: string; bulletPoints: string[]; description: string; searchTerms: string[] },
+    analysisReport: AnalysisReport,
+    onProgress?: ProgressCallback
+  ): Promise<{ items: { dimension: string; original: string; optimized: string; changeReason: string }[]; overallSummary: string; expectedImprovements: string[] }> {
+    onProgress?.(20, '正在生成优化对比报告...')
+
+    const result = await compareAgent(
+      {
+        originalListing,
+        optimizedListing: {
+          ...optimizedListing,
+          targetAudience: '',
+        },
+        analysisReport,
+      },
+      (info) => onProgress?.(info.progress ?? 80, info.message ?? '对比中...')
+    )
+
+    onProgress?.(100, '对比报告生成完成')
     return result
   }
 

@@ -63,6 +63,31 @@
       </div>
     </section>
 
+    <!-- 文案与 Listing 入口 -->
+    <section class="section listing-tools">
+      <h2 class="section-title">文案与 Listing</h2>
+      <div class="listing-tools-grid">
+        <div class="tool-card listing-card" @click="router.push('/tools/listing')">
+          <div class="tool-preview listing-preview">
+            <span class="listing-icon">📝</span>
+          </div>
+          <div class="tool-info">
+            <h3 class="tool-name">一键生成 Listing</h3>
+            <p class="tool-desc">基于商品信息与竞品分析，自动生成标题、五点、描述与主图建议，支持初创与优化模式。</p>
+          </div>
+        </div>
+        <div class="tool-card listing-card" @click="router.push('/tools/aplus-generation')">
+          <div class="tool-preview listing-preview">
+            <span class="listing-icon">✨</span>
+          </div>
+          <div class="tool-info">
+            <h3 class="tool-name">A+ 内容生成</h3>
+            <p class="tool-desc">基于已生成 Listing 与策略，生成 Amazon A+ 模块化文案与配图，支持编辑、锁定与导出交付包。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- 爆款视频复刻 - 横向滚动 -->
     <section class="section">
       <div class="section-header-row">
@@ -677,6 +702,39 @@ function handleTemplateClick(template: { id: number }) {
   margin: 0;
 }
 
+// 文案与 Listing 入口
+.listing-tools {
+  .listing-tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+}
+
+.listing-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+
+  .listing-preview {
+    aspect-ratio: 16/8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  }
+
+  .listing-icon {
+    font-size: 48px;
+  }
+
+  &:hover {
+    .listing-preview {
+      background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    }
+  }
+}
+
 // 模板区
 .templates-section {
   .section-header-row {
@@ -815,7 +873,11 @@ function handleTemplateClick(template: { id: number }) {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-  
+
+  .listing-tools .listing-tools-grid {
+    grid-template-columns: 1fr;
+  }
+
   .templates-grid {
     grid-template-columns: repeat(2, 1fr);
   }

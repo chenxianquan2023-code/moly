@@ -2,14 +2,14 @@
   <div class="competitor-analysis">
     <div class="ca-header">
       <div>
-        <h3 class="ca-title">竞品分析</h3>
-        <p class="ca-desc">输入竞品 ASIN，AI 将分析其亮点与不足，帮你打造差异化 Listing</p>
+        <h3 class="ca-title">市场洞察</h3>
+        <p class="ca-desc">有竞品时输入 ASIN 分析竞品；无竞品时 AI 将基于类目最佳实践生成商业化标准 Listing</p>
       </div>
     </div>
 
     <div class="asin-inputs">
       <div v-for="(asin, idx) in store.competitorAsins" :key="idx" class="asin-row">
-        <span class="row-label">竞品 {{ idx + 1 }}</span>
+        <span class="row-label">竞品 {{ idx + 1 }}（可选）</span>
         <input
           :value="asin"
           class="asin-field"
@@ -26,12 +26,11 @@
     </div>
 
     <div class="ca-actions">
-      <button class="analyze-btn" :disabled="!hasValidAsins || store.isAnalyzing" @click="$emit('analyze')">
+      <button class="analyze-btn" :disabled="store.isAnalyzing" @click="$emit('analyze')">
         <LoadingOutlined v-if="store.isAnalyzing" class="spin" />
         <ExperimentOutlined v-else />
-        {{ store.isAnalyzing ? '分析中...' : '开始分析' }}
+        {{ store.isAnalyzing ? '分析中...' : (hasValidAsins ? '开始分析竞品' : '开始分析（类目最佳实践）') }}
       </button>
-      <button class="skip-btn" @click="$emit('skip')">跳过此步 →</button>
     </div>
 
     <div v-if="store.isAnalyzing" class="progress-bar-wrapper">
@@ -41,29 +40,29 @@
       <span class="progress-text">{{ store.progressMessage }}</span>
     </div>
 
-    <div v-if="store.competitorAnalysis" class="ca-results">
-      <div class="result-section">
+    <div v-if="displayReport" class="ca-results">
+      <div v-if="displayReport.strengths.length" class="result-section">
         <h4 class="rs-title highlights-title"><CheckCircleFilled /> 竞品亮点</h4>
         <ul class="rs-list">
-          <li v-for="(h, i) in store.competitorAnalysis.competitorHighlights" :key="i">{{ h }}</li>
+          <li v-for="(s, i) in displayReport.strengths" :key="i">{{ s.detail }}</li>
         </ul>
       </div>
-      <div class="result-section">
+      <div v-if="displayReport.weaknesses.length" class="result-section">
         <h4 class="rs-title weaknesses-title"><CloseCircleFilled /> 竞品不足</h4>
         <ul class="rs-list">
-          <li v-for="(w, i) in store.competitorAnalysis.competitorWeaknesses" :key="i">{{ w }}</li>
+          <li v-for="(w, i) in displayReport.weaknesses" :key="i">{{ w.detail }}</li>
         </ul>
       </div>
-      <div class="result-section">
+      <div v-if="displayReport.keywords.length" class="result-section">
         <h4 class="rs-title keywords-title"><TagOutlined /> 高频关键词</h4>
         <div class="keyword-cloud">
-          <span v-for="(kw, i) in store.competitorAnalysis.topKeywords" :key="i" class="kw-tag">{{ kw }}</span>
+          <span v-for="(kw, i) in displayReport.keywords" :key="i" class="kw-tag">{{ kw }}</span>
         </div>
       </div>
-      <div v-if="store.competitorAnalysis.differentiationOpportunities.length" class="result-section">
+      <div v-if="displayReport.suggestions.length" class="result-section">
         <h4 class="rs-title diff-title"><BulbOutlined /> 差异化机会</h4>
         <ul class="rs-list">
-          <li v-for="(d, i) in store.competitorAnalysis.differentiationOpportunities" :key="i">{{ d }}</li>
+          <li v-for="(d, i) in displayReport.suggestions" :key="i">{{ d }}</li>
         </ul>
       </div>
     </div>
@@ -77,11 +76,11 @@ import {
   CheckCircleFilled, CloseCircleFilled, TagOutlined, BulbOutlined,
 } from '@ant-design/icons-vue'
 import { useListingStore } from '@/stores/listing'
-import { listingService } from '@/services/listing.service'
+import { adaptPipelineReportToDisplay } from '@/utils/adaptPipelineReport'
 
 const store = useListingStore()
 
-defineEmits<{ analyze: []; skip: [] }>()
+defineEmits<{ analyze: [] }>()
 
 const hasValidAsins = computed(() =>
   store.competitorAsins.some(a => {
@@ -89,6 +88,11 @@ const hasValidAsins = computed(() =>
     return trimmed.length >= 10 || trimmed.includes('amazon')
   })
 )
+
+const displayReport = computed(() => {
+  if (!store.analysisReport) return null
+  return adaptPipelineReportToDisplay(store.analysisReport)
+})
 </script>
 
 <style scoped lang="scss">

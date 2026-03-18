@@ -47,6 +47,43 @@
             已识别 ASIN：<strong>{{ store.extractedAsin }}</strong>
           </p>
 
+          <div class="competitor-section">
+            <label class="section-label">竞品 ASIN（可选，用于对比分析；无竞品时将基于最佳实践优化）</label>
+            <div v-for="(asin, idx) in store.competitorAsins" :key="idx" class="asin-row">
+              <input
+                :value="asin"
+                class="asin-field"
+                placeholder="竞品 ASIN 或链接"
+                @input="store.updateCompetitorAsin(idx, ($event.target as HTMLInputElement).value)"
+              />
+              <button v-if="store.competitorAsins.length > 1" class="rm-btn" @click="store.removeCompetitorAsin(idx)">×</button>
+            </div>
+            <button v-if="store.competitorAsins.length < 3" class="add-btn" @click="store.addCompetitorAsin()">+ 添加竞品</button>
+          </div>
+
+          <div v-if="!hasAtLeastOneCompetitor" class="extra-section">
+            <label class="section-label">补充信息（可选，无竞品时可帮助 AI 更好理解优化方向）</label>
+            <div class="extra-row">
+              <span class="extra-label">目标关键词</span>
+              <input
+                :value="store.targetKeywords.join(', ')"
+                class="asin-field"
+                placeholder="如：wireless earbuds, bluetooth 5.0"
+                @input="onTargetKeywordsInput($event)"
+              />
+            </div>
+            <div class="extra-row">
+              <span class="extra-label">目标受众</span>
+              <textarea
+                :value="store.targetAudience"
+                class="audience-field"
+                placeholder="如：年轻上班族、通勤、运动爱好者"
+                rows="2"
+                @input="store.updateTargetAudience(($event.target as HTMLTextAreaElement).value)"
+              />
+            </div>
+          </div>
+
           <div class="lang-section">
             <label class="lang-label">优化输出语言</label>
             <div class="lang-toggle">
@@ -67,7 +104,7 @@
         <div class="step-footer">
           <div class="cost-hint">
             <ThunderboltFilled class="cost-icon" />
-            分析消耗 <strong>20</strong> 积分，优化消耗 <strong>75</strong> 积分（含合规主图）
+            市场洞察 <strong>10-20</strong> 积分（无竞品 10 / 有竞品 20），优化消耗 <strong>75</strong> 积分（含合规主图）
           </div>
           <div class="footer-actions">
             <button class="btn-back" @click="$router.push('/tools/listing')">
@@ -96,14 +133,14 @@
       <!-- Step 1: AI 分析报告 -->
       <div v-show="store.currentStep === 1" class="step-content">
         <AnalysisReport
-          v-if="store.asinAnalysis"
+          v-if="displayReport"
           title="Listing 分析报告"
-          :score="store.asinAnalysis.overallScore"
-          :strengths="store.asinAnalysis.strengths"
-          :weaknesses="store.asinAnalysis.weaknesses"
-          :suggestions="store.asinAnalysis.suggestions"
-          :keywords="store.asinAnalysis.keywordsFound"
-          :missing-keywords="store.asinAnalysis.keywordsMissing"
+          :score="displayReport.score"
+          :strengths="displayReport.strengths"
+          :weaknesses="displayReport.weaknesses"
+          :suggestions="displayReport.suggestions"
+          :keywords="displayReport.keywords"
+          :missing-keywords="displayReport.missingKeywords"
         />
 
         <div class="step-footer">
@@ -112,7 +149,7 @@
             <button class="btn-back" @click="store.prevStep()">
               <ArrowLeftOutlined /> 上一步
             </button>
-            <button class="btn-next" :disabled="store.isGenerating" @click="startOptimization">
+            <button class="btn-next" :disabled="store.isGenerating || !store.hasPipelineAnalysis" @click="startOptimization">
               <LoadingOutlined v-if="store.isGenerating" class="spin" />
               <RocketOutlined v-else />
               {{ store.isGenerating ? '优化中...' : '自动优化 Listing（75 积分）' }}
@@ -168,15 +205,15 @@
               <span class="progress-label">{{ store.progress }}%</span>
             </div>
 
-            <div v-if="store.asinAnalysis" class="score-compare">
+            <div v-if="displayReport?.score !== undefined" class="score-compare">
               <div class="score-before">
                 <span class="score-label">优化前</span>
-                <span class="score-value before">{{ store.asinAnalysis.overallScore }}</span>
+                <span class="score-value before">{{ displayReport.score }}</span>
               </div>
               <ArrowRightOutlined class="score-arrow" />
               <div class="score-after">
                 <span class="score-label">预估优化后</span>
-                <span class="score-value after">{{ Math.min(99, store.asinAnalysis.overallScore + 20) }}</span>
+                <span class="score-value after">{{ Math.min(99, (displayReport.score ?? 60) + 20) }}</span>
               </div>
             </div>
           </aside>
@@ -194,6 +231,7 @@
               :main-image="store.mainImageUrl"
               :compliance-result="store.complianceResult"
               @regenerate="handleRegenerate"
+              @update-listing="onUpdateListing"
             />
 
             <div v-if="!store.isGenerating && !store.hasGeneratedListing" class="empty-state">
@@ -223,6 +261,7 @@
           :main-image="store.mainImageUrl"
           :compliance-result="store.complianceResult"
           @regenerate="handleRegenerate"
+          @update-listing="onUpdateListing"
         />
 
         <MainImageCompliance
@@ -254,7 +293,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   RightOutlined, ThunderboltFilled, ArrowLeftOutlined, ArrowRightOutlined,
   SearchOutlined, CheckCircleFilled, ExperimentOutlined, LoadingOutlined,
@@ -264,6 +303,9 @@ import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useListingStore } from '@/stores/listing'
 import { listingService } from '@/services/listing.service'
+import { runAnalysisPipeline } from '@/services/pipeline'
+import { LISTING_POINTS_COST } from '@/config/listing.config'
+import { adaptPipelineReportToDisplay } from '@/utils/adaptPipelineReport'
 import StepIndicator from './components/StepIndicator.vue'
 import AnalysisReport from './components/AnalysisReport.vue'
 import ListingResult from './components/ListingResult.vue'
@@ -274,12 +316,30 @@ const auth = useAuthStore()
 const store = useListingStore()
 const optimizeLang = ref('en')
 
+const hasAtLeastOneCompetitor = computed(() =>
+  store.competitorAsins.some((a) => {
+    const t = a.trim()
+    return t.length >= 10 || t.includes('amazon')
+  })
+)
+
+const displayReport = computed(() => {
+  if (!store.analysisReport) return null
+  return adaptPipelineReportToDisplay(store.analysisReport)
+})
+
 type OptPhase = 'idle' | 'rewrite' | 'bullets' | 'desc' | 'mainImage' | 'compliance' | 'done'
 const optPhase = ref<OptPhase>('idle')
 
 function onAsinInput() {
   const extracted = listingService.extractAsin(store.asinInput)
   store.extractedAsin = extracted || ''
+}
+
+function onTargetKeywordsInput(ev: Event) {
+  const raw = (ev.target as HTMLInputElement).value
+  const kw = raw.split(/[,，;；]/).map(k => k.trim()).filter(Boolean)
+  store.updateTargetKeywords(kw)
 }
 
 function optTaskStatus(phase: string) {
@@ -298,23 +358,49 @@ async function startAnalysis() {
     return
   }
 
-  if (auth.points < 20) {
-    message.warning('积分不足，Listing 分析需要 20 积分')
+  const competitorList = store.competitorAsins
+    .map((a) => a.trim())
+    .filter((a) => a.length >= 10 || a.includes('amazon'))
+    .map((a) => listingService.extractAsin(a) || a.substring(0, 10).toUpperCase())
+
+  const cost = competitorList.length > 0
+    ? LISTING_POINTS_COST.marketInsightWithCompetitors
+    : LISTING_POINTS_COST.marketInsightWithoutCompetitors
+
+  if (auth.points < cost) {
+    message.warning(`积分不足，市场洞察需要 ${cost} 积分`)
     return
   }
 
   store.isAnalyzing = true
   store.progress = 0
-  store.progressMessage = '开始分析...'
+  store.progressMessage = competitorList.length > 0 ? '开始分析...' : '正在分析类目最佳实践...'
 
   try {
-    const result = await listingService.analyzeByAsin(
-      store.extractedAsin,
-      (p, msg) => store.updateProgress(p, msg)
+    const params: Parameters<typeof runAnalysisPipeline>[0] = {
+      mode: 'optimize',
+      userAsin: store.extractedAsin,
+      competitorAsins: competitorList,
+      market: 'us',
+      language: optimizeLang.value,
+    }
+    if (competitorList.length === 0) {
+      params.targetKeywords = store.targetKeywords.length ? store.targetKeywords : undefined
+      params.targetAudience = store.targetAudience || undefined
+    }
+
+    const result = await runAnalysisPipeline(
+      params,
+      (info) => {
+        const p = info.step && info.totalSteps ? Math.round((info.step / info.totalSteps) * 100) : info.progress ?? 0
+        store.updateProgress(p, info.message ?? '')
+      }
     )
-    store.asinAnalysis = result
-    store.fetchedListing = listingService.getLastFetchedListing()
-    auth.deductPoints(20, `Listing 分析 (${store.extractedAsin})`)
+    store.analysisReport = result.analysisReport
+    store.strategyPrompts = result.strategyPrompts
+    store.pipelineExtractedData = result.extractedData
+    store.setUserListingData(result.userListingData ?? null)
+    auth.deductPoints(cost, `市场洞察 (${store.extractedAsin})`)
     store.nextStep()
     message.success('分析完成！')
   } catch (err: any) {
@@ -326,7 +412,7 @@ async function startAnalysis() {
 }
 
 async function startOptimization() {
-  if (!store.asinAnalysis) return
+  if (!store.strategyPrompts || !store.analysisReport) return
 
   const totalCost = 75
   if (auth.points < totalCost) {
@@ -338,8 +424,10 @@ async function startOptimization() {
   store.progress = 0
   store.nextStep()
 
+  const productName = store.userListingData?.title || store.extractedAsin
+  const features = store.userListingData?.bulletPoints.join(', ') || ''
+
   try {
-    // Phase 1-3: text optimization
     optPhase.value = 'rewrite'
     store.updateProgress(10, '正在重写标题与关键词...')
 
@@ -349,9 +437,14 @@ async function startOptimization() {
     optPhase.value = 'desc'
     store.updateProgress(40, '正在优化产品描述...')
 
-    const listing = await listingService.optimizeListing(
-      store.asinAnalysis,
-      optimizeLang.value,
+    const listing = await listingService.generateListingTextFromStrategy(
+      {
+        mode: 'optimize',
+        userListing: store.userListingData ?? undefined,
+        strategyPrompts: store.strategyPrompts,
+        language: optimizeLang.value,
+        market: 'us',
+      },
       (p, msg) => {
         const mapped = 10 + p * 0.45
         store.updateProgress(Math.min(55, mapped), msg)
@@ -359,17 +452,24 @@ async function startOptimization() {
     )
     store.generatedListing = listing
 
-    // Phase 4: generate main image
+    if (store.userListingData && store.analysisReport) {
+      const comp = await listingService.compareListing(
+        store.userListingData,
+        listing,
+        store.analysisReport,
+        (p, msg) => store.updateProgress(Math.min(58, 50 + p * 0.08), msg ?? '正在生成对比报告...')
+      )
+      store.comparison = comp
+    }
+
     optPhase.value = 'mainImage'
     store.updateProgress(58, '正在生成 Amazon 合规主图...')
 
-    const productName = store.asinAnalysis.productName || store.extractedAsin
-    const features = listing.bulletPoints.join(', ')
-
-    const imgResult = await listingService.generateMainImage(
-      [],
+    const imgResult = await listingService.generateMainImageFromStrategy(
+      store.userListingData?.secondaryImageUrls ?? [],
       productName,
       features,
+      store.strategyPrompts,
       (p, msg) => store.updateProgress(Math.min(80, 58 + p * 0.22), msg)
     )
 
@@ -408,17 +508,24 @@ async function startOptimization() {
 }
 
 async function regenerateMainImage() {
+  if (!store.strategyPrompts) {
+    message.warning('无法重新生成：缺少策略数据')
+    return
+  }
+
   store.isGenerating = true
   store.updateProgress(0, '正在重新生成主图...')
 
-  try {
-    const productName = store.asinAnalysis?.productName || store.extractedAsin
-    const features = store.generatedListing?.bulletPoints.join(', ') || ''
+  const productName = store.userListingData?.title || store.extractedAsin
+  const features = store.generatedListing?.bulletPoints.join(', ') || ''
+  const refImages = store.userListingData?.secondaryImageUrls ?? []
 
-    const imgResult = await listingService.generateMainImage(
-      [],
+  try {
+    const imgResult = await listingService.generateMainImageFromStrategy(
+      refImages,
       productName,
       features,
+      store.strategyPrompts,
       (p, msg) => store.updateProgress(Math.min(60, p * 0.6), msg)
     )
 
@@ -446,10 +553,20 @@ async function regenerateMainImage() {
 }
 
 async function handleRegenerate(_field: string) {
-  if (!store.asinAnalysis) return
+  if (!store.strategyPrompts) return
   message.info('正在重新优化...')
   store.setStep(1)
   optPhase.value = 'idle'
+}
+
+function onUpdateListing(payload: { field: 'title' | 'bullets' | 'description'; value: string | string[] }) {
+  if (payload.field === 'title' && typeof payload.value === 'string') {
+    store.updateGeneratedListing({ title: payload.value })
+  } else if (payload.field === 'description' && typeof payload.value === 'string') {
+    store.updateGeneratedListing({ description: payload.value })
+  } else if (payload.field === 'bullets' && Array.isArray(payload.value)) {
+    store.updateGeneratedListing({ bulletPoints: payload.value })
+  }
 }
 </script>
 
@@ -503,6 +620,29 @@ async function handleRegenerate(_field: string) {
   font-size: 13px; color: #059669; display: flex; align-items: center; gap: 6px;
   .check-icon { font-size: 14px; }
   strong { color: #111827; }
+}
+
+.competitor-section {
+  width: 100%; max-width: 500px; margin-top: 16px; text-align: left;
+  .section-label { font-size: 13px; color: #6b7280; display: block; margin-bottom: 8px; }
+  .asin-row {
+    display: flex; gap: 8px; margin-bottom: 8px;
+    .asin-field {
+      flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+      &:focus { outline: none; border-color: #2563eb; }
+    }
+    .rm-btn { width: 36px; height: 36px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #ef4444; cursor: pointer; font-size: 18px; }
+  }
+  .add-btn { padding: 6px 0; font-size: 14px; color: #2563eb; background: none; border: none; cursor: pointer; &:hover { text-decoration: underline; } }
+}
+
+.extra-section {
+  width: 100%; max-width: 500px; margin-top: 16px; text-align: left;
+  .section-label { font-size: 13px; color: #6b7280; display: block; margin-bottom: 8px; }
+  .extra-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .extra-label { font-size: 13px; color: #6b7280; min-width: 80px; }
+  .asin-field { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; &:focus { outline: none; border-color: #2563eb; } }
+  .audience-field { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical; &:focus { outline: none; border-color: #2563eb; } }
 }
 
 .lang-section { display: flex; align-items: center; gap: 12px; margin-top: 8px; .lang-label { font-size: 14px; color: #374151; } }

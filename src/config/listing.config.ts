@@ -18,6 +18,51 @@ export const AMAZON_CATEGORIES = [
   { value: 'other', label: '其他 Other' },
 ]
 
+/** 类目可选扩展字段（选择该类目时显示） */
+export const CATEGORY_EXTRA_FIELDS: Record<string, { key: string; label: string; placeholder: string }[]> = {
+  electronics: [
+    { key: 'connectivity', label: '连接方式', placeholder: '如 Bluetooth 5.2、USB-C' },
+    { key: 'battery', label: '续航/充电', placeholder: '如 40h 续航、快充 2h 充满' },
+    { key: 'waterproof', label: '防水等级', placeholder: '如 IPX7、IP55' },
+  ],
+  clothing: [
+    { key: 'material', label: '材质', placeholder: '如 棉 95% 氨纶 5%' },
+    { key: 'sizes', label: '尺码', placeholder: '如 S/M/L/XL' },
+  ],
+}
+
+/** 缺项预览：若未填写该字段，AI 可能的行为说明 */
+export const MISSING_FIELD_PREVIEWS: Record<string, string> = {
+  brand: '若未填写，AI 将使用占位符或基于商品名推测，可能与您实际品牌不符',
+  specs: '若未填写，AI 可能根据类目推测通用参数，与实际产品规格不一致',
+  priceRange: '若未填写，无法在文案中体现价格优势，可能影响转化',
+  targetAudience: '若未填写，AI 将猜测目标人群，可能与您的定位不符',
+  useCases: '若未填写，描述和五点可能缺少具体使用场景，说服力下降',
+  differentiators: '若未填写，难以突出与竞品的差异，同质化风险增加',
+}
+
+export const REQUIRED_PRODUCT_FIELDS = [
+  'name',
+  'images',
+  'brand',
+  'specs',
+  'priceRange',
+  'targetAudience',
+  'useCases',
+  'differentiators',
+] as const
+
+export const REQUIRED_FIELD_LABELS: Record<string, string> = {
+  name: '商品名称',
+  images: '商品图片',
+  brand: '品牌',
+  specs: '核心规格',
+  priceRange: '价格区间',
+  targetAudience: '目标受众',
+  useCases: '使用场景',
+  differentiators: '差异化卖点',
+}
+
 export const TARGET_MARKETS = [
   { value: 'us', label: '美国 (Amazon.com)', lang: 'en' },
   { value: 'uk', label: '英国 (Amazon.co.uk)', lang: 'en' },
@@ -33,8 +78,14 @@ export const LISTING_POINTS_COST = {
   mainImage: 30,
   fullGeneration: 75,
   competitorAnalysis: 20,
+  /** 有竞品时的市场洞察（抓取+分析+策略） */
+  marketInsightWithCompetitors: 20,
+  /** 无竞品时的市场洞察（类目最佳实践分析+策略） */
+  marketInsightWithoutCompetitors: 10,
   promoImage: 30,
   promoVideo: 50,
+  /** A+ 页面增值服务（文案 + 配图生成） */
+  aPlusGeneration: 40,
 }
 
 export const LISTING_PROMPTS = {
@@ -241,22 +292,83 @@ ${params.analysisResult}
   `.trim(),
 
   generateMainImage: (productName: string, features: string) => `
-请基于提供的商品实拍图，生成一张严格符合 Amazon 主图规范的产品图：
+【任务】基于提供的商品实拍图，生成一张严格符合 Amazon 主图规范的电商产品图。核心要求：产品必须填满画面 85% 以上（裁切/放大参考图，使产品主体大而清晰，边缘仅留极窄白边），纯白背景，无文字无图形。
 
+【商品信息】
 商品名称：${productName}
 商品特点：${features}
 
-【Amazon 主图强制规范】
-1. 背景必须是纯白色（RGB 255,255,255）
-2. 产品必须占据图片面积的 85% 以上
-3. 不允许出现任何文字、Logo、水印、边框、图标
-4. 不允许出现额外配件、道具、赠品（仅展示售卖商品本身）
-5. 产品必须完整展示，不能裁切掉任何部分
-6. 必须是真实产品照片风格，不能是插画或手绘
-7. 光线均匀自然，无明显阴影干扰
-8. 产品居中放置，周围留白均匀
+【Amazon 主图合规规范 - 必须严格遵守】
+以下任意一项违规都会导致 Listing 被 Amazon 自动屏蔽，无法在搜索结果中展示。
 
-请严格按照以上规范生成图片，这关系到商品能否通过 Amazon 审核上架。
+■ 背景（最重要）
+- 必须是纯白色，色值精确为 RGB 255,255,255
+- 禁止：米白、乳白、浅灰、渐变、纹理、任何非纯白颜色
+- Amazon 系统会检测背景色，即使肉眼难以区分的偏差（如 252,252,252）也会被判定违规
+
+■ 产品占比与构图（关键：85% 填充规则）
+- 产品必须占据图片面积的 85% 以上，这是 Amazon 硬性要求，产品过小会导致 Listing 被屏蔽
+- 操作要求：对参考图进行裁切/放大，使产品主体尽可能填满画面，仅在边缘保留极窄的纯白留白
+- 产品居中，四周留白需极少且均匀，避免产品在画面中显得过小、周围大面积空白
+- 产品必须完整展示，不能裁切掉产品边缘（项链类可例外）
+
+■ 禁止元素（任何一项都会导致违规）
+- 禁止文字、标语、说明、尺寸标注、促销语
+- 禁止 Logo、水印、版权标记、摄影师签名
+- 禁止徽章、贴纸（如 Best Seller、Amazon's Choice、Premium Quality）
+- 禁止边框、色块、图形装饰
+- 禁止多角度拼图、角落小图、蒙太奇
+- 禁止 Amazon 品牌或类似品牌标识
+
+■ 产品展示
+- 仅展示实际售卖的单一商品本身
+- 禁止额外配件、道具、赠品（除非包含在售卖范围内）
+- 产品需脱离包装展示（除非包装本身是商品）
+- 单视角、单产品，不展示多个角度或多种款式
+
+■ 视觉风格
+- 必须是真实产品摄影风格，高清晰度、锐利对焦
+- 禁止插画、手绘、3D 渲染、概念图
+- 光线均匀柔和，无强烈阴影或高光溢出
+- 色彩准确还原产品真实外观
+
+请严格按照以上规范生成图片。务必优先满足：① 产品占图 85% 以上（裁切/放大使产品填满画面）；② 背景纯白；③ 禁止任何文字/图形。
+  `.trim(),
+
+  /** 基于 Pipeline 策略生成主图的 prompt（策略作为核心指导） */
+  generateMainImageFromStrategy: (productName: string, features: string, strategyText: string) => `
+【任务】基于提供的商品实拍图和竞品分析策略，生成严格符合 Amazon 主图规范的产品图。核心要求：产品必须填满画面 85% 以上（裁切/放大使产品主体大而清晰，边缘仅留极窄白边），纯白背景，无文字无图形。
+
+【商品信息】
+商品名称：${productName}
+商品特点：${features}
+
+【竞品分析得出的主图创作策略】（在合规前提下遵循）
+构图、角度、布局、光线等参考以下策略，但不得违反下方的 Amazon 强制规范：
+${strategyText}
+
+【Amazon 主图合规规范 - 优先级最高，不可妥协】
+以下任意一项违规都会导致 Listing 被 Amazon 自动屏蔽。
+
+■ 背景
+- 纯白色 RGB 255,255,255，禁止米白/乳白/浅灰/渐变/纹理
+
+■ 产品占比与构图（85% 填充规则，必须满足）
+- 产品必须占图 85% 以上：对参考图裁切/放大，使产品主体尽可能填满画面，边缘仅保留极窄白边
+- 避免产品在画面中过小、四周大面积空白
+- 产品居中、完整展示
+
+■ 禁止元素
+- 禁止任何文字、Logo、水印、徽章、边框、图形
+
+■ 产品展示
+- 仅展示售卖商品本身，无额外配件/道具/赠品
+- 产品脱离包装展示，单视角单产品
+
+■ 视觉风格
+- 真实产品摄影，高清晰度，无插画/手绘
+
+策略中的建议（如角度、光影）可采纳，但若与上述规范冲突，必须以 Amazon 规范为准。生成时优先保证：① 产品占图 85% 以上（裁切/放大填满画面）；② 背景纯白；③ 无文字、无图形。
   `.trim(),
 
   checkMainImageCompliance: () => `

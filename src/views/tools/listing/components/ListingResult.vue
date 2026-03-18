@@ -33,13 +33,27 @@
       <div class="result-section">
         <div class="section-header">
           <h4 class="section-title">五点描述 (Bullet Points)</h4>
-          <button class="regen-btn" @click="$emit('regenerate', 'bullets')">
+          <button v-if="editingField !== 'bullets'" class="regen-btn" @click="$emit('regenerate', 'bullets')">
             <ReloadOutlined /> 重新生成
           </button>
+          <template v-else>
+            <button class="save-btn-inline" @click="saveEdit('bullets')">保存</button>
+            <button class="cancel-btn-inline" @click="editingField = ''">取消</button>
+          </template>
         </div>
-        <ul class="bullet-list">
-          <li v-for="(bp, idx) in listing.bulletPoints" :key="idx">{{ bp }}</li>
-        </ul>
+        <div v-if="editingField === 'bullets'" class="edit-area bullets-edit">
+          <div v-for="(bp, idx) in editBullets" :key="idx" class="bullet-edit-row">
+            <span class="bullet-num">{{ idx + 1 }}.</span>
+            <textarea v-model="editBullets[idx]" :rows="2" class="edit-textarea bullet-textarea"></textarea>
+          </div>
+        </div>
+        <div v-else class="bullet-list-wrap" @dblclick="startEdit('bullets')">
+          <ul class="bullet-list">
+            <li v-for="(bp, idx) in listing.bulletPoints" :key="idx">{{ bp }}</li>
+          </ul>
+          <EditOutlined class="edit-icon bullet-edit-icon" @click="startEdit('bullets')" />
+          <span class="edit-hint">双击或点击编辑图标可修改</span>
+        </div>
       </div>
 
       <div class="result-section">
@@ -128,18 +142,28 @@ defineEmits<{
 const editingField = ref('')
 const editTitle = ref('')
 const editDescription = ref('')
+const editBullets = ref<string[]>([])
 
 function startEdit(field: string) {
   if (!props.listing) return
   editingField.value = field
   if (field === 'title') editTitle.value = props.listing.title
   if (field === 'description') editDescription.value = props.listing.description
+  if (field === 'bullets') {
+    const arr = [...props.listing.bulletPoints].slice(0, 5)
+    while (arr.length < 5) arr.push('')
+    editBullets.value = arr
+  }
 }
 
 function saveEdit(field: string) {
   if (!props.listing) return
   if (field === 'title') props.listing.title = editTitle.value
   if (field === 'description') props.listing.description = editDescription.value
+  if (field === 'bullets') {
+    const bullets = editBullets.value.map(b => b.trim()).filter(Boolean)
+    props.listing.bulletPoints = bullets.length ? bullets : ['']
+  }
   editingField.value = ''
 }
 
@@ -220,11 +244,33 @@ function copyAll() {
   font-size: 13px; cursor: pointer; &:hover { background: #f3f4f6; }
 }
 
+.bullet-list-wrap {
+  position: relative; cursor: text;
+  .edit-icon.bullet-edit-icon {
+    position: absolute; top: 10px; right: 10px; font-size: 14px; color: #9ca3af;
+    cursor: pointer; opacity: 0; transition: opacity 0.2s;
+  }
+  &:hover .edit-icon.bullet-edit-icon { opacity: 1; }
+  .edit-hint { font-size: 11px; color: #9ca3af; margin-top: 6px; display: block; }
+}
+
 .bullet-list {
   background: #f9fafb; padding: 14px 16px 14px 32px; border-radius: 10px;
   margin: 0; display: flex; flex-direction: column; gap: 8px;
   li { font-size: 14px; color: #111827; line-height: 1.6; }
 }
+
+.bullets-edit { display: flex; flex-direction: column; gap: 10px; }
+.bullet-edit-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  .bullet-num { font-size: 14px; font-weight: 600; color: #6b7280; min-width: 20px; padding-top: 10px; }
+  .bullet-textarea { flex: 1; min-height: 50px; }
+}
+.save-btn-inline, .cancel-btn-inline {
+  padding: 4px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; border: 1px solid #d1d5db;
+}
+.save-btn-inline { background: #2563eb; color: #fff; border-color: #2563eb; margin-right: 6px; }
+.cancel-btn-inline { background: #fff; color: #6b7280; }
 
 .keyword-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
 .keyword-tag {
