@@ -17,18 +17,58 @@ import type {
   APlusModuleImageInput,
 } from '../types'
 import { safeParseJson } from '../utils'
+import type { APlusRenderLayout } from '../types'
 
 const AGENT_NAME = 'APlusGenAgent'
 
 const APLUS_IMAGE_PROMPT_PREFIX = `Generate a professional e-commerce product image for an Amazon A+ content module.
-The image must:
+CRITICAL - Product fidelity: The product(s) in the reference images MUST be faithfully represented. You may creatively vary lighting, angle, composition, or background, but the product's shape, color, materials, and key visual features must remain recognizable and consistent with the reference. Do NOT substitute with a different product or alter its core appearance beyond recognition.
+Additional requirements:
 - Match the brand's visual style consistently with other module images
 - Be high quality, well-lit, suitable for Amazon A+ display
-- Show the product or a relevant visual that supports the module's message
-- No text, logos, or watermarks
+- Logos and watermarks are forbidden
+- Text overlays are allowed, but ONLY the provided headline/body should be rendered in premium typography
 - Professional product photography style
 
 Module image concept: `
+
+function getDefaultRenderLayout(): APlusRenderLayout {
+  // 采用“归一化坐标”：x/y/w/h 都在 0~1 之间，方便映射到任意尺寸画布
+  return {
+    headlineBox: { x: 0.06, y: 0.06, w: 0.88, h: 0.14, align: 'center', fontScale: 1 },
+    bodyBox: { x: 0.06, y: 0.22, w: 0.88, h: 0.72, align: 'left', fontScale: 0.95 },
+  }
+}
+
+function normalizeTextForPrompt(s: string) {
+  return String(s ?? '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function buildTextRenderingPrompt(module: { headline: string; body: string; renderLayout?: APlusRenderLayout }): string {
+  const l = module.renderLayout ?? getDefaultRenderLayout()
+  const hb = l.headlineBox
+  const bb = l.bodyBox
+
+  const headlineText = normalizeTextForPrompt(module.headline)
+  const bodyText = normalizeTextForPrompt(module.body)
+
+  return `
+Render ONLY these text overlays exactly (no paraphrasing, no extra words):
+- HeadlineText: ${headlineText}
+- BodyText: ${bodyText}
+
+Text placement (normalized coordinates relative to the full image):
+- HeadlineBox: x=${hb.x}, y=${hb.y}, w=${hb.w}, h=${hb.h}, align=${hb.align ?? 'center'}
+- BodyBox: x=${bb.x}, y=${bb.y}, w=${bb.w}, h=${bb.h}, align=${bb.align ?? 'left'}
+
+Typography rules (premium e-commerce quality):
+- Use elegant, premium serif or refined sans-serif fonts — avoid generic or cheap-looking typefaces
+- Headline: bold weight, clear hierarchy, ample letter-spacing; evoke luxury/professional brands
+- Body: readable line height, subtle refinement; avoid cramped or amateur typography
+- Ensure text contrasts cleanly with the background for readability
+- Do NOT render any other text, logos, watermarks, captions, or icons.
+`.trim()
+}
 
 function buildAPlusContentPrompt(input: APlusGenInput): string {
   const { userEditablePrompt, strategyPrompts, analysisReport, generatedListing, productContext } =
@@ -60,12 +100,12 @@ Recommended Module Order:
 ${modOrder}
 ${templateHint}
 
-=== PRODUCT & LISTING CONTEXT ===
+=== PRODUCT & LISTING CONTEXT (strict: use only these facts, do not invent) ===
 Product: ${productContext.productName}
 Brand: ${productContext.brand}
 Category: ${productContext.category}
 Features: ${productContext.features}
-Listing Title: ${generatedListing.title}
+${generatedListing?.title ? `Listing Title: ${generatedListing.title}` : `Listing Title Formula (from analysis): ${analysisReport.titleAnalysis.recommendedFormula || '(N/A)'}`}
 Bullet Points (for reference):
 ${productContext.bulletPoints.map((bp, i) => `  ${i + 1}. ${bp}`).join('\n')}
 
@@ -76,18 +116,18 @@ Output the following JSON (no markdown fences):
       "type": "品牌故事|对比图|功能展示|场景图|规格说明|等",
       "headline": "Module headline (concise, compelling)",
       "body": "Module body text (2-4 sentences, benefit-focused)",
-      "imagePrompt": "Detailed English description for AI image generation: what visual to create for this module (product in scene, comparison chart placeholder, feature close-up, etc.). Be specific about composition, lighting, style."
+      "imagePrompt": "Detailed English description for AI image generation: what visual to create for this module. MUST specify that the product from the reference images appears recognizably (same shape, color, materials). You may vary scene, angle, lighting, or background; never substitute or alter the product beyond recognition. Be specific about composition, lighting, style."
     }
   ]
 }
 
 Requirements:
-1. Generate exactly ${desiredCount} modules (min 3, max 7)
+1. Generate exactly ${desiredCount} modules — module count is fixed, do not deviate
 2. Each module MUST have imagePrompt — describe what image to generate for this module
 3. Follow the recommended module order when provided
 4. Content language must be: ${language}. If language is English, write in natural US ecommerce English.
 5. Every imagePrompt should ensure visual consistency across all modules (same lighting, style, brand feel)
-6. Use only facts from product context — no invented features
+6. Use ONLY facts from product context above — no invented features, product name and specs must match
 `.trim()
 }
 
@@ -98,7 +138,7 @@ function buildSelfCheckPrompt(input: APlusGenInput, modules: GeneratedAPlusModul
     `Brand: ${input.productContext.brand}`,
     `Category: ${input.productContext.category}`,
     `Features: ${input.productContext.features}`,
-    `Listing Title: ${input.generatedListing.title}`,
+    `Listing Title: ${input.generatedListing?.title || '(N/A)'}`,
     `Bullet Points: ${(input.productContext.bulletPoints || []).join(' | ')}`,
   ].join('\n')
   return `
@@ -138,6 +178,7 @@ function normalizeModules(modules: GeneratedAPlusModule[], targetCount: number):
       body: String((m as any).body ?? '').trim(),
       imagePrompt: String((m as any).imagePrompt ?? '').trim() || 'Professional product photography on clean background',
       imageUrl: (m as any).imageUrl,
+      renderLayout: (m as any).renderLayout,
     }))
   if (cleaned.length === targetCount) return cleaned
   if (cleaned.length > targetCount) return cleaned.slice(0, targetCount)
@@ -185,6 +226,12 @@ export async function aPlusGenAgent(
   const desiredCount = Math.min(Math.max(input.settings?.moduleCount ?? 5, 3), 7)
   let modules = normalizeModules(Array.isArray(parsed.modules) ? parsed.modules : fallbackModules, desiredCount)
 
+  // 为每个模块补齐默认渲染布局：让后续生图 prompt 始终能利用 renderLayout
+  modules = modules.map((m) => ({
+    ...m,
+    renderLayout: m.renderLayout ?? getDefaultRenderLayout(),
+  }))
+
   if (input.settings?.enableSelfCheck) {
     onProgress?.({
       agent: AGENT_NAME,
@@ -200,7 +247,10 @@ export async function aPlusGenAgent(
         { modules }
       )
       if (Array.isArray(selfChecked.modules) && selfChecked.modules.length) {
-        modules = normalizeModules(selfChecked.modules, desiredCount)
+        modules = normalizeModules(selfChecked.modules, desiredCount).map((m) => ({
+          ...m,
+          renderLayout: m.renderLayout ?? getDefaultRenderLayout(),
+        }))
       }
     } catch (err) {
       console.warn(`[${AGENT_NAME}] 自检失败，继续使用原始模块`, err)
@@ -220,38 +270,56 @@ export async function aPlusGenAgent(
     if (referenceImages.length === 0) {
       console.warn(`[${AGENT_NAME}] 无参考图片，跳过配图生成`)
     } else {
-      for (let i = 0; i < modules.length; i++) {
-        const mod = modules[i]
+      input.onContentReady?.(modules)
+
+      const aspectRatio = input.settings?.aspectRatio ?? '4:5'
+      const imageSize = input.settings?.imageSize ?? '2K'
+
+      const resolvedRefs = await geminiService.resolveImageUrlsToDataUrls(referenceImages)
+
+      const genTasks = modules.map((mod, i) => {
         const imgPrompt = mod.imagePrompt?.trim()
-        if (!imgPrompt) continue
+        if (!imgPrompt) return Promise.resolve({ index: i, module: mod })
+        const fullPrompt = APLUS_IMAGE_PROMPT_PREFIX + imgPrompt
+        const textPrompt = buildTextRenderingPrompt(mod)
+        return imageGenerationService
+          .generate('scene', (fullPrompt + '\n\n' + textPrompt).trim(), resolvedRefs, {
+            aspectRatio,
+            imageSize,
+            temperature: 0.6,
+          })
+          .then((result) => {
+            const updated = result.success && result.imageUrl
+              ? { ...mod, imageUrl: result.imageUrl }
+              : mod
+            modules[i] = updated
+            input.onModuleImageReady?.(i, updated)
+            if (result.success) console.log(`[${AGENT_NAME}] 模块 ${i + 1} 配图生成成功`)
+            else console.warn(`[${AGENT_NAME}] 模块 ${i + 1} 配图失败: ${result.error}`)
+            return { index: i, module: updated }
+          })
+          .catch((err) => {
+            console.warn(`[${AGENT_NAME}] 模块 ${i + 1} 配图异常:`, err)
+            input.onModuleImageReady?.(i, mod)
+            return { index: i, module: mod }
+          })
+      })
 
-        const progressBase = 65 + (i / modules.length) * 30
-        onProgress?.({
-          agent: AGENT_NAME,
-          step: 3,
-          totalSteps: 3,
-          progress: Math.round(progressBase),
-          message: `正在生成模块 ${i + 1}/${modules.length} 配图...`,
-        })
-
-        try {
-          const fullPrompt = APLUS_IMAGE_PROMPT_PREFIX + imgPrompt
-          const result = await imageGenerationService.generate(
-            'scene',
-            fullPrompt,
-            referenceImages,
-            { aspectRatio: '4:3', imageSize: '2K', temperature: 0.6 }
-          )
-          if (result.success && result.imageUrl) {
-            modules[i] = { ...mod, imageUrl: result.imageUrl }
-            console.log(`[${AGENT_NAME}] 模块 ${i + 1} 配图生成成功`)
-          } else {
-            console.warn(`[${AGENT_NAME}] 模块 ${i + 1} 配图失败: ${result.error}`)
-          }
-        } catch (err) {
-          console.warn(`[${AGENT_NAME}] 模块 ${i + 1} 配图异常:`, err)
-        }
-      }
+      let done = 0
+      await Promise.all(
+        genTasks.map((p) =>
+          p.then(() => {
+            done++
+            onProgress?.({
+              agent: AGENT_NAME,
+              step: 3,
+              totalSteps: 3,
+              progress: Math.round(65 + (done / modules.length) * 30),
+              message: `配图生成中 ${done}/${modules.length}...`,
+            })
+          })
+        )
+      )
     }
   }
 
@@ -278,7 +346,7 @@ Product: ${input.productContext.productName}
 Brand: ${input.productContext.brand}
 Category: ${input.productContext.category}
 Features: ${input.productContext.features}
-Listing Title: ${input.generatedListing.title}
+Listing Title: ${input.generatedListing?.title || '(N/A)'}
 Bullet Points:
 ${(input.productContext.bulletPoints || []).map((bp, i) => `  ${i + 1}. ${bp}`).join('\n')}
 
@@ -324,6 +392,7 @@ export async function aPlusModuleRewriteAgent(
     body: input.module.body,
     imagePrompt: input.module.imagePrompt ?? 'Professional product photography on clean background',
     imageUrl: input.module.imageUrl,
+    renderLayout: input.module.renderLayout,
   }
   const parsed = safeParseJson<GeneratedAPlusModule>(raw, fallback)
   const locked = input.locked ?? {}
@@ -333,6 +402,7 @@ export async function aPlusModuleRewriteAgent(
     body: locked.body ? fallback.body : String(parsed.body ?? fallback.body),
     imagePrompt: locked.image ? fallback.imagePrompt : String(parsed.imagePrompt ?? fallback.imagePrompt),
     imageUrl: fallback.imageUrl,
+    renderLayout: input.module.renderLayout ?? fallback.renderLayout,
   }
   onProgress?.({
     agent: AGENT_NAME,
@@ -364,11 +434,18 @@ export async function aPlusModuleImageAgent(
     message: '正在生成配图...',
   })
   const fullPrompt = APLUS_IMAGE_PROMPT_PREFIX + imgPrompt
+  const textPrompt = buildTextRenderingPrompt(input.module)
+  const aspectRatio = input.settings?.aspectRatio ?? '4:5'
+  const imageSize = input.settings?.imageSize ?? '2K'
   const result = await imageGenerationService.generate(
     'scene',
-    fullPrompt,
+    (fullPrompt + '\n\n' + textPrompt).trim(),
     referenceImages,
-    { aspectRatio: '4:3', imageSize: '2K', temperature: 0.6 }
+    {
+      aspectRatio,
+      imageSize,
+      temperature: 0.6,
+    }
   )
   if (!result.success || !result.imageUrl) {
     throw new Error(result.error || '配图生成失败')

@@ -102,9 +102,18 @@ class ListingService {
     const asinPattern = /^[A-Z0-9]{10}$/
     if (asinPattern.test(trimmed)) return trimmed
 
-    const urlPattern = /\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i
-    const match = trimmed.match(urlPattern)
-    return match ? match[1].toUpperCase() : null
+    // 支持多种 Amazon 链接格式：/dp/、/gp/product/、/gp/aw/d/、?asin=、/exec/obidos/ASIN/ 等
+    const urlPatterns = [
+      /\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i,
+      /[?&]asin=([A-Z0-9]{10})/i,
+      /\/exec\/obidos\/ASIN\/([A-Z0-9]{10})/i,
+      /\/product\/([A-Z0-9]{10})/i,
+    ]
+    for (const re of urlPatterns) {
+      const match = trimmed.match(re)
+      if (match) return match[1].toUpperCase()
+    }
+    return null
   }
 
   /**
@@ -319,13 +328,15 @@ class ListingService {
 
   /**
    * 基于 Pipeline 策略生成主图（完整策略作为 prompt 的一部分）
+   * @param complianceFailures 可选，主图不合规时的检测失败原因，重试时会喂给生图模型以便修正
    */
   async generateMainImageFromStrategy(
     referenceImages: string[],
     productName: string,
     features: string,
     strategyPrompts: StrategyPrompts,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
+    complianceFailures?: string
   ): Promise<GenerationResult> {
     onProgress?.(10, '正在准备主图生成...')
 
@@ -339,10 +350,12 @@ class ListingService {
       .filter(Boolean)
       .join('\n\n')
 
-    const prompt =
-      'generateMainImageFromStrategy' in LISTING_PROMPTS
-        ? (LISTING_PROMPTS as typeof LISTING_PROMPTS & { generateMainImageFromStrategy: (a: string, b: string, c: string) => string }).generateMainImageFromStrategy(productName, features, strategyText)
-        : LISTING_PROMPTS.generateMainImage(productName, features)
+    const promptFn = (LISTING_PROMPTS as typeof LISTING_PROMPTS & {
+      generateMainImageFromStrategy: (a: string, b: string, c: string, d?: string) => string
+    }).generateMainImageFromStrategy
+    const prompt = promptFn
+      ? promptFn(productName, features, strategyText, complianceFailures)
+      : LISTING_PROMPTS.generateMainImage(productName, features)
 
     onProgress?.(30, '正在基于策略生成 Amazon 合规主图...')
     const result = await imageGenerationService.generate(

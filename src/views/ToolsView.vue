@@ -76,7 +76,7 @@
             <p class="tool-desc">基于商品信息与竞品分析，自动生成标题、五点、描述与主图建议，支持初创与优化模式。</p>
           </div>
         </div>
-        <div class="tool-card listing-card" @click="router.push('/tools/aplus-generation')">
+        <div class="tool-card listing-card" @click="router.push('/tools/aplus-wizard')">
           <div class="tool-preview listing-preview">
             <span class="listing-icon">✨</span>
           </div>

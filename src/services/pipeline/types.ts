@@ -180,6 +180,40 @@ export interface StrategyPrompts {
   aPlusGuidancePrompt: string
 }
 
+/** A+ 向导四块式可编辑提示词（中文） */
+export interface APlusPromptBlocks {
+  colorPlanning: string
+  lightShadow: string
+  featureStructure: string
+  marketingNarrative: string
+  narrativeStrategy: string
+}
+
+// ============================================================
+// A+ 向导：视觉营销规划（全局规范 + 模块规划）
+// ============================================================
+
+export interface APlusVisualPlanGlobal {
+  commercialTone: string
+  lightingStyle: string
+  negativeSpace: string
+  /** 必须为英文（可直接给 MJ/SD），可包含多条 */
+  negativePrompt: string
+}
+
+export interface APlusVisualPlanModule {
+  moduleName: string
+  croLogic: string
+  sceneDesc: string
+  /** 必须为纯英文（可直接给 MJ/SD），包含留白与 --ar 等参数 */
+  imagePromptEn: string
+}
+
+export interface APlusVisualPlanResult {
+  global: APlusVisualPlanGlobal
+  modules: APlusVisualPlanModule[]
+}
+
 // ============================================================
 // Agent 5: ListingGenAgent — Listing 生成
 // ============================================================
@@ -261,6 +295,27 @@ export interface GeneratedAPlusModule {
   body: string
   imagePrompt?: string
   imageUrl?: string
+  /**
+   * 画布渲染布局：用于把 headline/body 放到指定区域。
+   * 坐标均为相对值（0~1），以整张模块图为参考系。
+   */
+  renderLayout?: APlusRenderLayout
+}
+
+export type APlusTextAlign = 'left' | 'center' | 'right'
+
+export interface APlusTextBoxLayout {
+  x: number
+  y: number
+  w: number
+  h: number
+  align?: APlusTextAlign
+  fontScale?: number
+}
+
+export interface APlusRenderLayout {
+  headlineBox: APlusTextBoxLayout
+  bodyBox: APlusTextBoxLayout
 }
 
 export interface GeneratedAPlusResult {
@@ -274,13 +329,18 @@ export interface APlusGenSettings {
   moduleCount?: number
   generateImages?: boolean
   enableSelfCheck?: boolean
+  aspectRatio?: '1:1' | '4:5' | '16:9' | '3:4'
+  /**
+   * 图片清晰度档位，用于后端生图参数 imageSize
+   */
+  imageSize?: '1K' | '2K' | '4K'
 }
 
 export interface APlusGenInput {
   userEditablePrompt: string
   strategyPrompts: StrategyPrompts
   analysisReport: AnalysisReport
-  generatedListing: GeneratedListingResult
+  generatedListing?: GeneratedListingResult
   productContext: {
     productName: string
     brand: string
@@ -290,6 +350,10 @@ export interface APlusGenInput {
   }
   referenceImages: string[]
   settings?: APlusGenSettings
+  /** 文案生成完成后回调（用于边生成边展示：先展示卡片，再流式更新图片） */
+  onContentReady?: (modules: GeneratedAPlusModule[]) => void
+  /** 每张配图生成完成时回调（用于边生成边展示） */
+  onModuleImageReady?: (index: number, module: GeneratedAPlusModule) => void
 }
 
 export interface APlusModuleRewriteInput extends Omit<APlusGenInput, 'referenceImages'> {
@@ -297,7 +361,16 @@ export interface APlusModuleRewriteInput extends Omit<APlusGenInput, 'referenceI
   locked?: { headline?: boolean; body?: boolean; image?: boolean }
 }
 
-export interface APlusModuleImageInput extends Pick<APlusGenInput, 'productContext' | 'referenceImages' | 'generatedListing' | 'analysisReport' | 'strategyPrompts' | 'userEditablePrompt'> {
+export interface APlusModuleImageInput extends Pick<
+  APlusGenInput,
+  | 'productContext'
+  | 'referenceImages'
+  | 'generatedListing'
+  | 'analysisReport'
+  | 'strategyPrompts'
+  | 'userEditablePrompt'
+  | 'settings'
+> {
   module: GeneratedAPlusModule
 }
 

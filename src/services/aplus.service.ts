@@ -5,9 +5,12 @@
  */
 
 import { aPlusGenAgent, aPlusModuleRewriteAgent, aPlusModuleImageAgent } from './pipeline/agents/aPlusGenAgent'
+import { aplusPromptGenAgent } from './pipeline/agents/aplusPromptGenAgent'
 import type {
   StrategyPrompts,
   AnalysisReport,
+  APlusPromptBlocks,
+  APlusVisualPlanResult,
   GeneratedListingResult,
   GeneratedAPlusResult,
   APlusGenInput,
@@ -21,16 +24,29 @@ import type {
 
 export type APlusProgressCallback = (progress: number, message: string) => void
 
+export type APlusAnalysisProgressCallback = (info: { step?: number; totalSteps?: number; progress?: number; message: string }) => void
+
+export interface APlusAnalysisResult {
+  strategyPrompts: StrategyPrompts
+  analysisReport: AnalysisReport
+  /** 四块式可编辑提示词（中文） */
+  promptBlocks: APlusPromptBlocks
+  /** 新：全局规范 + 模块规划 */
+  visualPlan: APlusVisualPlanResult
+}
+
 export interface APlusGenParams {
   userEditablePrompt: string
   strategyPrompts: StrategyPrompts
   analysisReport: AnalysisReport
-  generatedListing: GeneratedListingResult
+  generatedListing?: GeneratedListingResult | null
   productInfo?: UserProductInfo | null
   userListingData?: ExtractedProductData | null
   mainImageUrl?: string | null
   generatedImages?: string[]
   settings?: APlusGenSettings
+  onContentReady?: (modules: GeneratedAPlusModule[]) => void
+  onModuleImageReady?: (index: number, module: GeneratedAPlusModule) => void
 }
 
 export class APlusService {
@@ -46,7 +62,8 @@ export class APlusService {
     const productContext = this.buildProductContext(
       productInfo,
       userListingData,
-      generatedListing
+      generatedListing,
+      params.analysisReport
     )
     const referenceImages = this.buildReferenceImages(
       mainImageUrl,
@@ -59,10 +76,12 @@ export class APlusService {
       userEditablePrompt: params.userEditablePrompt,
       strategyPrompts: params.strategyPrompts,
       analysisReport: params.analysisReport,
-      generatedListing: params.generatedListing,
+      generatedListing: params.generatedListing ?? undefined,
       productContext,
       referenceImages,
       settings: params.settings,
+      onContentReady: params.onContentReady,
+      onModuleImageReady: params.onModuleImageReady,
     }
 
     const progressAdapter = (info: { progress: number; message: string }) =>
@@ -76,12 +95,12 @@ export class APlusService {
     onProgress?: APlusProgressCallback
   ): Promise<GeneratedAPlusModule> {
     const { productInfo, userListingData, generatedListing } = params
-    const productContext = this.buildProductContext(productInfo, userListingData, generatedListing)
+    const productContext = this.buildProductContext(productInfo, userListingData, generatedListing, params.analysisReport)
     const input: APlusModuleRewriteInput = {
       userEditablePrompt: params.userEditablePrompt,
       strategyPrompts: params.strategyPrompts,
       analysisReport: params.analysisReport,
-      generatedListing: params.generatedListing,
+      generatedListing: params.generatedListing ?? undefined,
       productContext,
       settings: params.settings,
       module: params.module,
@@ -97,15 +116,16 @@ export class APlusService {
     onProgress?: APlusProgressCallback
   ): Promise<GeneratedAPlusModule> {
     const { productInfo, userListingData, generatedListing, mainImageUrl, generatedImages } = params
-    const productContext = this.buildProductContext(productInfo, userListingData, generatedListing)
+    const productContext = this.buildProductContext(productInfo, userListingData, generatedListing, params.analysisReport)
     const referenceImages = this.buildReferenceImages(mainImageUrl, generatedImages, productInfo, userListingData)
     const input: APlusModuleImageInput = {
       userEditablePrompt: params.userEditablePrompt,
       strategyPrompts: params.strategyPrompts,
       analysisReport: params.analysisReport,
-      generatedListing: params.generatedListing,
+      generatedListing: params.generatedListing ?? undefined,
       productContext,
       referenceImages,
+      settings: params.settings,
       module: params.module,
     }
     const progressAdapter = (info: { progress: number; message: string }) =>
@@ -116,7 +136,8 @@ export class APlusService {
   private buildProductContext(
     productInfo?: UserProductInfo | null,
     userListingData?: ExtractedProductData | null,
-    generatedListing?: GeneratedListingResult
+    generatedListing?: GeneratedListingResult | null,
+    analysisReport?: AnalysisReport
   ): APlusGenInput['productContext'] {
     if (productInfo) {
       const bullets = generatedListing?.bulletPoints ?? []
@@ -127,7 +148,8 @@ export class APlusService {
           .filter(Boolean)
           .join('; '),
         category: productInfo.category,
-        bulletPoints: bullets.length ? bullets : [],
+        // 若未生成 Listing，则用分析报告提供的五点主题作为占位参考（保证不虚构）
+        bulletPoints: bullets.length ? bullets : (analysisReport?.bulletPointsAnalysis?.recommendedOrder ?? []),
       }
     }
     if (userListingData) {
@@ -150,7 +172,7 @@ export class APlusService {
       brand: '',
       features: generatedListing?.description?.substring(0, 300) ?? '',
       category: 'other',
-      bulletPoints: generatedListing?.bulletPoints ?? [],
+      bulletPoints: generatedListing?.bulletPoints ?? (analysisReport?.bulletPointsAnalysis?.recommendedOrder ?? []),
     }
   }
 
@@ -169,12 +191,52 @@ export class APlusService {
   }
 
   /**
-   * 构建默认可编辑提示词（策略 + 分析摘要）
+   * A+ 向导专用：基于用户输入生成策略（无市场/竞品分析）
+   */
+  async runAPlusAnalysis(
+    userProduct: UserProductInfo,
+    options: { market?: string; language?: string; moduleCount?: number; templateId?: string },
+    onProgress?: APlusAnalysisProgressCallback
+  ): Promise<APlusAnalysisResult> {
+    const progressAdapter = (info: { agent?: string; step?: number; totalSteps?: number; progress?: number; message?: string }) =>
+      onProgress?.({ step: info.step, totalSteps: info.totalSteps, progress: info.progress, message: info.message || '分析中…' })
+    return aplusPromptGenAgent(
+      {
+        userProduct,
+        market: options.market,
+        language: options.language,
+        moduleCount: options.moduleCount,
+        templateId: options.templateId,
+      },
+      progressAdapter
+    )
+  }
+
+  /**
+   * 从四块构建合并后的提示词（供下游策略使用）
+   */
+  buildMergedPromptFromBlocks(blocks: APlusPromptBlocks): string {
+    const parts = [
+      (blocks.colorPlanning?.trim()) ? `【智能色彩规划】\n${blocks.colorPlanning.trim()}` : '',
+      (blocks.lightShadow?.trim()) ? `【物理级光影重建】\n${blocks.lightShadow.trim()}` : '',
+      (blocks.featureStructure?.trim()) ? `【结构化卖点编排】\n${blocks.featureStructure.trim()}` : '',
+      (blocks.marketingNarrative?.trim()) ? `【AI 营销叙事】\n${blocks.marketingNarrative.trim()}` : '',
+      (blocks.narrativeStrategy?.trim()) ? `【叙事策略】${blocks.narrativeStrategy.trim()}` : '',
+    ].filter(Boolean)
+    return parts.join('\n\n')
+  }
+
+  /**
+   * 构建默认可编辑提示词（策略 + 分析摘要）；若传入 blocks 则优先用 blocks 合并
    */
   buildDefaultPrompt(
     strategyPrompts: StrategyPrompts,
-    analysisReport: AnalysisReport
+    analysisReport: AnalysisReport,
+    blocks?: APlusPromptBlocks | null
   ): string {
+    if (blocks) {
+      return this.buildMergedPromptFromBlocks(blocks)
+    }
     const base = strategyPrompts.aPlusGuidancePrompt || ''
     const narrative = analysisReport.aPlusAnalysis?.narrativeStrategy
     if (narrative) {

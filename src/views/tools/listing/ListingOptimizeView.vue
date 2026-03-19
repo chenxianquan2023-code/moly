@@ -1,20 +1,6 @@
 <template>
   <div class="listing-optimize">
-    <header class="tool-header">
-      <div class="header-inner">
-        <div class="breadcrumb">
-          <router-link to="/tools">AI 工具</router-link>
-          <RightOutlined class="crumb-icon" />
-          <router-link to="/tools/listing">一键生成 Listing</router-link>
-          <RightOutlined class="crumb-icon" />
-          <span>Listing 优化</span>
-        </div>
-        <div class="header-right">
-          <span class="points"><ThunderboltFilled /> {{ auth.points }} 积分</span>
-          <router-link to="/recharge" class="recharge-link">充值</router-link>
-        </div>
-      </div>
-    </header>
+    <ListingToolHeader breadcrumb-label="Listing 优化" />
 
     <main class="optimize-main">
       <StepIndicator
@@ -85,6 +71,18 @@
           </div>
 
           <div class="lang-section">
+            <label class="lang-label">目标站点</label>
+            <div class="market-toggle">
+              <button
+                v-for="m in TARGET_MARKETS"
+                :key="m.value"
+                class="lang-btn"
+                :class="{ active: optimizeMarket === m.value }"
+                @click="optimizeMarket = m.value"
+              >{{ m.label }}</button>
+            </div>
+          </div>
+          <div class="lang-section">
             <label class="lang-label">优化输出语言</label>
             <div class="lang-toggle">
               <button
@@ -104,7 +102,7 @@
         <div class="step-footer">
           <div class="cost-hint">
             <ThunderboltFilled class="cost-icon" />
-            市场洞察 <strong>10-20</strong> 积分（无竞品 10 / 有竞品 20），优化消耗 <strong>75</strong> 积分（含合规主图）
+            市场洞察 <strong>{{ LISTING_POINTS_COST.marketInsightWithoutCompetitors }}-{{ LISTING_POINTS_COST.marketInsightWithCompetitors }}</strong> 积分（无竞品 {{ LISTING_POINTS_COST.marketInsightWithoutCompetitors }} / 有竞品 {{ LISTING_POINTS_COST.marketInsightWithCompetitors }}），优化消耗 <strong>{{ LISTING_POINTS_COST.fullGeneration }}</strong> 积分（含合规主图）
           </div>
           <div class="footer-actions">
             <button class="btn-back" @click="$router.push('/tools/listing')">
@@ -149,19 +147,10 @@
             <button class="btn-back" @click="store.prevStep()">
               <ArrowLeftOutlined /> 上一步
             </button>
-            <button class="btn-next" :disabled="store.isGenerating || !store.hasPipelineAnalysis" @click="startOptimization">
-              <LoadingOutlined v-if="store.isGenerating" class="spin" />
-              <RocketOutlined v-else />
-              {{ store.isGenerating ? '优化中...' : '自动优化 Listing（75 积分）' }}
+            <button class="btn-next" :disabled="!store.hasPipelineAnalysis" @click="store.nextStep()">
+              下一步：优化生成 <ArrowRightOutlined />
             </button>
           </div>
-        </div>
-
-        <div v-if="store.isGenerating" class="progress-section">
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: store.progress + '%' }"></div>
-          </div>
-          <span class="progress-text">{{ store.progressMessage }}</span>
         </div>
       </div>
 
@@ -173,7 +162,7 @@
               <RobotOutlined class="ai-icon" />
             </div>
             <h4 class="ai-name">Moly AI</h4>
-            <p class="ai-status-text">{{ store.isGenerating ? '正在优化 Listing...' : '优化完成' }}</p>
+            <p class="ai-status-text">{{ store.isGenerating ? '正在优化 Listing...' : (store.hasGeneratedListing ? '优化完成' : '准备就绪') }}</p>
 
             <div class="task-list">
               <div class="task-item" :class="optTaskStatus('rewrite')">
@@ -190,11 +179,7 @@
               </div>
               <div class="task-item" :class="optTaskStatus('mainImage')">
                 <span class="task-dot" />
-                <span>生成 Amazon 合规主图</span>
-              </div>
-              <div class="task-item" :class="optTaskStatus('compliance')">
-                <span class="task-dot" />
-                <span>主图合规检测</span>
+                <span>生成 Amazon 主图</span>
               </div>
             </div>
 
@@ -212,13 +197,57 @@
               </div>
               <ArrowRightOutlined class="score-arrow" />
               <div class="score-after">
-                <span class="score-label">预估优化后</span>
+                <span class="score-label">预估优化后（示意）</span>
                 <span class="score-value after">{{ Math.min(99, (displayReport.score ?? 60) + 20) }}</span>
               </div>
             </div>
           </aside>
 
           <div class="opt-content">
+            <div v-if="!store.isGenerating && !store.hasGeneratedListing" class="opt-start">
+              <div class="opt-start-info">
+                <h3>准备优化 Listing</h3>
+                <p v-if="store.hasPipelineAnalysis">
+                  AI 将基于分析报告，优化你的标题、五点、描述并生成合规主图。
+                </p>
+                <p v-else class="opt-hint">
+                  请先完成上一步「AI 分析」，以便开始优化。
+                </p>
+                <p v-if="store.hasPipelineAnalysis && !hasRefImagesForMainImage" class="opt-hint ref-images-hint">
+                  当前商品无副图参考，主图生成质量可能受限。若商品页有多张图片，抓取数据将更完整。
+                </p>
+                <div class="cost-summary">
+                  <div class="cost-row">
+                    <span>标题 + 五点描述</span>
+                    <span><ThunderboltFilled class="cost-icon" /> 20 积分</span>
+                  </div>
+                  <div class="cost-row">
+                    <span>产品描述</span>
+                    <span><ThunderboltFilled class="cost-icon" /> 15 积分</span>
+                  </div>
+                  <div class="cost-row">
+                    <span>搜索关键词</span>
+                    <span><ThunderboltFilled class="cost-icon" /> 10 积分</span>
+                  </div>
+                  <div class="cost-row">
+                    <span>Amazon 合规主图</span>
+                    <span><ThunderboltFilled class="cost-icon" /> 30 积分</span>
+                  </div>
+                  <div class="cost-row total">
+                    <span>合计</span>
+                    <span><ThunderboltFilled class="cost-icon" /> {{ LISTING_POINTS_COST.fullGeneration }} 积分</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                class="btn-generate"
+                :disabled="!store.hasPipelineAnalysis"
+                @click="startOptimization"
+              >
+                <ExperimentOutlined /> 开始优化
+              </button>
+            </div>
+
             <div v-if="store.isGenerating" class="gen-progress-hint">
               <LoadingOutlined class="spin" />
               <span>{{ store.progressMessage || '优化中，请稍候...' }}</span>
@@ -229,14 +258,8 @@
               :listing="store.generatedListing"
               :images="store.generatedImages"
               :main-image="store.mainImageUrl"
-              :compliance-result="store.complianceResult"
-              @regenerate="handleRegenerate"
               @update-listing="onUpdateListing"
             />
-
-            <div v-if="!store.isGenerating && !store.hasGeneratedListing" class="empty-state">
-              <p>正在准备优化...</p>
-            </div>
           </div>
         </div>
 
@@ -251,6 +274,14 @@
             </button>
           </div>
         </div>
+        <div v-else-if="!store.isGenerating" class="step-footer">
+          <div></div>
+          <div class="footer-actions">
+            <button class="btn-back" @click="store.prevStep()">
+              <ArrowLeftOutlined /> 上一步
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Step 3: 结果编辑与导出 -->
@@ -259,16 +290,7 @@
           :listing="store.generatedListing"
           :images="store.generatedImages"
           :main-image="store.mainImageUrl"
-          :compliance-result="store.complianceResult"
-          @regenerate="handleRegenerate"
           @update-listing="onUpdateListing"
-        />
-
-        <MainImageCompliance
-          v-if="store.complianceResult"
-          :result="store.complianceResult"
-          :is-regenerating="store.isGenerating"
-          @regenerate="regenerateMainImage"
         />
 
         <AddonServices />
@@ -297,24 +319,25 @@ import { ref, computed } from 'vue'
 import {
   RightOutlined, ThunderboltFilled, ArrowLeftOutlined, ArrowRightOutlined,
   SearchOutlined, CheckCircleFilled, ExperimentOutlined, LoadingOutlined,
-  RobotOutlined, RocketOutlined,
+  RobotOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useListingStore } from '@/stores/listing'
 import { listingService } from '@/services/listing.service'
 import { runAnalysisPipeline } from '@/services/pipeline'
-import { LISTING_POINTS_COST } from '@/config/listing.config'
+import { LISTING_POINTS_COST, TARGET_MARKETS } from '@/config/listing.config'
 import { adaptPipelineReportToDisplay } from '@/utils/adaptPipelineReport'
+import ListingToolHeader from './components/ListingToolHeader.vue'
 import StepIndicator from './components/StepIndicator.vue'
 import AnalysisReport from './components/AnalysisReport.vue'
 import ListingResult from './components/ListingResult.vue'
-import MainImageCompliance from './components/MainImageCompliance.vue'
 import AddonServices from './components/AddonServices.vue'
 
 const auth = useAuthStore()
 const store = useListingStore()
 const optimizeLang = ref('en')
+const optimizeMarket = ref('us')
 
 const hasAtLeastOneCompetitor = computed(() =>
   store.competitorAsins.some((a) => {
@@ -328,7 +351,11 @@ const displayReport = computed(() => {
   return adaptPipelineReportToDisplay(store.analysisReport)
 })
 
-type OptPhase = 'idle' | 'rewrite' | 'bullets' | 'desc' | 'mainImage' | 'compliance' | 'done'
+const hasRefImagesForMainImage = computed(
+  () => (store.userListingData?.secondaryImageUrls?.length ?? 0) > 0
+)
+
+type OptPhase = 'idle' | 'rewrite' | 'bullets' | 'desc' | 'mainImage' | 'done'
 const optPhase = ref<OptPhase>('idle')
 
 function onAsinInput() {
@@ -343,7 +370,7 @@ function onTargetKeywordsInput(ev: Event) {
 }
 
 function optTaskStatus(phase: string) {
-  const order: OptPhase[] = ['rewrite', 'bullets', 'desc', 'mainImage', 'compliance']
+  const order: OptPhase[] = ['rewrite', 'bullets', 'desc', 'mainImage']
   const currentIdx = order.indexOf(optPhase.value as OptPhase)
   const phaseIdx = order.indexOf(phase as OptPhase)
   if (optPhase.value === 'done') return 'completed'
@@ -381,7 +408,7 @@ async function startAnalysis() {
       mode: 'optimize',
       userAsin: store.extractedAsin,
       competitorAsins: competitorList,
-      market: 'us',
+      market: optimizeMarket.value,
       language: optimizeLang.value,
     }
     if (competitorList.length === 0) {
@@ -414,7 +441,7 @@ async function startAnalysis() {
 async function startOptimization() {
   if (!store.strategyPrompts || !store.analysisReport) return
 
-  const totalCost = 75
+  const totalCost = LISTING_POINTS_COST.fullGeneration
   if (auth.points < totalCost) {
     message.warning(`积分不足，优化生成需要 ${totalCost} 积分（当前 ${auth.points}）`)
     return
@@ -422,7 +449,6 @@ async function startOptimization() {
 
   store.isGenerating = true
   store.progress = 0
-  store.nextStep()
 
   const productName = store.userListingData?.title || store.extractedAsin
   const features = store.userListingData?.bulletPoints.join(', ') || ''
@@ -443,7 +469,7 @@ async function startOptimization() {
         userListing: store.userListingData ?? undefined,
         strategyPrompts: store.strategyPrompts,
         language: optimizeLang.value,
-        market: 'us',
+        market: optimizeMarket.value,
       },
       (p, msg) => {
         const mapped = 10 + p * 0.45
@@ -463,7 +489,8 @@ async function startOptimization() {
     }
 
     optPhase.value = 'mainImage'
-    store.updateProgress(58, '正在生成 Amazon 合规主图...')
+    const hasRefImages = (store.userListingData?.secondaryImageUrls?.length ?? 0) > 0
+    store.updateProgress(58, hasRefImages ? '正在生成 Amazon 合规主图...' : '正在生成主图（无参考图时质量可能受限）...')
 
     const imgResult = await listingService.generateMainImageFromStrategy(
       store.userListingData?.secondaryImageUrls ?? [],
@@ -476,19 +503,8 @@ async function startOptimization() {
     if (imgResult.success && imgResult.imageUrl) {
       store.mainImageUrl = imgResult.imageUrl
       store.generatedImages = [imgResult.imageUrl]
-
-      // Phase 5: compliance check
-      optPhase.value = 'compliance'
-      store.updateProgress(82, '正在进行主图合规检测...')
-
-      const compliance = await listingService.checkMainImageCompliance(
-        imgResult.imageUrl,
-        (p, msg) => store.updateProgress(Math.min(98, 82 + p * 0.16), msg)
-      )
-      store.complianceResult = compliance
     } else {
       store.mainImageUrl = null
-      store.complianceResult = null
       message.warning('主图生成失败，文案已优化成功，可稍后重试主图')
     }
 
@@ -507,58 +523,6 @@ async function startOptimization() {
   }
 }
 
-async function regenerateMainImage() {
-  if (!store.strategyPrompts) {
-    message.warning('无法重新生成：缺少策略数据')
-    return
-  }
-
-  store.isGenerating = true
-  store.updateProgress(0, '正在重新生成主图...')
-
-  const productName = store.userListingData?.title || store.extractedAsin
-  const features = store.generatedListing?.bulletPoints.join(', ') || ''
-  const refImages = store.userListingData?.secondaryImageUrls ?? []
-
-  try {
-    const imgResult = await listingService.generateMainImageFromStrategy(
-      refImages,
-      productName,
-      features,
-      store.strategyPrompts,
-      (p, msg) => store.updateProgress(Math.min(60, p * 0.6), msg)
-    )
-
-    if (imgResult.success && imgResult.imageUrl) {
-      store.mainImageUrl = imgResult.imageUrl
-      store.generatedImages = [imgResult.imageUrl]
-
-      store.updateProgress(65, '正在重新检测合规...')
-      const compliance = await listingService.checkMainImageCompliance(
-        imgResult.imageUrl,
-        (p, msg) => store.updateProgress(Math.min(98, 65 + p * 0.33), msg)
-      )
-      store.complianceResult = compliance
-      store.updateProgress(100, '完成')
-      message.success(compliance.passed ? '主图合规检测通过！' : '主图已重新生成，请查看合规报告')
-    } else {
-      message.error(imgResult.error || '主图重新生成失败')
-    }
-  } catch (err) {
-    message.error('重新生成失败，请重试')
-    console.error('[ListingOptimize] main image regeneration error:', err)
-  } finally {
-    store.isGenerating = false
-  }
-}
-
-async function handleRegenerate(_field: string) {
-  if (!store.strategyPrompts) return
-  message.info('正在重新优化...')
-  store.setStep(1)
-  optPhase.value = 'idle'
-}
-
 function onUpdateListing(payload: { field: 'title' | 'bullets' | 'description'; value: string | string[] }) {
   if (payload.field === 'title' && typeof payload.value === 'string') {
     store.updateGeneratedListing({ title: payload.value })
@@ -573,159 +537,383 @@ function onUpdateListing(payload: { field: 'title' | 'bullets' | 'description'; 
 <style scoped lang="scss">
 .listing-optimize {
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
 }
 
-.tool-header {
-  background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 20px;
-  .header-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
-  .breadcrumb {
-    font-size: 14px; color: #6b7280; display: flex; align-items: center; gap: 8px;
-    a { color: #2563eb; text-decoration: none; &:hover { text-decoration: underline; } }
-    .crumb-icon { font-size: 10px; }
+.market-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  .lang-btn {
+    padding: 7px 14px;
+    font-size: 13px;
+    border: 1px solid var(--color-border-muted);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    &.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+    &:not(.active):hover { background: var(--color-border-light); }
   }
-  .header-right { display: flex; align-items: center; gap: 16px; font-size: 14px; }
-  .points { color: #6b7280; }
-  .recharge-link { color: #2563eb; text-decoration: none; }
 }
 
-.optimize-main { max-width: 1100px; margin: 0 auto; padding: 24px 24px 80px; }
-.step-content { margin-top: 8px; }
+.optimize-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px 80px;
+}
+.step-content { margin-top: 24px; }
 
 .asin-entry {
-  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 16px;
-  padding: 40px 32px; display: flex; flex-direction: column; align-items: center;
-  gap: 12px; text-align: center; max-width: 640px; margin: 0 auto;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto;
   .entry-icon-wrap {
-    width: 64px; height: 64px; border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
     background: linear-gradient(135deg, #fef3c7, #fde68a);
-    display: flex; align-items: center; justify-content: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     .entry-icon { font-size: 28px; color: #d97706; }
   }
-  .entry-title { font-size: 22px; font-weight: 700; color: #111827; margin: 0; }
-  .entry-desc { font-size: 14px; color: #6b7280; margin: 0; max-width: 480px; line-height: 1.6; }
+  .entry-title { font-size: 22px; font-weight: 700; color: var(--color-text-primary); margin: 0; }
+  .entry-desc { font-size: 14px; color: var(--color-text-secondary); margin: 0; max-width: 480px; line-height: 1.6; }
 }
 
 .asin-input-wrapper {
-  width: 100%; max-width: 500px; position: relative; margin-top: 8px;
-  .input-prefix { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 16px; color: #9ca3af; }
+  width: 100%;
+  max-width: 500px;
+  position: relative;
+  margin-top: 8px;
+  .input-prefix { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 16px; color: var(--color-text-tertiary); }
   .asin-input {
-    width: 100%; padding: 14px 14px 14px 42px; border: 1px solid #d1d5db; border-radius: 12px;
-    font-size: 15px; color: #111827; transition: border-color 0.2s;
-    &:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+    width: 100%;
+    padding: 14px 14px 14px 42px;
+    border: 1px solid var(--color-border-muted);
+    border-radius: var(--radius-lg);
+    font-size: 15px;
+    color: var(--color-text-primary);
+    transition: border-color 0.2s;
+    &:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
   }
 }
 
 .extracted-hint {
-  font-size: 13px; color: #059669; display: flex; align-items: center; gap: 6px;
+  font-size: 13px;
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+  gap: 6px;
   .check-icon { font-size: 14px; }
-  strong { color: #111827; }
+  strong { color: var(--color-text-primary); }
 }
 
 .competitor-section {
-  width: 100%; max-width: 500px; margin-top: 16px; text-align: left;
-  .section-label { font-size: 13px; color: #6b7280; display: block; margin-bottom: 8px; }
+  width: 100%;
+  max-width: 500px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+  .section-label { font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px; }
   .asin-row {
-    display: flex; gap: 8px; margin-bottom: 8px;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
     .asin-field {
-      flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
-      &:focus { outline: none; border-color: #2563eb; }
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--color-border-muted);
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      &:focus { outline: none; border-color: var(--color-primary); }
     }
-    .rm-btn { width: 36px; height: 36px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #ef4444; cursor: pointer; font-size: 18px; }
+    .rm-btn {
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-error);
+      cursor: pointer;
+      font-size: 18px;
+    }
   }
-  .add-btn { padding: 6px 0; font-size: 14px; color: #2563eb; background: none; border: none; cursor: pointer; &:hover { text-decoration: underline; } }
+  .add-btn { padding: 6px 0; font-size: 14px; color: var(--color-primary); background: none; border: none; cursor: pointer; &:hover { text-decoration: underline; } }
 }
 
 .extra-section {
-  width: 100%; max-width: 500px; margin-top: 16px; text-align: left;
-  .section-label { font-size: 13px; color: #6b7280; display: block; margin-bottom: 8px; }
+  width: 100%;
+  max-width: 500px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+  .section-label { font-size: 13px; color: var(--color-text-secondary); display: block; margin-bottom: 8px; }
   .extra-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-  .extra-label { font-size: 13px; color: #6b7280; min-width: 80px; }
-  .asin-field { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; &:focus { outline: none; border-color: #2563eb; } }
-  .audience-field { flex: 1; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; resize: vertical; &:focus { outline: none; border-color: #2563eb; } }
+  .extra-label { font-size: 13px; color: var(--color-text-secondary); min-width: 80px; }
+  .asin-field { flex: 1; padding: 10px 12px; border: 1px solid var(--color-border-muted); border-radius: var(--radius-md); font-size: 14px; &:focus { outline: none; border-color: var(--color-primary); } }
+  .audience-field { flex: 1; padding: 10px 12px; border: 1px solid var(--color-border-muted); border-radius: var(--radius-md); font-size: 14px; resize: vertical; &:focus { outline: none; border-color: var(--color-primary); } }
 }
 
-.lang-section { display: flex; align-items: center; gap: 12px; margin-top: 8px; .lang-label { font-size: 14px; color: #374151; } }
+.lang-section { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--color-border); }
+.lang-label { font-size: 14px; color: var(--color-text-primary); }
 .lang-toggle {
-  display: flex; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;
+  display: flex;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  overflow: hidden;
   .lang-btn {
-    padding: 7px 18px; font-size: 13px; border: none; background: #fff; color: #6b7280; cursor: pointer; transition: all 0.2s;
-    &.active { background: #2563eb; color: #fff; }
-    &:not(.active):hover { background: #f3f4f6; }
+    padding: 7px 18px;
+    font-size: 13px;
+    border: none;
+    background: var(--color-bg);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    &.active { background: var(--color-primary); color: #fff; }
+    &:not(.active):hover { background: var(--color-border-light); }
   }
 }
 
 .step-footer {
-  margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e7eb;
-  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-.cost-hint { font-size: 13px; color: #6b7280; .cost-icon { color: #f59e0b; margin-right: 2px; } strong { color: #111827; } }
+.cost-hint {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  .cost-icon { color: var(--color-warning-icon); margin-right: 2px; }
+  strong { color: var(--color-text-primary); }
+}
 .footer-actions { display: flex; gap: 12px; }
 
-.btn-back, .btn-next, .btn-finish {
-  display: flex; align-items: center; gap: 6px; padding: 10px 20px;
-  border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;
+.btn-back, .btn-next, .btn-finish, .btn-generate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
 }
-.btn-back { background: #fff; color: #6b7280; border: 1px solid #d1d5db; &:hover { background: #f3f4f6; color: #374151; } }
-.btn-next { background: #2563eb; color: #fff; &:hover:not(:disabled) { background: #1d4ed8; } &:disabled { opacity: 0.5; cursor: not-allowed; } }
-.btn-finish { background: #059669; color: #fff; &:hover { background: #047857; } }
+.btn-back {
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  &:hover { background: var(--color-border-light); color: var(--color-text-primary); }
+}
+.btn-next {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  &:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+}
+.btn-finish {
+  background: var(--color-success-cta);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  &:hover {
+    background: var(--color-success);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+  }
+}
+.btn-generate {
+  background: var(--color-success-cta);
+  color: #fff;
+  font-size: 16px;
+  padding: 14px 32px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+  &:hover:not(:disabled) {
+    background: var(--color-success);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+}
 
 .progress-section {
-  margin-top: 16px; display: flex; flex-direction: column; gap: 6px;
-  .progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.3s; }
-  .progress-text { font-size: 13px; color: #6b7280; }
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  .progress-bar { height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: 3px; transition: width 0.3s; }
+  .progress-text { font-size: 13px; color: var(--color-text-secondary); }
 }
 
 .optimize-layout {
-  display: grid; grid-template-columns: 260px 1fr; gap: 28px; align-items: start;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 32px;
+  align-items: start;
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 }
 
 .ai-status-panel {
-  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 14px;
-  padding: 24px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px;
-  position: sticky; top: 24px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
   .ai-avatar {
-    width: 56px; height: 56px; border-radius: 50%;
-    background: linear-gradient(135deg, #d97706, #f59e0b);
-    display: flex; align-items: center; justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-primary), #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     .ai-icon { font-size: 26px; color: #fff; }
   }
-  .ai-name { font-size: 16px; font-weight: 700; color: #111827; margin: 0; }
-  .ai-status-text { font-size: 13px; color: #6b7280; margin: 0; text-align: center; }
+  .ai-name { font-size: 16px; font-weight: 700; color: var(--color-text-primary); margin: 0; }
+  .ai-status-text { font-size: 13px; color: var(--color-text-secondary); margin: 0; text-align: center; }
 }
 
-.task-list { width: 100%; display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.task-list { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .task-item {
-  display: flex; align-items: center; gap: 10px; font-size: 13px; color: #9ca3af;
-  .task-dot { width: 10px; height: 10px; border-radius: 50%; background: #d1d5db; flex-shrink: 0; transition: all 0.3s; }
-  &.completed { color: #059669; .task-dot { background: #059669; } }
-  &.active { color: #2563eb; font-weight: 600; .task-dot { background: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); } }
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  .task-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-border);
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  &.completed { color: var(--color-success); .task-dot { background: var(--color-success); } }
+  &.active {
+    color: var(--color-primary);
+    font-weight: 600;
+    .task-dot {
+      background: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+  }
 }
 
 .overall-progress {
-  width: 100%; display: flex; align-items: center; gap: 8px; margin-top: 8px;
-  .progress-bar { flex: 1; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
-  .progress-fill { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.3s; }
-  .progress-label { font-size: 12px; font-weight: 700; color: #2563eb; min-width: 32px; text-align: right; }
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  .progress-bar { flex: 1; height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: 3px; transition: width 0.3s; }
+  .progress-label { font-size: 12px; font-weight: 700; color: var(--color-primary); min-width: 36px; text-align: right; }
 }
 
 .score-compare {
-  display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px; background: #fff;
-  border-radius: 10px; border: 1px solid #e5e7eb; width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  width: 100%;
   .score-before, .score-after { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; }
-  .score-label { font-size: 11px; color: #6b7280; }
-  .score-value { font-size: 22px; font-weight: 800; &.before { color: #dc2626; } &.after { color: #059669; } }
-  .score-arrow { font-size: 14px; color: #9ca3af; }
+  .score-label { font-size: 11px; color: var(--color-text-secondary); }
+  .score-value { font-size: 22px; font-weight: 800; &.before { color: var(--color-error); } &.after { color: var(--color-success); } }
+  .score-arrow { font-size: 14px; color: var(--color-text-tertiary); }
 }
 
 .opt-content { min-height: 300px; }
-.gen-progress-hint {
-  display: flex; align-items: center; gap: 10px; padding: 16px;
-  background: #eff6ff; border-radius: 10px; font-size: 14px; color: #2563eb; margin-bottom: 20px;
+
+.opt-start {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 40px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  text-align: center;
+
+  h3 { font-size: 20px; font-weight: 700; color: var(--color-text-primary); margin: 0; }
+  p { font-size: 14px; color: var(--color-text-secondary); margin: 0; max-width: 480px; }
+  .opt-hint { color: var(--color-warning); }
 }
-.empty-state { display: flex; align-items: center; justify-content: center; min-height: 200px; p { color: #9ca3af; font-size: 14px; } }
+
+.cost-summary {
+  width: 100%;
+  max-width: 340px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  .cost-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    .cost-icon { color: var(--color-warning-icon); font-size: 12px; }
+    &.total {
+      padding-top: 12px;
+      margin-top: 4px;
+      border-top: 1px solid var(--color-border);
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
+  }
+}
+
+.gen-progress-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--color-primary-light);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--color-primary);
+  margin-bottom: 24px;
+}
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

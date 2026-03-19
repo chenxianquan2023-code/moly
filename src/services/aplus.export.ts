@@ -1,6 +1,36 @@
 import JSZip from 'jszip'
 import type { APlusDraft } from '@/stores/aplus'
 
+function normalizeTextForPrompt(s: string) {
+  return String(s ?? '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+const defaultRenderLayout = {
+  headlineBox: { x: 0.06, y: 0.06, w: 0.88, h: 0.14, align: 'center', fontScale: 1 },
+  bodyBox: { x: 0.06, y: 0.22, w: 0.88, h: 0.72, align: 'left', fontScale: 0.95 },
+} as const
+
+function buildExportImagePrompt(m: (APlusDraft['modules'][number] & { renderLayout?: any })) {
+  const layout = m.renderLayout ?? defaultRenderLayout
+  const hb = layout.headlineBox ?? defaultRenderLayout.headlineBox
+  const bb = layout.bodyBox ?? defaultRenderLayout.bodyBox
+
+  const headlineText = normalizeTextForPrompt(m.headline)
+  const bodyText = normalizeTextForPrompt(m.body)
+
+  const textPrompt = `
+Text overlays (strict):
+- HeadlineText: ${headlineText}
+- BodyText: ${bodyText}
+
+Text placement (normalized coordinates):
+- HeadlineBox: x=${hb.x}, y=${hb.y}, w=${hb.w}, h=${hb.h}, align=${hb.align ?? 'center'}
+- BodyBox: x=${bb.x}, y=${bb.y}, w=${bb.w}, h=${bb.h}, align=${bb.align ?? 'left'}
+`.trim()
+
+  return `${m.imagePrompt ?? ''}\n\n${textPrompt}`.trim()
+}
+
 function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -32,7 +62,7 @@ function toModulesCsv(draft: APlusDraft): string {
         csvEscape(m.type),
         csvEscape(m.headline),
         csvEscape(m.body),
-        csvEscape(m.imagePrompt ?? ''),
+        csvEscape(buildExportImagePrompt(m)),
         csvEscape(m.imageUrl ?? ''),
       ].join(',')
     )
@@ -50,7 +80,7 @@ export async function downloadAPlusDeliveryZip(draft: APlusDraft) {
     index: idx + 1,
     type: m.type,
     imageUrl: m.imageUrl ?? null,
-    imagePrompt: m.imagePrompt ?? null,
+    imagePrompt: buildExportImagePrompt(m),
   }))
   zip.file('images.json', JSON.stringify({ images: imageList }, null, 2))
 

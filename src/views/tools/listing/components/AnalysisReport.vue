@@ -90,9 +90,9 @@ const scoreClass = computed(() => {
 
 <style scoped lang="scss">
 .analysis-report {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -108,7 +108,7 @@ const scoreClass = computed(() => {
 .report-title {
   font-size: 18px;
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text-primary);
   margin: 0;
 }
 
@@ -117,9 +117,9 @@ const scoreClass = computed(() => {
   border-radius: 20px;
   font-size: 14px;
   font-weight: 700;
-  &.score-good { background: #ecfdf5; color: #059669; }
-  &.score-mid { background: #fffbeb; color: #d97706; }
-  &.score-low { background: #fef2f2; color: #dc2626; }
+  &.score-good { background: rgba(5, 150, 105, 0.12); color: var(--color-success); }
+  &.score-mid { background: rgba(217, 119, 6, 0.12); color: var(--color-warning); }
+  &.score-low { background: rgba(220, 38, 38, 0.12); color: var(--color-error); }
 }
 
 .report-section { display: flex; flex-direction: column; gap: 8px; }
@@ -133,10 +133,10 @@ const scoreClass = computed(() => {
   margin: 0;
   .label-icon { font-size: 15px; }
 
-  &.strengths-label { color: #059669; }
-  &.weaknesses-label { color: #dc2626; }
-  &.suggestions-label { color: #d97706; }
-  &.keywords-label { color: #2563eb; }
+  &.strengths-label { color: var(--color-success); }
+  &.weaknesses-label { color: var(--color-error); }
+  &.suggestions-label { color: var(--color-warning); }
+  &.keywords-label { color: var(--color-primary); }
   &.missing-label { color: #9333ea; }
 }
 
@@ -144,16 +144,16 @@ const scoreClass = computed(() => {
 
 .report-tag {
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
   gap: 2px;
 
   .tag-aspect { font-size: 13px; font-weight: 600; }
-  .tag-detail { font-size: 13px; color: #374151; }
+  .tag-detail { font-size: 13px; color: var(--color-text-secondary); }
 
-  &.strength { background: #ecfdf5; .tag-aspect { color: #059669; } }
-  &.weakness { background: #fef2f2; .tag-aspect { color: #dc2626; } }
+  &.strength { background: rgba(5, 150, 105, 0.12); .tag-aspect { color: var(--color-success); } }
+  &.weakness { background: rgba(220, 38, 38, 0.12); .tag-aspect { color: var(--color-error); } }
 }
 
 .suggestion-list {
@@ -162,7 +162,7 @@ const scoreClass = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  li { font-size: 13px; color: #374151; line-height: 1.5; }
+  li { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
 }
 
 .keyword-cloud {
@@ -175,9 +175,9 @@ const scoreClass = computed(() => {
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 13px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 
-  &.missing { background: #faf5ff; color: #9333ea; }
+  &.missing { background: rgba(147, 51, 234, 0.12); color: #9333ea; }
 }
 </style>

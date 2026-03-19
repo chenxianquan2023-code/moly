@@ -158,9 +158,9 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
-                    path: 'aplus-generation',
-                    name: 'tools-aplus-generation',
-                    component: () => import('../views/tools/aplus/APlusGenerationView.vue'),
+                    path: 'aplus-wizard',
+                    name: 'tools-aplus-wizard',
+                    component: () => import('../views/tools/aplus/APlusWizardView.vue'),
                     meta: { requiresAuth: true }
                 },
                 {

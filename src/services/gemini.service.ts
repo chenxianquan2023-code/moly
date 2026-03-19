@@ -75,6 +75,37 @@ class GeminiService {
     }
 
     /**
+     * 将图片 URL 数组预解析为 data URL，避免并行请求时 blob URL 并发 fetch 失败
+     * 解析顺序执行，确保同一 blob 不会并发 fetch
+     */
+    async resolveImageUrlsToDataUrls(urls: string[]): Promise<string[]> {
+        const seen = new Map<string, string>()
+        const result: string[] = []
+        for (const url of urls) {
+            if (url.startsWith('data:image')) {
+                result.push(url)
+                continue
+            }
+            const cached = seen.get(url)
+            if (cached) {
+                result.push(cached)
+                continue
+            }
+            const response = await fetch(url)
+            const blob = await response.blob()
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result as string)
+                reader.onerror = reject
+                reader.readAsDataURL(blob)
+            })
+            seen.set(url, dataUrl)
+            result.push(dataUrl)
+        }
+        return result
+    }
+
+    /**
      * 获取图片 MIME 类型
      */
     private getMimeType(url: string): string {

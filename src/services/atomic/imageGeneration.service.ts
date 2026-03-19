@@ -16,7 +16,7 @@ export type GenerationMode =
   | 'custom'          // 自定义
 
 export interface GenerationOptions {
-  aspectRatio?: '1:1' | '3:4' | '4:3' | '16:9'
+  aspectRatio?: '1:1' | '3:4' | '4:3' | '4:5' | '16:9'
   imageSize?: '1K' | '2K' | '4K'
   temperature?: number
   keepBackground?: boolean
@@ -54,11 +54,12 @@ export class ImageGenerationService {
     try {
       console.log(`[ImageGenerationService] Generating image in mode: ${mode}`)
       
+      const aspectRatio = options.aspectRatio === '4:5' ? '3:4' : options.aspectRatio
       const resultImage = await geminiService.generateImage(
         prompt,
         referenceImages,
         {
-          aspectRatio: options.aspectRatio,
+          aspectRatio,
           imageSize: options.imageSize,
           temperature: options.temperature ?? 0.7
         }

@@ -13,34 +13,43 @@ export interface DisplayAnalysisFormat {
   missingKeywords: string[]
 }
 
-export function adaptPipelineReportToDisplay(report: AnalysisReport): DisplayAnalysisFormat {
+export function adaptPipelineReportToDisplay(report: AnalysisReport | null | undefined): DisplayAnalysisFormat {
+  if (!report) {
+    return {
+      strengths: [],
+      weaknesses: [],
+      suggestions: [],
+      keywords: [],
+      missingKeywords: [],
+    }
+  }
+
   const diff = report.differentiationAnalysis
   const kw = report.keywords
-
-  const strengths = diff.competitorStrengths.map((s) => ({
+  const strengths = (diff?.competitorStrengths ?? []).map((s) => ({
     aspect: '竞品优势',
     detail: s,
   }))
 
-  const weaknesses = diff.competitorWeaknesses.map((w) => ({
+  const weaknesses = (diff?.competitorWeaknesses ?? []).map((w) => ({
     aspect: '竞品不足',
     detail: w,
   }))
 
-  const suggestions = [...diff.differentiationSuggestions]
-  if (diff.pricingRecommendation) {
+  const suggestions = [...(diff?.differentiationSuggestions ?? [])]
+  if (diff?.pricingRecommendation) {
     suggestions.push(`定价建议: ${diff.pricingRecommendation}`)
   }
 
   const keywords = [
-    ...kw.coreKeywords,
-    ...kw.longTailKeywords.slice(0, 5),
+    ...(kw?.coreKeywords ?? []),
+    ...(kw?.longTailKeywords ?? []).slice(0, 5),
   ]
 
   const missingKeywords: string[] = []
-  const usedSet = new Set(keywords.map((k) => k.toLowerCase()))
-  for (const w of report.titleAnalysis.mustIncludeWords) {
-    if (!usedSet.has(w.toLowerCase())) {
+  const usedSet = new Set(keywords.map((k) => String(k).toLowerCase()))
+  for (const w of report.titleAnalysis?.mustIncludeWords ?? []) {
+    if (!usedSet.has(String(w).toLowerCase())) {
       missingKeywords.push(w)
     }
   }
@@ -60,10 +69,11 @@ export function adaptPipelineReportToDisplay(report: AnalysisReport): DisplayAna
 function computeDisplayScore(report: AnalysisReport): number {
   let score = 60
   const diff = report.differentiationAnalysis
-  if (diff.differentiationSuggestions.length > 0) {
-    score = Math.min(90, 55 + diff.differentiationSuggestions.length * 5)
+  const suggestions = diff?.differentiationSuggestions ?? []
+  if (suggestions.length > 0) {
+    score = Math.min(90, 55 + suggestions.length * 5)
   }
-  if (report.keywords.coreKeywords.length >= 3) score += 5
-  if (report.titleAnalysis.recommendedFormula) score += 3
+  if ((report.keywords?.coreKeywords ?? []).length >= 3) score += 5
+  if (report.titleAnalysis?.recommendedFormula) score += 3
   return Math.min(99, score)
 }

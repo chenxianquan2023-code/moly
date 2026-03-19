@@ -64,35 +64,37 @@ function goToPromoVideo() {
 }
 
 function goToAPlus() {
-  router.push('/tools/aplus-generation')
+  router.push('/tools/aplus-wizard?from=listing')
 }
 </script>
 
 <style scoped lang="scss">
 .addon-services {
-  margin-top: 32px;
+  margin-top: 36px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
 }
 
 .addon-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: #111827;
+  color: var(--color-text-primary);
   margin: 0;
 }
 
 .addon-desc {
   font-size: 14px;
-  color: #6b7280;
-  margin: -8px 0 0;
+  color: var(--color-text-secondary);
+  margin: -4px 0 0;
 }
 
 .addon-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 20px;
 
   @media (max-width: 900px) {
     grid-template-columns: repeat(2, 1fr);
@@ -105,10 +107,10 @@ function goToAPlus() {
 
 .addon-card {
   position: relative;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 24px 20px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 24px 24px 20px;
   cursor: pointer;
   transition: all 0.25s ease;
   display: flex;
@@ -116,8 +118,8 @@ function goToAPlus() {
   gap: 12px;
 
   &:hover {
-    border-color: #a78bfa;
-    box-shadow: 0 6px 24px rgba(124, 58, 237, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 6px 24px rgba(37, 99, 235, 0.12);
     transform: translateY(-2px);
   }
 }
@@ -130,7 +132,7 @@ function goToAPlus() {
   border-radius: 10px;
   font-size: 11px;
   font-weight: 700;
-  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  background: var(--color-primary);
   color: #fff;
 }
 
@@ -144,18 +146,18 @@ function goToAPlus() {
   font-size: 22px;
 
   &.promo-image-icon {
-    background: linear-gradient(135deg, #eff6ff, #dbeafe);
-    color: #2563eb;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
   }
 
   &.promo-video-icon {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    color: #d97706;
+    background: #fef3c7;
+    color: var(--color-warning);
   }
 
   &.aplus-icon {
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-    color: #059669;
+    background: #d1fae5;
+    color: var(--color-success);
   }
 }
 
@@ -166,14 +168,14 @@ function goToAPlus() {
 .card-title {
   font-size: 15px;
   font-weight: 700;
-  color: #111827;
-  margin: 0 0 4px;
+  color: var(--color-text-primary);
+  margin: 0 0 6px;
 }
 
 .card-desc {
   font-size: 13px;
-  color: #6b7280;
-  line-height: 1.5;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
   margin: 0;
 }
 
@@ -183,8 +185,9 @@ function goToAPlus() {
   gap: 4px;
   font-size: 13px;
   font-weight: 600;
-  color: #7c3aed;
-  padding-top: 8px;
-  border-top: 1px solid #f3f4f6;
+  color: var(--color-primary);
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border-light);
 }
 </style>

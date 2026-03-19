@@ -77,6 +77,7 @@ export type {
   DifferentiationAnalysis,
   StrategyInput,
   StrategyPrompts,
+  APlusPromptBlocks,
   ListingGenInput,
   GeneratedListingResult,
   CompareInput,
