@@ -69,7 +69,7 @@
           </div>
 
           <!-- 分析按钮（独立突出） -->
-          <div v-if="!store.analysisReport && !isAnalyzing && !analysisError" class="analyze-action">
+          <div v-if="!aplus.visualPlan && !isAnalyzing && !analysisError" class="analyze-action">
             <p class="section-desc">请先选择模板与生图数量，然后点击下方按钮开始分析。</p>
             <button class="btn-generate" :disabled="!canProceedStep1" @click="retryAnalysis">
               <ExperimentOutlined /> 开始分析
@@ -87,7 +87,7 @@
             <div class="progress-msg">{{ analysisProgressMessage }}</div>
           </div>
 
-          <template v-else-if="store.analysisReport && aplus.visualPlan">
+          <template v-else-if="aplus.visualPlan">
             <p class="section-desc">请审阅并编辑「全局规范」与「模块规划」。点击卡片或「编辑」展开详情。</p>
 
             <!-- 全局规范：渐进式卡片 -->
@@ -170,7 +170,7 @@
               <button class="btn-back" @click="step = 1">
                 <ArrowLeftOutlined /> 上一步
               </button>
-              <button class="btn-next" :disabled="!store.analysisReport" @click="handleStep2Next">
+              <button class="btn-next" :disabled="!aplus.visualPlan" @click="handleStep2Next">
                 确认规划并生成图片 <ArrowRightOutlined />
               </button>
             </div>
@@ -493,7 +493,7 @@ function handleStep1Next() {
 }
 
 function handleStep2Next() {
-  if (!store.analysisReport) return
+  if (!aplus.visualPlan) return
   aplus.resizeVisualPlanModules(moduleCount.value)
   step.value = 3
   void runGenerate()

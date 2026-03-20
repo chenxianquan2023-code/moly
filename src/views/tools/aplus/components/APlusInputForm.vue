@@ -185,6 +185,7 @@ import { computed, ref } from 'vue'
 import { PlusOutlined, CloseOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { useAPlusStore } from '@/stores/aplus'
 import { LANGUAGE_OPTIONS } from '@/config/listing.config'
+import { fileToBase64, compressImage } from '@/utils/imageUtils'
 
 const props = withDefaults(
   defineProps<{
@@ -267,28 +268,43 @@ function removeImage(index: number) {
   aplus.updateWizardInput({ images: next })
 }
 
-function onFileChange(e: Event) {
+async function processFilesToDataUrls(files: FileList | File[]): Promise<string[]> {
+  const urls: string[] = []
+  const arr = Array.from(files)
+  for (let i = 0; i < arr.length; i++) {
+    if (aplus.wizardInput.images.length + urls.length >= 5) break
+    const file = arr[i]
+    if (!file.type.startsWith('image/')) continue
+    try {
+      const base64 = await fileToBase64(file)
+      const compressed = await compressImage(base64, {
+        maxWidth: 1600,
+        maxHeight: 1600,
+        quality: 0.82,
+        type: 'image/jpeg',
+      })
+      urls.push(compressed)
+    } catch {
+      /* skip invalid file */
+    }
+  }
+  return urls
+}
+
+async function onFileChange(e: Event) {
   const target = e.target as HTMLInputElement
   const files = target.files
   if (!files) return
-  const urls: string[] = []
-  for (let i = 0; i < files.length; i++) {
-    if (aplus.wizardInput.images.length + urls.length >= 5) break
-    urls.push(URL.createObjectURL(files[i]))
-  }
+  const urls = await processFilesToDataUrls(files)
   if (urls.length) addImages(urls)
   target.value = ''
 }
 
-function onDrop(e: DragEvent) {
+async function onDrop(e: DragEvent) {
   const files = e.dataTransfer?.files
   if (!files) return
-  const urls: string[] = []
-  for (let i = 0; i < files.length; i++) {
-    if (!files[i].type.startsWith('image/')) continue
-    if (aplus.wizardInput.images.length + urls.length >= 5) break
-    urls.push(URL.createObjectURL(files[i]))
-  }
+  e.preventDefault()
+  const urls = await processFilesToDataUrls(files)
   if (urls.length) addImages(urls)
 }
 </script>

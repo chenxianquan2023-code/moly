@@ -102,8 +102,33 @@ function loadAll(): APlusDraft[] {
   }
 }
 
+function stripDraftImageUrls(draft: APlusDraft): APlusDraft {
+  return {
+    ...draft,
+    modules: draft.modules.map((m) => {
+      const url = m.imageUrl
+      const keepUrl = typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))
+      return { ...m, imageUrl: keepUrl ? url : undefined }
+    }),
+  }
+}
+
 function saveAll(list: APlusDraft[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      const stripped = list.map(stripDraftImageUrls)
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stripped))
+      } catch {
+        const minimal = stripped.slice(0, 1).map((d) => stripDraftImageUrls(d))
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal))
+      }
+    } else {
+      throw e
+    }
+  }
 }
 
 function loadWizardInput(): APlusWizardInput {
@@ -128,7 +153,9 @@ function loadWizardInput(): APlusWizardInput {
     return {
       productName: parsed.productName ?? '',
       rawParams: parsed.rawParams ?? '',
-      images: Array.isArray(parsed.images) ? parsed.images.filter((x) => typeof x === 'string') : [],
+      images: Array.isArray(parsed.images)
+        ? parsed.images.filter((x) => typeof x === 'string' && !x.startsWith('blob:'))
+        : [],
       targetPersona: parsed.targetPersona ?? '',
       brandTone: parsed.brandTone ?? '',
       differentiation: parsed.differentiation ?? '',
@@ -156,7 +183,23 @@ function loadWizardInput(): APlusWizardInput {
 }
 
 function saveWizardInput(input: APlusWizardInput) {
-  localStorage.setItem(WIZARD_INPUT_STORAGE_KEY, JSON.stringify(input))
+  try {
+    localStorage.setItem(WIZARD_INPUT_STORAGE_KEY, JSON.stringify(input))
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      const slim = {
+        ...input,
+        images: input.images.filter((url) => url.startsWith('http://') || url.startsWith('https://')),
+      }
+      try {
+        localStorage.setItem(WIZARD_INPUT_STORAGE_KEY, JSON.stringify(slim))
+      } catch {
+        /* give up, keep in-memory only */
+      }
+    } else {
+      throw e
+    }
+  }
 }
 
 function revokeBlobUrls(urls: string[]) {
