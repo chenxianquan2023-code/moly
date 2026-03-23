@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TapNow Editor - V3.6 Perfect Interaction</title>
+    
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/fabric@5.3.0/dist/fabric.min.js"></script>
+    <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://unpkg.com/uuid@8.3.2/dist/umd/uuid.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+    <style>
+        /* --- 样式完全保持 V2.6 基准 --- */
+        :root { --bg-canvas: #000000; --panel-bg: rgba(30, 30, 33, 0.95); --border-color: #333333; --text-main: #ececec; --text-sub: #999999; --accent: #3b82f6; --radius-lg: 16px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-canvas); font-family: 'Inter', sans-serif; user-select: none; }
+        #app { width: 100%; height: 100%; position: relative; }
+        .canvas-wrapper { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+
+        .floating-sidebar { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); width: 56px; padding: 12px 0; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 28px; display: flex; flex-direction: column; align-items: center; gap: 16px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px); }
+        .icon-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--text-sub); font-size: 20px; cursor: pointer; transition: all 0.2s; position: relative; }
+        .icon-btn:hover, .icon-btn.active { color: var(--text-main); background: #444; }
+        .divider { width: 20px; height: 1px; background: var(--border-color); margin: 4px 0; }
+        .badge-circle { width: 32px; height: 32px; background: #2a2a2e; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--text-sub); font-size: 12px; font-weight: bold; margin-top: auto; }
+
+        .add-popover { position: absolute; left: 85px; top: 0; width: 260px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 16px; z-index: 99; box-shadow: 0 10px 40px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 12px; backdrop-filter: blur(10px); opacity: 0; transform: translateX(-10px); pointer-events: none; transition: all 0.2s ease-out; }
+        .add-popover.visible { opacity: 1; transform: translateX(0); pointer-events: auto; }
+        .node-list-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 10px; cursor: grab; transition: all 0.2s; border: 1px solid transparent; }
+        .node-list-item:hover { background: rgba(255,255,255,0.08); border-color: #555; }
+        .item-icon { width: 36px; height: 36px; border-radius: 8px; background: #222; display: flex; justify-content: center; align-items: center; font-size: 18px; }
+        .item-content { flex: 1; display: flex; flex-direction: column; }
+        .item-title { font-size: 14px; color: var(--text-main); font-weight: 500; }
+        .item-desc { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+
+        .smart-menu { position: absolute; width: 220px; background: #18181b; border: 1px solid #333; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); padding: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 300; }
+        .menu-header { font-size: 12px; color: #666; padding: 4px 8px; margin-bottom: 4px; }
+        .menu-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; color: #ccc; }
+        .menu-item:hover { background: #27272a; color: #fff; }
+        .menu-icon { width: 28px; height: 28px; border-radius: 6px; background: #333; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .menu-content { display: flex; flex-direction: column; }
+        .menu-title { font-size: 13px; font-weight: 500; }
+        .menu-desc { font-size: 10px; color: #666; }
+
+        .overlay-panel { position: absolute; z-index: 200; background: #18181b; border: 1px solid #27272a; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border-radius: var(--radius-lg); display: flex; align-items: center; color: var(--text-main); font-size: 13px; pointer-events: auto; transition: opacity 0.1s; will-change: transform, top, left; }
+        .top-toolbar { padding: 6px 12px; gap: 8px; transform: translate(-50%, -100%); }
+        .toolbar-item { padding: 4px 6px; border-radius: 4px; cursor: pointer; color: #aaa; display: flex; align-items: center; }
+        .toolbar-item:hover { background: #333; color: #fff; }
+        .toolbar-divider { width: 1px; height: 16px; background: #333; margin: 0 4px; }
+        .bottom-gen-panel { width: 480px; padding: 12px 16px; flex-direction: column; gap: 12px; transform: translate(-50%, 0); }
+        .gen-input-row { display: flex; gap: 10px; align-items: flex-start; }
+        .magic-btn { width: 32px; height: 32px; background: #222; border-radius: 8px; display: flex; justify-content: center; align-items: center; cursor: pointer; color: #aaa; border: 1px solid #333; }
+        .gen-input { flex: 1; background: transparent; border: none; color: #ddd; font-size: 14px; outline: none; resize: none; line-height: 1.5; min-height: 24px; font-family: inherit; }
+        .gen-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+        .model-selector { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; font-size: 12px; color: #ccc; }
+        .model-logo { width: 16px; height: 16px; object-fit: contain; }
+        .params-group { display: flex; align-items: center; gap: 12px; }
+        .param-tag { background: #222; padding: 2px 8px; border-radius: 4px; border: 1px solid #333; font-size: 11px; color: #888; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .generate-btn { background: #333; color: #fff; border-radius: 14px; padding: 4px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+        .zoom-controls { position: absolute; bottom: 30px; left: 30px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 20px; height: 40px; display: flex; align-items: center; padding: 0 6px; z-index: 90; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px); }
+        .zoom-btn { width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--text-sub); cursor: pointer; }
+        .zoom-btn:hover { color: var(--text-main); background: #444; }
+        input[type=range] { -webkit-appearance: none; background: transparent; cursor: pointer; width: 80px; margin: 0 8px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #333; border-radius: 2px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: #fff; margin-top: -4px; }
+        .bottom-gen-panel > div {width: 100%;}
+    </style>
+</head>
+<body>
+
+<div id="app" @contextmenu.prevent>
+    <div class="floating-sidebar">
+        <div class="icon-btn"><i class="ri-close-line"></i></div>
+        <div class="divider"></div>
+        <div class="icon-btn" :class="{ active: isPanelOpen }" ref="addBtnRef" @mouseenter="openPanel" @click="togglePanel">
+             <i class="ri-apps-2-line"></i>
+        </div>
+        <div class="icon-btn"><i class="ri-layout-masonry-line"></i></div>
+        <div class="icon-btn"><i class="ri-message-3-line"></i></div>
+        <div style="flex: 1;"></div> 
+        <div class="icon-btn"><i class="ri-gallery-line"></i></div>
+        <div class="badge-circle">7</div>
+    </div>
+
+    <div class="add-popover" :class="{ visible: isPanelOpen }" :style="{ top: popoverTop + 'px' }" @mouseleave="closePanelDelayed">
+        <div class="node-list-item" draggable="true" @dragstart="handleDragStart($event, 'text')">
+            <div class="item-icon" style="color: #60a5fa;"><i class="ri-text"></i></div>
+            <div class="item-content"><div class="item-title">文本生成</div><div class="item-desc">GPT-4, Gemini</div></div>
+        </div>
+        <div class="node-list-item" draggable="true" @dragstart="handleDragStart($event, 'image')">
+            <div class="item-icon" style="color: #a855f7;"><i class="ri-image-line"></i></div>
+            <div class="item-content"><div class="item-title">图片生成</div><div class="item-desc">Midjourney, Flux</div></div>
+        </div>
+        <div class="node-list-item" draggable="true" @dragstart="handleDragStart($event, 'video')">
+            <div class="item-icon" style="color: #f97316;"><i class="ri-movie-line"></i></div>
+            <div class="item-content"><div class="item-title">视频生成</div><div class="item-desc">Runway, Kling</div></div>
+        </div>
+    </div>
+
+    <div v-if="isSmartMenuOpen" class="smart-menu" :style="{ top: smartMenuPos.y + 'px', left: smartMenuPos.x + 'px' }" @mousedown.stop>
+        <div class="menu-header">
+            {{ wiringDirection === 'right' ? '创建子节点' : '创建父节点' }}
+        </div>
+        <div class="menu-item" @click="createFromMenu('text')">
+            <div class="menu-icon" style="color: #60a5fa;"><i class="ri-text"></i></div>
+            <div class="menu-content"><div class="menu-title">文本生成</div><div class="menu-desc">GPT-4, Gemini</div></div>
+        </div>
+        <div class="menu-item" @click="createFromMenu('image')">
+            <div class="menu-icon" style="color: #a855f7;"><i class="ri-image-line"></i></div>
+            <div class="menu-content"><div class="menu-title">图片生成</div><div class="menu-desc">Midjourney, Flux</div></div>
+        </div>
+        <div class="menu-item" @click="createFromMenu('video')">
+            <div class="menu-icon" style="color: #f97316;"><i class="ri-movie-line"></i></div>
+            <div class="menu-content"><div class="menu-title">视频编辑</div><div class="menu-desc">Runway, Kling</div></div>
+        </div>
+    </div>
+
+    <div class="canvas-wrapper" ref="canvasWrapper" @drop="handleDrop" @dragover.prevent @mousedown="handleCanvasClick">
+        <canvas id="c"></canvas>
+    </div>
+
+    <div v-show="activeNode" style="pointer-events: none;">
+        <div class="overlay-panel top-toolbar" ref="topPanelRef" @mousedown.stop>
+            <template v-if="activeNode?.type === 'text'">
+                <div class="toolbar-item"><span style="width:10px;height:10px;border-radius:50%;background:#fff;"></span></div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-item">H1</div>
+                <div class="toolbar-item">H2</div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-item"><i class="ri-bold"></i></div>
+                <div class="toolbar-item"><i class="ri-italic"></i></div>
+            </template>
+            <template v-else>
+                <div class="toolbar-item"><i class="ri-hd-line"></i> 高清</div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-item"><i class="ri-download-line"></i></div>
+            </template>
+        </div>
+
+        <div class="overlay-panel bottom-gen-panel" ref="bottomPanelRef" @mousedown.stop>
+            <div class="gen-input-row">
+                <div class="magic-btn"><i class="ri-magic-line"></i></div>
+                <textarea class="gen-input" rows="1" v-model="activeNodeData.prompt" :placeholder="getPlaceholder(activeNode?.type)" @input="autoResizeInput" @keydown.stop @mousedown.stop></textarea>
+            </div>
+            <div class="gen-footer">
+                <div class="model-selector">
+                    <img :src="getModelIcon(activeNode?.type)" class="model-logo">
+                    <span>{{ getModelName(activeNode?.type) }}</span>
+                    <i class="ri-arrow-down-s-line" style="color:#666;"></i>
+                </div>
+                <div class="params-group">
+                    <template v-if="activeNode?.type === 'image'">
+                        <div class="param-tag"><i class="ri-image-line"></i> 2K</div>
+                        <div class="param-tag">Auto</div>
+                    </template>
+                    <div class="generate-btn">
+                        <i class="ri-openai-fill"></i> 生成
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="zoom-controls">
+        <div class="zoom-btn" @click="fitView"><i class="ri-aspect-ratio-line"></i></div>
+        <input type="range" min="0.2" max="3" step="0.05" v-model="zoomLevel" @input="handleZoomSlider">
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, reactive, nextTick, onMounted } = Vue;
+
+    const ICONS = {
+        gemini: 'https://upload.wikimedia.org/wikipedia/commons/8/8a/Google_Gemini_logo.svg',
+        banana: 'https://img.icons8.com/color/48/banana.png', 
+        jimeng: 'https://img.icons8.com/fluency/48/film-reel.png'
+    };
+
+    createApp({
+        setup() {
+            const isPanelOpen = ref(false);
+            const popoverTop = ref(0);
+            const addBtnRef = ref(null);
+            const canvasWrapper = ref(null);
+            const zoomLevel = ref(1);
+
+            const isSmartMenuOpen = ref(false);
+            const smartMenuPos = reactive({ x: 0, y: 0 });
+            
+            const topPanelRef = ref(null);
+            const bottomPanelRef = ref(null);
+            const activeNode = ref(null);
+            const activeNodeData = reactive({ prompt: '' });
+
+            let canvas = null;
+            let isDraggingCanvas = false;
+            let lastMouseX = 0, lastMouseY = 0;
+
+            let isWiring = false;
+            let wiringSource = null;
+            let wiringDirection = ref('right');
+            let tempLine = null;
+            let tempWireEnd = { x: 0, y: 0 };
+
+            const openPanel = () => { if (addBtnRef.value) popoverTop.value = addBtnRef.value.getBoundingClientRect().top - 20; isPanelOpen.value = true; };
+            const togglePanel = () => isPanelOpen.value = !isPanelOpen.value;
+            const closePanelDelayed = () => setTimeout(() => isPanelOpen.value = false, 300);
+
+            // --- 核心坐标系统 (修复组合拖动线消失) ---
+            const getNodeMetrics = (node) => {
+                if (node.group) {
+                    const matrix = node.group.calcTransformMatrix();
+                    const center = fabric.util.transformPoint({ x: node.left, y: node.top }, matrix);
+                    return {
+                        left: center.x, top: center.y,
+                        scaleX: node.scaleX * node.group.scaleX,
+                        scaleY: node.scaleY * node.group.scaleY,
+                        width: node.width, height: node.height, opacity: node.opacity
+                    };
+                }
+                return { left: node.left, top: node.top, scaleX: node.scaleX, scaleY: node.scaleY, width: node.width, height: node.height, opacity: node.opacity };
+            };
+
+            const updateDomPosition = (target) => {
+                if (!target || !topPanelRef.value || !bottomPanelRef.value) return;
+                const vpt = canvas.viewportTransform;
+                const zoom = canvas.getZoom();
+                const rect = canvasWrapper.value.getBoundingClientRect();
+                
+                const m = getNodeMetrics(target);
+                const nodeH = m.height * m.scaleY;
+                const screenTop = (m.top - nodeH/2) * zoom + vpt[5] + rect.top;
+                const screenBottom = (m.top + nodeH/2) * zoom + vpt[5] + rect.top;
+                const screenCenterX = m.left * zoom + vpt[4] + rect.left;
+
+                topPanelRef.value.style.top = (screenTop - 12) + 'px';
+                topPanelRef.value.style.left = screenCenterX + 'px';
+                bottomPanelRef.value.style.top = (screenBottom + 12) + 'px';
+                bottomPanelRef.value.style.left = screenCenterX + 'px';
+            };
+
+            const updateOverlay = (target) => {
+                if (!target || target.type === 'activeSelection') { activeNode.value = null; return; }
+                activeNode.value = { id: target.id, type: target.type };
+                activeNodeData.prompt = target.data?.prompt || '';
+                nextTick(() => updateDomPosition(target));
+            };
+
+            const updateSatellites = (node) => {
+                if (!node || !node.satellites) return;
+                const { label, portL, portR } = node.satellites;
+                const m = getNodeMetrics(node);
+                const gap = 20;
+
+                label.set({ left: m.left, top: m.top - (m.height * m.scaleY)/2 - 20, opacity: m.opacity });
+                label.setCoords();
+                portL.set({ left: m.left - (m.width * m.scaleX)/2 - gap, top: m.top, opacity: m.opacity });
+                portL.setCoords();
+                portR.set({ left: m.left + (m.width * m.scaleX)/2 + gap, top: m.top, opacity: m.opacity });
+                portR.setCoords();
+            };
+
+            const resetObjectState = (obj) => {
+                obj.set({ hasBorders: true, hasControls: obj.type === 'text' });
+            };
+
+            const calculateBezierPath = (sourcePoint, targetPoint, direction = 'right') => {
+                const startX = sourcePoint.x; const startY = sourcePoint.y;
+                const endX = targetPoint.x; const endY = targetPoint.y;
+                const dist = Math.abs(endX - startX);
+                const curvature = Math.max(dist * 0.4, 60);
+
+                let cp1x, cp1y, cp2x, cp2y;
+                if (direction === 'right') { cp1x = startX + curvature; cp1y = startY; cp2x = endX - curvature; cp2y = endY; } 
+                else { cp1x = startX - curvature; cp1y = startY; cp2x = endX + curvature; cp2y = endY; }
+                return `M ${startX} ${startY} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${endX} ${endY}`;
+            };
+
+            // 端口绝对坐标
+            const getNodePortPos = (node, type) => {
+                const m = getNodeMetrics(node);
+                const gap = 20;
+                if (type === 'left') return { x: m.left - (m.width * m.scaleX)/2 - gap, y: m.top };
+                else return { x: m.left + (m.width * m.scaleX)/2 + gap, y: m.top };
+            };
+
+            const updateConnectedLines = (node) => {
+                const update = (lines) => {
+                    if (lines) {
+                        lines.forEach(line => {
+                            const start = getNodePortPos(line.source, 'right');
+                            const end = getNodePortPos(line.target, 'left');
+                            line.set({ path: new fabric.Path(calculateBezierPath(start, end, 'right')).path });
+                            line.setCoords();
+                        });
+                    }
+                };
+                update(node.outgoingLines);
+                update(node.incomingLines);
+            };
+
+            // 创建节点
+            const createNode = (type, x, y) => {
+                const id = uuid.v4();
+                const config = { text: { w: 220, h: 140, label: 'Text' }, image: { w: 200, h: 200, label: 'Image' }, video: { w: 260, h: 160, label: 'Video' }}[type];
+
+                const label = new fabric.Text(config.label, { fontSize: 12, fill: '#888', originX: 'center', originY: 'center', selectable: false, evented: false });
+                
+                const lCircle = new fabric.Circle({ radius: 10, fill: '#2a2a2e', stroke: '#555', strokeWidth: 1, originX: 'center', originY: 'center' });
+                const lText = new fabric.Text('+', { fontSize: 16, fill: '#ccc', originX: 'center', originY: 'center', top: -1 });
+                const portL = new fabric.Group([lCircle, lText], { originX: 'center', originY: 'center', selectable: false, evented: true, hoverCursor: 'crosshair', name: 'inputPort' });
+
+                const rCircle = new fabric.Circle({ radius: 10, fill: '#2a2a2e', stroke: '#555', strokeWidth: 1, originX: 'center', originY: 'center' });
+                const rText = new fabric.Text('+', { fontSize: 16, fill: '#ccc', originX: 'center', originY: 'center', top: -1 });
+                const portR = new fabric.Group([rCircle, rText], { originX: 'center', originY: 'center', selectable: false, evented: true, hoverCursor: 'crosshair', name: 'outputPort' });
+
+                const rect = new fabric.Rect({ width: config.w, height: config.h, fill: '#18181b', rx: 8, ry: 8, stroke: '#333', strokeWidth: 1, originX: 'center', originY: 'center' });
+                let content;
+                if(type === 'text') content = new fabric.Textbox('Content...', { width: config.w-30, fontSize: 13, fill: '#ddd', left: 0, top: 0, originX: 'center', originY: 'center', splitByGrapheme: true, editable: false });
+                else content = new fabric.Rect({ width: config.w-2, height: config.h-2, fill: '#222', rx: 6, ry: 6, originX: 'center', originY: 'center' });
+
+                const mainGroup = new fabric.Group([rect, content], {
+                    left: x, top: y, id: id, type: type,
+                    originX: 'center', originY: 'center',
+                    subTargetCheck: false, hasControls: type === 'text',
+                    lockScalingFlip: true, transparentCorners: false, cornerColor: '#fff', cornerSize: 6,
+                    borderColor: '#3b82f6', borderScaleFactor: 2, padding: 4
+                });
+
+                portL.owner = mainGroup;
+                portR.owner = mainGroup;
+                mainGroup.satellites = { label, portL, portR };
+                mainGroup.outgoingLines = [];
+                mainGroup.incomingLines = [];
+                mainGroup.data = { prompt: '' };
+
+                updateSatellites(mainGroup);
+                canvas.add(label, portL, portR, mainGroup);
+                mainGroup.setCoords();
+                
+                // 【核心修复 Bug 1】: 动画中 setCoords 保证新节点可拖动
+                gsap.fromTo(mainGroup, { scaleX: 0.1, scaleY: 0.1, opacity: 0 }, { 
+                    scaleX: 1, scaleY: 1, opacity: 1, duration: 0.4, ease: 'back.out', 
+                    onUpdate: () => { 
+                        mainGroup.setCoords(); // 关键！
+                        updateSatellites(mainGroup); 
+                        updateConnectedLines(mainGroup); 
+                        canvas.requestRenderAll(); 
+                        updateDomPosition(mainGroup);
+                    } 
+                });
+                return mainGroup;
+            };
+
+            const createFromMenu = (type) => {
+                if (!wiringSource) return;
+                const rect = canvasWrapper.value.getBoundingClientRect();
+                const vpt = canvas.viewportTransform;
+                const zoom = canvas.getZoom();
+                const canvasX = (tempWireEnd.x - rect.left - vpt[4]) / zoom;
+                const canvasY = (tempWireEnd.y - rect.top - vpt[5]) / zoom;
+
+                const newNode = createNode(type, canvasX, canvasY);
+                newNode.setCoords(); // 初始化坐标
+
+                let line;
+                if (wiringDirection.value === 'right') {
+                    const start = getNodePortPos(wiringSource, 'right');
+                    const end = getNodePortPos(newNode, 'left');
+                    line = new fabric.Path(calculateBezierPath(start, end, 'right'), { stroke: '#555', strokeWidth: 2, fill: '', selectable: false, evented: false, objectCaching: false });
+                    line.source = wiringSource; line.target = newNode;
+                    wiringSource.outgoingLines.push(line); newNode.incomingLines.push(line);
+                } else {
+                    const start = getNodePortPos(newNode, 'right');
+                    const end = getNodePortPos(wiringSource, 'left');
+                    line = new fabric.Path(calculateBezierPath(start, end, 'right'), { stroke: '#555', strokeWidth: 2, fill: '', selectable: false, evented: false, objectCaching: false });
+                    line.source = newNode; line.target = wiringSource;
+                    newNode.outgoingLines.push(line); wiringSource.incomingLines.push(line);
+                }
+
+                canvas.add(line); canvas.sendToBack(line);
+                line.setCoords();
+                canvas.requestRenderAll();
+                
+                if (tempLine) { canvas.remove(tempLine); tempLine = null; }
+                isSmartMenuOpen.value = false; wiringSource = null;
+            };
+
+            const handleCanvasClick = () => {
+                if(isSmartMenuOpen.value) {
+                    isSmartMenuOpen.value = false;
+                    if (tempLine) { canvas.remove(tempLine); tempLine = null; }
+                    wiringSource = null;
+                }
+            };
+
+            const initInteraction = () => {
+                window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+                canvas.on('mouse:down', (opt) => {
+                    const evt = opt.e;
+                    const target = opt.target;
+                    
+                    if (isSmartMenuOpen.value) handleCanvasClick();
+
+                    if (target && target.owner && (target.name === 'outputPort' || target.name === 'inputPort')) {
+                        isWiring = true;
+                        wiringSource = target.owner;
+                        canvas.selection = false;
+                        if (target.name === 'outputPort') wiringDirection.value = 'right';
+                        else wiringDirection.value = 'left';
+
+                        const ptr = canvas.getPointer(evt);
+                        const start = target.name === 'outputPort' ? getNodePortPos(wiringSource, 'right') : getNodePortPos(wiringSource, 'left');
+                        const pathData = calculateBezierPath(start, {x: ptr.x, y: ptr.y}, wiringDirection.value);
+                        tempLine = new fabric.Path(pathData, { stroke: '#3b82f6', strokeWidth: 2, fill: '', selectable: false, evented: false, objectCaching: false });
+                        canvas.add(tempLine);
+                        evt.stopPropagation();
+                        return;
+                    }
+
+                    if (evt.button === 2 || opt.button === 3) {
+                        isDraggingCanvas = true;
+                        canvas.selection = false;
+                        lastMouseX = evt.clientX; lastMouseY = evt.clientY;
+                        canvas.defaultCursor = 'grabbing';
+                        canvas.forEachObject(o => o.evented = false);
+                    } else {
+                        canvas.selection = true;
+                    }
+                });
+
+                canvas.on('mouse:move', (opt) => {
+                    const evt = opt.e;
+                    if (isWiring && tempLine) {
+                        const ptr = canvas.getPointer(evt);
+                        const start = wiringDirection.value === 'right' ? getNodePortPos(wiringSource, 'right') : getNodePortPos(wiringSource, 'left');
+                        const pathData = calculateBezierPath(start, {x: ptr.x, y: ptr.y}, wiringDirection.value);
+                        tempLine.set({ path: new fabric.Path(pathData).path });
+                        canvas.requestRenderAll();
+                    }
+                    if (isDraggingCanvas) {
+                        const vpt = canvas.viewportTransform;
+                        vpt[4] += evt.clientX - lastMouseX;
+                        vpt[5] += evt.clientY - lastMouseY;
+                        canvas.requestRenderAll();
+                        lastMouseX = evt.clientX; lastMouseY = evt.clientY;
+                        const activeObj = canvas.getActiveObject();
+                        if(activeObj && activeObj.type !== 'activeSelection') updateDomPosition(activeObj);
+                    }
+                });
+
+                canvas.on('mouse:up', (opt) => {
+                    if (isWiring) {
+                        isWiring = false;
+                        const target = opt.target;
+                        
+                        let targetNode = null;
+                        if (target && target.owner) targetNode = target.owner;
+                        else if (target && target.id) targetNode = target;
+
+                        if (targetNode && targetNode.id !== wiringSource.id) {
+                            if (tempLine) { canvas.remove(tempLine); tempLine = null; }
+                            let line;
+                            const pathStr = wiringDirection.value === 'right' ?
+                                calculateBezierPath(getNodePortPos(wiringSource, 'right'), getNodePortPos(targetNode, 'left'), 'right') :
+                                calculateBezierPath(getNodePortPos(targetNode, 'right'), getNodePortPos(wiringSource, 'left'), 'right');
+
+                            line = new fabric.Path(pathStr, { stroke: '#555', strokeWidth: 2, fill: '', selectable: false, evented: false, objectCaching: false });
+                            
+                            if (wiringDirection.value === 'right') {
+                                line.source = wiringSource; line.target = targetNode;
+                                wiringSource.outgoingLines.push(line); targetNode.incomingLines.push(line);
+                            } else {
+                                line.source = targetNode; line.target = wiringSource;
+                                targetNode.outgoingLines.push(line); wiringSource.incomingLines.push(line);
+                            }
+                            canvas.add(line); canvas.sendToBack(line);
+                            line.setCoords(); canvas.requestRenderAll();
+                        } else if (!targetNode) {
+                            smartMenuPos.x = opt.e.clientX;
+                            smartMenuPos.y = opt.e.clientY;
+                            tempWireEnd = { x: opt.e.clientX, y: opt.e.clientY };
+                            isSmartMenuOpen.value = true;
+                            // 保留 tempLine
+                        } else {
+                            if (tempLine) { canvas.remove(tempLine); tempLine = null; }
+                        }
+                        canvas.selection = true;
+                        return;
+                    }
+
+                    if(isDraggingCanvas) {
+                        isDraggingCanvas = false;
+                        canvas.selection = true;
+                        canvas.defaultCursor = 'default';
+                        canvas.forEachObject(o => o.evented = true);
+                        canvas.setViewportTransform(canvas.viewportTransform);
+                    }
+                });
+                
+                // --- 核心修复 Bug 2: 多选拖动同步 ---
+                const sync = (e) => {
+                    const target = e.target;
+                    if (target.type === 'activeSelection') {
+                        // 如果是组合拖动，遍历所有子节点
+                        target.getObjects().forEach(obj => {
+                            // getNodeMetrics 内部会判断是否在 group 中并计算正确坐标
+                            updateSatellites(obj);
+                            updateConnectedLines(obj);
+                        });
+                    } else {
+                        updateDomPosition(target); 
+                        updateSatellites(target);   
+                        updateConnectedLines(target); 
+                    }
+                };
+                
+                canvas.on('object:moving', sync);
+                canvas.on('object:scaling', sync);
+                
+                const handleSelection = (e) => {
+                    const active = canvas.getActiveObject();
+                    if (active && active.type === 'activeSelection') {
+                        activeNode.value = null;
+                        active.set({ borderColor: '#3b82f6', cornerColor: 'white', cornerSize: 8, transparentCorners: false, borderScaleFactor: 2, padding: 10 });
+                        active.getObjects().forEach(obj => obj.set({ hasBorders: false, hasControls: false }));
+                    } else {
+                        updateOverlay(active);
+                    }
+                    if (e.deselected) e.deselected.forEach(resetObjectState);
+                };
+
+                canvas.on('selection:created', handleSelection);
+                canvas.on('selection:updated', handleSelection);
+                canvas.on('selection:cleared', (e) => {
+                    activeNode.value = null;
+                    if (e.deselected) e.deselected.forEach(resetObjectState);
+                });
+                
+                canvas.on('mouse:wheel', (opt) => {
+                    let delta = opt.e.deltaY;
+                    let zoom = canvas.getZoom();
+                    zoom *= 0.999 ** delta;
+                    if (zoom > 3) zoom = 3; if (zoom < 0.2) zoom = 0.2;
+                    canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+                    zoomLevel.value = zoom;
+                    opt.e.preventDefault(); opt.e.stopPropagation();
+                    const activeObj = canvas.getActiveObject();
+                    if(activeObj && activeObj.type !== 'activeSelection') updateDomPosition(activeObj);
+                });
+            };
+
+            const initCanvas = () => {
+                const wrapper = canvasWrapper.value;
+                canvas = new fabric.Canvas('c', { width: wrapper.clientWidth, height: wrapper.clientHeight, backgroundColor: '#000000', selection: true, fireRightClick: true, stopContextMenu: true });
+                initInteraction();
+                createNode('text', wrapper.clientWidth/2 - 200, wrapper.clientHeight/2);
+            };
+
+            const handleDrop = (e) => {
+                const type = e.dataTransfer.getData('nodeType');
+                if(!type) return;
+                const rect = canvasWrapper.value.getBoundingClientRect();
+                const ptr = canvas.restorePointerVpt({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                createNode(type, ptr.x, ptr.y);
+            };
+            const handleDragStart = (e, t) => e.dataTransfer.setData('nodeType', t);
+            const handleZoomSlider = () => { canvas.setZoom(parseFloat(zoomLevel.value)); canvas.requestRenderAll(); };
+            const fitView = () => { canvas.setViewportTransform([1,0,0,1,0,0]); zoomLevel.value = 1; };
+            const getPlaceholder = (type) => type === 'text' ? '生成文章...' : (type === 'video' ? '视频Prompt...' : '画面描述...');
+            const getModelName = (type) => type === 'text' ? 'Gemini 3' : (type === 'image' ? 'Banana' : 'Jimeng');
+            const getModelIcon = (type) => type === 'text' ? ICONS.gemini : (type === 'image' ? ICONS.banana : ICONS.jimeng);
+            const autoResizeInput = (e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; };
+
+            onMounted(initCanvas);
+
+            return {
+                isPanelOpen, popoverTop, addBtnRef, canvasWrapper, zoomLevel,
+                isSmartMenuOpen, smartMenuPos, wiringDirection,
+                activeNode, activeNodeData, topPanelRef, bottomPanelRef,
+                openPanel, togglePanel, closePanelDelayed,
+                handleDragStart, handleDrop, handleCanvasClick, createFromMenu,
+                handleZoomSlider, fitView,
+                getPlaceholder, getModelName, getModelIcon, autoResizeInput
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
