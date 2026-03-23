@@ -1,256 +1,111 @@
 <template>
-  <div class="main-layout">
-    <header class="main-header" :class="{ 'scrolled': isScrolled }">
-      <div class="header-container">
-        <div class="logo" @click="router.push('/')">
-          <img src="../assets/logo.png" alt="Moly" class="logo-img" />
-        </div>
-        
-        <nav class="main-nav">
-          <a href="#" class="nav-item group disabled" @click.prevent>
-            产品 
-            <!-- <DownOutlined class="nav-icon"/> -->
-          </a>
-          <a href="#" class="nav-item group disabled" @click.prevent>
-             解决方案 
-             <!-- <DownOutlined class="nav-icon"/> -->
-          </a>
-          <a href="#" class="nav-item disabled" @click.prevent>价格</a>
-        </nav>
-
-        <div class="header-actions">
-          <template v-if="auth.isLoggedIn">
-            <span class="header-points">
-              <ThunderboltFilled class="points-icon" /> {{ auth.points }} 积分
-            </span>
-            <button class="action-btn btn-glow" @click="goToWorkbench">
-              进入工作台
-            </button>
-            <button class="action-btn btn-outline" @click="handleLogout">退出</button>
-          </template>
-          <template v-else>
-            <router-link to="/login" class="action-btn btn-glow">登录</router-link>
-            <router-link to="/register" class="action-btn btn-outline">注册</router-link>
-            <button class="action-btn btn-glow" @click="goToWorkbench">
-              进入工作台
-            </button>
-          </template>
+  <div class="flex h-screen bg-gray-50">
+    <!-- 左侧导航栏 -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+      <!-- Logo -->
+      <div class="h-16 flex items-center px-6 border-b border-gray-200">
+        <div class="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center font-bold text-white mr-3">M</div>
+        <span class="text-xl font-bold text-blue-600">Moly</span>
+      </div>
+      
+      <!-- 导航菜单 -->
+      <nav class="flex-1 py-4 overflow-y-auto">
+        <router-link 
+          v-for="item in menuItems" 
+          :key="item.path"
+          :to="item.path"
+          :class="['sidebar-item flex items-center gap-3 px-6 py-3 transition', $route.path === item.path ? 'active text-gray-900 font-medium' : 'text-gray-600 hover:text-gray-900']"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon"></path>
+          </svg>
+          <span>{{ item.name }}</span>
+        </router-link>
+      </nav>
+      
+      <!-- 用户信息 -->
+      <div class="p-4 border-t border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full gradient-bg flex items-center justify-center text-white font-medium">泉</div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm truncate">泉哥</div>
+            <div class="text-xs text-gray-500">专业版</div>
+          </div>
         </div>
       </div>
-    </header>
-    <main class="main-content">
-      <router-view />
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+      <!-- 顶部栏 -->
+      <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 flex-shrink-0">
+        <h1 class="text-xl font-semibold text-gray-900">{{ title }}</h1>
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-yellow-600">💰 1,250 积分</span>
+          <button class="px-4 py-2 rounded-lg gradient-bg text-white text-sm font-medium hover:opacity-90 transition" @click="$router.push('/tools/listing/create')">
+            + 新建 Listing
+          </button>
+        </div>
+      </header>
+
+      <!-- 页面内容 -->
+      <div class="flex-1 overflow-auto">
+        <slot></slot>
+      </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { ThunderboltFilled } from '@ant-design/icons-vue';
-import { useAuthStore } from '@/stores/auth';
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
 
-const router = useRouter();
-const auth = useAuthStore();
-const isScrolled = ref(false);
+const route = useRoute();
 
-const goToWorkbench = () => {
-  if (!auth.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/tools' } });
-    return;
-  }
-  router.push('/tools');
-};
+const menuItems = [
+  {
+    name: '首页',
+    path: '/',
+    icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+  },
+  {
+    name: 'AI 助手',
+    path: '/agent',
+    icon: 'M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z',
+  },
+  {
+    name: '创作中心',
+    path: '/tools',
+    icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z',
+  },
+  {
+    name: '工作台',
+    path: '/workbench',
+    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z',
+  },
+];
 
-const handleLogout = () => {
-  auth.logout();
-  router.push('/');
-};
-
-const handleScroll = () => {
-  isScrolled.value = window.scrollY > 20;
-};
-
-onMounted(() => {
-  window.addEventListener('scroll', handleScroll);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll);
+const title = computed(() => {
+  const item = menuItems.find(i => i.path === route.path);
+  return item?.name || 'Moly';
 });
 </script>
 
-<style scoped lang="scss">
-.main-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: #ffffff;
-  color: #1a1a1a;
-  font-family: 'Inter', sans-serif;
+<style scoped>
+.gradient-bg {
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
 }
 
-.main-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  z-index: 100;
-  transition: all 0.3s ease;
-  height: 92px;
-  display: flex;
-  align-items: center;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-
-  &.scrolled {
-    background: #ffffff;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
-    height: 84px;
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-  }
-
-  .header-container {
-    max-width: 1280px; /* Match max-w-7xl */
-    width: 100%;
-    margin: 0 auto;
-    padding: 0 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    height: 100%;
-    padding: 0;
-    margin: 0;
-    background: #ffffff;
-
-    .logo-img {
-      height: 84px;
-      width: auto;
-      max-height: 84px;
-      object-fit: contain;
-      object-position: left center;
-      display: block;
-    }
-  }
-
-  .main-nav {
-    display: none;
-    
-    @media (min-width: 768px) {
-      display: flex;
-      gap: 32px;
-    }
-    
-    .nav-item {
-      color: #4b5563;
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      transition: color 0.2s;
-
-      &:hover {
-        color: #111;
-      }
-      
-      .nav-icon {
-        font-size: 12px;
-        color: #6b7280;
-        transition: color 0.2s;
-      }
-
-      &:hover .nav-icon {
-        color: #111;
-      }
-
-      &.disabled {
-        color: #9ca3af;
-        cursor: not-allowed;
-        opacity: 0.7;
-        pointer-events: none;
-      }
-    }
-  }
-
-  .header-points {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    color: #4b5563;
-    margin-right: 12px;
-    .points-icon { color: #f59e0b; }
-  }
-
-  .action-btn {
-    background-color: #2563eb;
-    color: white;
-    padding: 8px 20px;
-    border-radius: 9999px;
-    font-size: 14px;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
-    transition: all 0.3s;
-    outline: none;
-    text-decoration: none;
-    margin-left: 8px;
-
-    &:hover {
-      background-color: #1d4ed8;
-    }
-  }
-
-  .btn-outline {
-    background: transparent;
-    color: #2563eb;
-    border: 1px solid #2563eb;
-    box-shadow: none;
-    &:hover {
-      background: #eff6ff;
-    }
-  }
-
-  /* Glow Effect */
-  .btn-glow {
-    position: relative;
-    overflow: hidden;
-    
-    &::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 60%);
-      opacity: 0;
-      transform: scale(0.5);
-      transition: opacity 0.3s, transform 0.3s;
-    }
-    
-    &:hover::after {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
+.sidebar-item {
+  transition: all 0.2s;
 }
 
-.main-content {
-  flex: 1;
+.sidebar-item:hover {
+  background: rgba(59, 130, 246, 0.1);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.1); }
+.sidebar-item.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-right: 3px solid #2563EB;
 }
 </style>
