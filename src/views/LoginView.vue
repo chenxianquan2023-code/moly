@@ -1,40 +1,116 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-white p-4">
-    <!-- Login card: 420px, padding 40px, logo inside -->
-    <div class="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] w-[420px] p-10">
+  <div class="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+    <div class="max-w-md w-full">
       <!-- Logo -->
-      <router-link to="/" class="flex items-center justify-center gap-2.5 mb-8">
-        <div class="w-9 h-9 rounded-[10px] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
-          <span class="text-white text-xl font-[800] leading-none" style="font-family: 'Nunito', sans-serif">M</span>
-        </div>
-        <span class="text-[26px] font-[800] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] bg-clip-text text-transparent" style="font-family: 'Nunito', sans-serif">Moly</span>
-      </router-link>
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 rounded-2xl gradient-bg flex items-center justify-center font-bold text-white text-3xl mx-auto mb-4">M</div>
+        <h2 class="text-2xl font-bold text-gray-900">欢迎回到 Moly</h2>
+        <p class="text-gray-500 mt-2">登录您的账号继续创作</p>
+      </div>
 
-      <LoginForm
-        v-if="!regionLoading"
-        :region-mode="regionMode"
-        @success="onSuccess"
-      />
-      <div v-else class="flex justify-center py-8">
-        <span class="inline-block w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin" />
+      <!-- 登录表单 -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-8">
+        <form @submit.prevent="handleLogin" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">邮箱 / 手机号</label>
+            <input 
+              v-model="form.account"
+              type="text" 
+              placeholder="请输入邮箱或手机号"
+              class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+            <div class="relative">
+              <input 
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'" 
+                placeholder="请输入密码"
+                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:border-blue-500"
+              />
+              <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600" @click="showPassword = !showPassword">
+                {{ showPassword ? '隐藏' : '显示' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input v-model="form.remember" type="checkbox" class="rounded border-gray-300" />
+              <span class="text-sm text-gray-600">记住我</span>
+            </label>
+            <router-link to="/forgot-password" class="text-sm text-blue-600 hover:underline">忘记密码？</router-link>
+          </div>
+
+          <button 
+            type="submit" 
+            class="w-full py-3 rounded-xl gradient-bg text-white font-medium hover:opacity-90 transition"
+            :disabled="isLoading"
+          >
+            {{ isLoading ? '登录中...' : '登录' }}
+          </button>
+        </form>
+
+        <!-- 分割线 -->
+        <div class="relative my-6">
+          <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-gray-200"></div>
+          </div>
+          <div class="relative flex justify-center text-sm">
+            <span class="px-2 bg-white text-gray-500">或使用以下方式登录</span>
+          </div>
+        </div>
+
+        <!-- 第三方登录 -->
+        <div class="grid grid-cols-2 gap-3">
+          <button class="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 transition">
+            <span class="text-xl">G</span>
+            <span class="text-sm">Google</span>
+          </button>
+          <button class="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-50 transition">
+            <span class="text-xl">📱</span>
+            <span class="text-sm">微信</span>
+          </button>
+        </div>
+
+        <!-- 注册链接 -->
+        <p class="text-center mt-6 text-sm text-gray-600">
+          还没有账号？
+          <router-link to="/register" class="text-blue-600 font-medium hover:underline">立即注册</router-link>
+        </p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { useRouter, useRoute } from 'vue-router';
-import { message } from 'ant-design-vue';
-import LoginForm from '@/components/auth/LoginForm.vue';
-import { useRegion } from '@/composables/useRegion';
+import { reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const route = useRoute();
-const { mode: regionMode, loading: regionLoading } = useRegion();
+const isLoading = ref(false);
+const showPassword = ref(false);
 
-function onSuccess() {
-  const redirect = (route.query.redirect as string) || '/workflow/try-on';
-  router.push(redirect);
-  message.success('登录成功');
+const form = reactive({
+  account: '',
+  password: '',
+  remember: false,
+});
+
+async function handleLogin() {
+  isLoading.value = true;
+  // 模拟登录
+  setTimeout(() => {
+    isLoading.value = false;
+    router.push('/');
+  }, 1000);
 }
 </script>
+
+<style scoped>
+.gradient-bg {
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+}
+</style>
