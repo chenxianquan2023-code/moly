@@ -2,9 +2,6 @@
   <div class="coming-soon-view">
     <header class="cs-header">
       <div class="header-inner">
-        <router-link to="/tools" class="logo">
-          <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-        </router-link>
         <div class="breadcrumb">
           <router-link to="/tools">AI 工具</router-link>
           <RightOutlined class="crumb-icon" />
@@ -36,7 +33,7 @@ const toolId = route.params.toolId as string;
 const tool = computed(() => tools.find(t => t.id === toolId));
 const toolName = computed(() => tool.value?.name || 'AI 工具');
 const description = computed(() => tool.value?.description || '');
-const icon = computed(() => tool.value?.icon || '✨');
+const icon = computed(() => tool.value?.icon || '');
 </script>
 
 <style scoped lang="scss">

@@ -225,20 +225,20 @@ export const tryOnWorkflowConfig: WorkflowConfig = {
                 id: 'model',
                 type: 'image',
                 position: { x: 50, y: 220 },
-                data: { title: '●上传模特图', imageUrl: null }
+                data: { title: '上传模特图', imageUrl: null }
             },
             {
                 id: 'garment',
                 type: 'image',
                 position: { x: 50, y: 580 },
-                data: { title: '●上传衣服图（只有衣服）', imageUrl: null }
+                data: { title: '上传衣服图（只有衣服）', imageUrl: null }
             },
             {
                 id: 'generated',
                 type: 'text',
                 position: { x: 380, y: 20 },
                 data: {
-                    title: '◎已设定好',
+                    title: '已设定好',
                     content: '请上传模特图和服装图...',
                     editable: false,
                     tall: true
@@ -248,7 +248,7 @@ export const tryOnWorkflowConfig: WorkflowConfig = {
                 id: 'result',
                 type: 'image',
                 position: { x: 700, y: 380 },
-                data: { title: '●成果图', imageUrl: null }
+                data: { title: '成果图', imageUrl: null }
             }
         ],
         edges: [

@@ -85,8 +85,8 @@ const updateProp = (key: string, value: any) => {
 <style scoped lang="scss">
 .property-panel {
   width: 280px;
-  background-color: #141414;
-  border-left: 1px solid #333;
+  background-color: #ffffff;
+  border-left: 1px solid #E5E7EB;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -94,12 +94,13 @@ const updateProp = (key: string, value: any) => {
 
 .panel-header {
   height: 40px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #E5E7EB;
   display: flex;
   align-items: center;
   padding: 0 16px;
   font-weight: bold;
   font-size: 14px;
+  color: #111827;
 }
 
 .panel-content {
@@ -113,7 +114,7 @@ const updateProp = (key: string, value: any) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: #9CA3AF;
   font-size: 14px;
 }
 </style>

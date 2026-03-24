@@ -108,7 +108,7 @@ function onDrop(e: DragEvent) {
   .title {
     font-size: 18px;
     margin: 0 0 8px 0;
-    color: #1a1a1a;
+    color: #111827;
   }
 
   .hint {

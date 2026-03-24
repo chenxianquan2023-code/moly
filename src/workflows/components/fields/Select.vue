@@ -61,34 +61,34 @@ const handleChange = (e: Event) => {
 .select-input {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
   font-size: 14px;
   outline: none;
   transition: all 0.3s;
   cursor: pointer;
-  
+
   &:hover:not(:disabled) {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.08);
+    border-color: #2563EB;
+    background: #EFF6FF;
   }
-  
+
   &:focus {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.1);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #2563EB;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  
+
   option {
-    background: #1a1a1a;
-    color: rgba(255, 255, 255, 0.9);
+    background: #ffffff;
+    color: #111827;
     padding: 8px;
   }
 }

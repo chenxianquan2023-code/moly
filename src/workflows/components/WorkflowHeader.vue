@@ -1,12 +1,8 @@
 <template>
   <header class="workflow-header">
     <div class="header-left">
-      <router-link to="/" class="logo">
-        <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-      </router-link>
-      <div class="divider"></div>
       <div class="breadcrumb">
-        <span class="crumb-parent">工作流</span>
+        <router-link to="/tools" class="crumb-link">AI 工具</router-link>
         <RightOutlined class="crumb-icon" />
         <span class="crumb-current">{{ workflowName }}</span>
       </div>
@@ -34,8 +30,8 @@ defineProps<Props>();
 <style scoped lang="scss">
 .workflow-header {
   height: 64px;
-  background: #0a0a0a;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border-bottom: 1px solid #E5E7EB;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -50,25 +46,6 @@ defineProps<Props>();
   gap: 20px;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-}
-
-.logo-img {
-  height: 32px;
-  width: auto;
-  max-width: 100px;
-  object-fit: contain;
-}
-
-.divider {
-  width: 1px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -76,17 +53,22 @@ defineProps<Props>();
   font-size: 14px;
 }
 
-.crumb-parent {
-  color: #9ca3af;
+.crumb-link {
+  color: #2563EB;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .crumb-icon {
   font-size: 10px;
-  color: #9ca3af;
+  color: #6B7280;
 }
 
 .crumb-current {
-  color: #fff;
+  color: #111827;
 }
 
 .header-right {
@@ -100,9 +82,9 @@ defineProps<Props>();
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #9ca3af;
-  background: #1c1c1e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #6B7280;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
   padding: 6px 12px;
   border-radius: 9999px;
 }
@@ -128,7 +110,7 @@ defineProps<Props>();
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(to bottom right, #ec4899, #f97316);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+  border: 2px solid #E5E7EB;
 }
 </style>

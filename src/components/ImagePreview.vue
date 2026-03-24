@@ -66,8 +66,8 @@ const props = withDefaults(defineProps<Props>(), {
   closable: true,
   isFullscreen: false,
   actions: () => [
-    { key: 'download', label: '下载', title: '下载图片', icon: '⬇' },
-    { key: 'zoom', label: '放大', title: '查看原图', icon: '🔍' }
+    { key: 'download', label: '下载', title: '下载图片' },
+    { key: 'zoom', label: '放大', title: '查看原图' }
   ]
 })
 

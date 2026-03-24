@@ -12,7 +12,7 @@ export class APlusDesigner extends BaseAgent {
       id: 'a-plus-designer',
       name: 'A+设计师',
       description: '专业的亚马逊A+页面设计师，擅长视觉排版和转化优化',
-      avatar: '🎨',
+      avatar: 'A+',
       
       systemPrompt: `你是专业的亚马逊A+页面设计师，拥有丰富的电商设计经验。
 

@@ -45,8 +45,8 @@ function onClick() {
     width: 48px;
     height: 48px;
     border-radius: 12px;
-    background: #ecfdf5;
-    color: #10b981;
+    background: #EFF6FF;
+    color: #2563EB;
     display: flex;
     align-items: center;
     justify-content: center;

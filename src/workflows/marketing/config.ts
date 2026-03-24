@@ -110,7 +110,7 @@ export const marketingWorkflowConfig: WorkflowConfig = {
                 type: 'image',
                 position: { x: 50, y: 150 },
                 data: {
-                    title: '●上传商品图',
+                    title: '上传商品图',
                     imageUrl: null
                 }
             },
@@ -119,7 +119,7 @@ export const marketingWorkflowConfig: WorkflowConfig = {
                 type: 'image',
                 position: { x: 50, y: 450 },
                 data: {
-                    title: '●上传设计素材',
+                    title: '上传设计素材',
                     imageUrl: null
                 }
             },
@@ -128,7 +128,7 @@ export const marketingWorkflowConfig: WorkflowConfig = {
                 type: 'image',
                 position: { x: 600, y: 300 },
                 data: {
-                    title: '●成果图',
+                    title: '成果图',
                     imageUrl: null,
                     videoUrl: null  // 支持视频
                 }

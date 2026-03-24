@@ -260,7 +260,7 @@ const updateResultNode = (resultData: any) => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0a0a0a;
+  background: #F9FAFB;
   overflow: hidden;
 }
 
@@ -277,16 +277,16 @@ const updateResultNode = (resultData: any) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: #0a0a0a;
-  color: rgba(255, 255, 255, 0.7);
+  background: #F9FAFB;
+  color: #6B7280;
   gap: 16px;
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
-  border-top-color: #667eea;
+  border: 3px solid #E5E7EB;
+  border-top-color: #2563EB;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

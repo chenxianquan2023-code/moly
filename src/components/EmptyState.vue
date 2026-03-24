@@ -3,7 +3,7 @@
     <div class="empty-icon">
       <slot name="icon">
         <span v-if="icon">{{ icon }}</span>
-        <span v-else>📭</span>
+        <span v-else>暂无内容</span>
       </slot>
     </div>
     <h3 v-if="title" class="empty-title">{{ title }}</h3>

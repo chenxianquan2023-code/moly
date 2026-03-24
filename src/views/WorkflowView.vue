@@ -3,12 +3,8 @@
     <!-- Header -->
     <header class="workflow-header">
       <div class="header-left">
-        <router-link to="/" class="logo">
-          <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-        </router-link>
-        <div class="divider"></div>
         <div class="breadcrumb">
-          <span class="crumb-parent">工作流</span>
+          <router-link to="/workbench" class="crumb-parent">工作流</router-link>
           <RightOutlined class="crumb-icon" />
           <span class="crumb-current">AI 电商虚拟试穿</span>
         </div>
@@ -158,7 +154,7 @@
           </template>
 
           <!-- 背景网格 -->
-          <Background :gap="24" :size="1" pattern-color="#222" />
+          <Background :gap="24" :size="1" pattern-color="#D1D5DB" />
         </VueFlow>
       </main>
 
@@ -530,20 +526,20 @@ const nodes = ref<Node[]>([
     id: 'model',
     type: 'image',
     position: { x: 50, y: 220 },
-    data: { title: '●上传模特图', imageUrl: null }
+    data: { title: '上传模特图', imageUrl: null }
   },
   {
     id: 'garment',
     type: 'image',
     position: { x: 50, y: 580 },
-    data: { title: '●上传衣服图（只有衣服）', imageUrl: null }
+    data: { title: '上传衣服图（只有衣服）', imageUrl: null }
   },
   {
     id: 'generated',
     type: 'text',
     position: { x: 380, y: 20 },
-    data: { 
-      title: '◎已设定好', 
+    data: {
+      title: '已设定好',
       content: '请上传模特图和服装图...',
       editable: false,
       tall: true
@@ -553,18 +549,18 @@ const nodes = ref<Node[]>([
     id: 'result',
     type: 'image',
     position: { x: 700, y: 380 },
-    data: { title: '●成果图', imageUrl: null }
+    data: { title: '成果图', imageUrl: null }
   }
 ]);
 
 // Edges - matching reference layout
 const edges = ref<Edge[]>([
 
-  { id: 'e2', source: 'model', target: 'generated', style: { stroke: '#52525b', strokeWidth: 3 }, type: 'default' },
-  { id: 'e3', source: 'model', target: 'result', style: { stroke: '#52525b', strokeWidth: 3 }, type: 'default' },
-  { id: 'e4', source: 'garment', target: 'generated', style: { stroke: '#52525b', strokeWidth: 3 }, type: 'default' },
-  { id: 'e5', source: 'garment', target: 'result', style: { stroke: '#52525b', strokeWidth: 3 }, type: 'default' },
-  { id: 'e6', source: 'generated', target: 'result', style: { stroke: '#52525b', strokeWidth: 3 }, type: 'default' }
+  { id: 'e2', source: 'model', target: 'generated', style: { stroke: '#93C5FD', strokeWidth: 3 }, type: 'default' },
+  { id: 'e3', source: 'model', target: 'result', style: { stroke: '#93C5FD', strokeWidth: 3 }, type: 'default' },
+  { id: 'e4', source: 'garment', target: 'generated', style: { stroke: '#93C5FD', strokeWidth: 3 }, type: 'default' },
+  { id: 'e5', source: 'garment', target: 'result', style: { stroke: '#93C5FD', strokeWidth: 3 }, type: 'default' },
+  { id: 'e6', source: 'generated', target: 'result', style: { stroke: '#93C5FD', strokeWidth: 3 }, type: 'default' }
 ]);
 
 // File upload handlers（保留隐藏 input 以兼容直接选择文件）
@@ -717,8 +713,8 @@ const startGeneration = async () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f6f8;
-  color: #1a1a1a;
+  background: #F9FAFB;
+  color: #111827;
   overflow: hidden;
   user-select: none;
 }
@@ -765,9 +761,9 @@ const startGeneration = async () => {
       gap: 8px;
       font-size: 14px;
 
-      .crumb-parent { color: #6b7280; }
+      .crumb-parent { color: #6b7280; text-decoration: none; &:hover { color: #374151; } }
       .crumb-icon { font-size: 10px; color: #6b7280; }
-      .crumb-current { color: #111; }
+      .crumb-current { color: #111827; }
     }
   }
 
@@ -821,7 +817,7 @@ const startGeneration = async () => {
         font-size: 12px; color: #6b7280; background: transparent; border: 1px solid #d1d5db;
         padding: 4px 10px; border-radius: 6px; cursor: pointer;
       }
-      .logout-btn:hover { color: #111; border-color: #9ca3af; }
+      .logout-btn:hover { color: #111827; border-color: #9ca3af; }
     }
   }
 }
@@ -998,7 +994,7 @@ const startGeneration = async () => {
     transition: color 0.2s, border-color 0.2s;
 
     &:hover {
-      color: #111;
+      color: #111827;
       border-color: #2563eb;
     }
   }
@@ -1008,13 +1004,13 @@ const startGeneration = async () => {
 .canvas-area {
   flex: 1;
   position: relative;
-  background: #0a0a0a;
+  background: #F3F4F6;
   overflow: hidden;
 
   .workflow-flow {
     width: 100%;
     height: 100%;
-    background: #f9fafb;
+    background: #F9FAFB;
   }
 
   .zoom-controls {
@@ -1045,7 +1041,7 @@ const startGeneration = async () => {
 
       &:hover {
         background: #f3f4f6;
-        color: #111;
+        color: #111827;
       }
     }
 
@@ -1082,7 +1078,7 @@ const startGeneration = async () => {
     .config-title {
       font-size: 14px;
       font-weight: 600;
-      color: #111;
+      color: #111827;
       margin: 0 0 4px 0;
     }
 
@@ -1137,12 +1133,12 @@ const startGeneration = async () => {
       width: 100%;
       height: 8px;
       appearance: none;
-      background: #1c1c1e;
+      background: #E5E7EB;
       border-radius: 4px;
       outline: none;
       cursor: pointer;
       position: relative;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid #D1D5DB;
 
       // 轨道背景渐变效果
       &::-webkit-slider-runnable-track {
@@ -1272,7 +1268,7 @@ const startGeneration = async () => {
       border-radius: 8px;
       padding: 10px 12px;
       font-size: 13px;
-      color: #111;
+      color: #111827;
       resize: none;
       outline: none;
       line-height: 1.5;
@@ -1298,7 +1294,7 @@ const startGeneration = async () => {
         border-radius: 8px;
         padding: 10px 12px;
         font-size: 14px;
-        color: #111;
+        color: #111827;
         appearance: none;
         cursor: pointer;
         outline: none;
@@ -1344,7 +1340,7 @@ const startGeneration = async () => {
     }
 
     &:hover .toggle-label {
-      color: #111;
+      color: #111827;
     }
 
     .toggle-switch {
@@ -1452,8 +1448,8 @@ const startGeneration = async () => {
 
 // Vue Flow 全局样式覆盖
 :deep(.vue-flow__edge-path) {
-  stroke: #52525b;
-  stroke-width: 3;
+  stroke: #93C5FD;
+  stroke-width: 2;
 }
 
 :deep(.vue-flow__background) {

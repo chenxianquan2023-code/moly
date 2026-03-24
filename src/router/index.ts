@@ -1,8 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import MainLayout from '../layout/MainLayout.vue'
-import WorkbenchLayout from '../layout/WorkbenchLayout.vue'
-import ToolsLayout from '../layout/ToolsLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -10,14 +8,8 @@ const router = createRouter({
     routes: [
         {
             path: '/',
-            component: MainLayout,
-            children: [
-                {
-                    path: '',
-                    name: 'home',
-                    component: HomeView
-                }
-            ]
+            name: 'home',
+            component: HomeView
         },
         {
             path: '/login',
@@ -49,147 +41,130 @@ const router = createRouter({
             name: 'mobile-upload',
             component: () => import('../views/UploadPage.vue')
         },
+        // 统一 MainLayout 路由组
         {
-            path: '/tools',
-            component: ToolsLayout,
+            path: '/',
+            component: MainLayout,
+            meta: { requiresAuth: true },
             children: [
                 {
-                    path: '',
+                    path: 'dashboard',
+                    name: 'dashboard',
+                    component: () => import('../views/DashboardView.vue')
+                },
+                {
+                    path: 'tools',
                     name: 'tools',
                     component: () => import('../views/ToolsView.vue')
                 },
                 {
+                    path: 'workbench',
+                    name: 'workbench',
+                    component: () => import('../views/WorkbenchView.vue')
+                },
+                {
                     path: 'templates',
-                    name: 'tools-templates',
+                    name: 'templates',
                     component: () => import('../views/tools/TemplatesView.vue')
                 },
                 {
                     path: 'assets',
-                    name: 'tools-assets',
+                    name: 'assets',
                     component: () => import('../views/tools/AssetsView.vue')
                 },
                 {
                     path: 'history',
-                    name: 'tools-history',
+                    name: 'history',
                     component: () => import('../views/tools/HistoryView.vue')
                 },
                 {
-                    path: 'virtual-try-on',
+                    path: 'tools/virtual-try-on',
                     name: 'tools-virtual-tryon',
-                    component: () => import('../views/tools/SimplifiedTryOnView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/SimplifiedTryOnView.vue')
                 },
                 {
-                    path: 'scene-generation',
+                    path: 'tools/scene-generation',
                     name: 'tools-scene-generation',
-                    component: () => import('../views/tools/SceneGenerationView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/SceneGenerationView.vue')
                 },
                 {
-                    path: 'face-swap',
+                    path: 'tools/face-swap',
                     name: 'tools-face-swap',
-                    component: () => import('../views/tools/FaceSwapView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/FaceSwapView.vue')
                 },
                 {
-                    path: 'detail-enhance',
+                    path: 'tools/detail-enhance',
                     name: 'tools-detail-enhance',
-                    component: () => import('../views/tools/DetailEnhanceView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/DetailEnhanceView.vue')
                 },
                 {
-                    path: 'background-replace',
+                    path: 'tools/background-replace',
                     name: 'tools-background-replace',
-                    component: () => import('../views/tools/BackgroundReplaceView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/BackgroundReplaceView.vue')
                 },
                 {
-                    path: 'shoe-try-on',
+                    path: 'tools/shoe-try-on',
                     name: 'tools-shoe-tryon',
-                    component: () => import('../views/tools/ShoeTryOnView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/ShoeTryOnView.vue')
                 },
                 {
-                    path: 'hand-product',
+                    path: 'tools/hand-product',
                     name: 'tools-hand-product',
-                    component: () => import('../views/tools/HandProductView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/HandProductView.vue')
                 },
                 {
-                    path: 'model-bg-replace',
+                    path: 'tools/model-bg-replace',
                     name: 'tools-model-bg-replace',
-                    component: () => import('../views/tools/ModelBgReplaceView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/ModelBgReplaceView.vue')
                 },
                 {
-                    path: 'cutout-white-bg',
+                    path: 'tools/cutout-white-bg',
                     name: 'tools-cutout-white-bg',
-                    component: () => import('../views/tools/CutoutWhiteBgView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/CutoutWhiteBgView.vue')
                 },
                 {
-                    path: 'upscale',
+                    path: 'tools/upscale',
                     name: 'tools-upscale',
-                    component: () => import('../views/tools/UpscaleView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/UpscaleView.vue')
                 },
                 {
-                    path: 'ai-shadow',
+                    path: 'tools/ai-shadow',
                     name: 'tools-ai-shadow',
-                    component: () => import('../views/tools/AiShadowView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/AiShadowView.vue')
                 },
                 {
-                    path: 'listing',
+                    path: 'tools/listing',
                     name: 'tools-listing',
-                    component: () => import('../views/tools/listing/ListingEntryView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/listing/ListingEntryView.vue')
                 },
                 {
-                    path: 'listing/create',
+                    path: 'tools/listing/create',
                     name: 'tools-listing-create',
-                    component: () => import('../views/tools/listing/ListingCreateView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/listing/ListingCreateView.vue')
                 },
                 {
-                    path: 'listing/optimize',
+                    path: 'tools/listing/optimize',
                     name: 'tools-listing-optimize',
-                    component: () => import('../views/tools/listing/ListingOptimizeView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/listing/ListingOptimizeView.vue')
                 },
                 {
-                    path: 'aplus-wizard',
+                    path: 'tools/aplus-wizard',
                     name: 'tools-aplus-wizard',
-                    component: () => import('../views/tools/aplus/APlusWizardView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/aplus/APlusWizardView.vue')
                 },
                 {
-                    path: ':toolId',
+                    path: 'tools/:toolId',
                     name: 'tools-tool',
-                    component: () => import('../views/tools/ToolComingSoonView.vue'),
-                    meta: { requiresAuth: true }
+                    component: () => import('../views/tools/ToolComingSoonView.vue')
+                },
+                {
+                    path: 'recharge',
+                    name: 'recharge',
+                    component: () => import('../views/RechargeView.vue')
                 }
             ]
         },
-        {
-            path: '/recharge',
-            name: 'recharge',
-            component: () => import('../views/RechargeView.vue'),
-            meta: { requiresAuth: true }
-        },
-        {
-            path: '/workbench',
-            component: WorkbenchLayout,
-            children: [
-                {
-                    path: '',
-                    name: 'workbench',
-                    component: () => import('../views/WorkbenchView.vue')
-                }
-            ],
-            meta: { requiresAuth: true }
-        },
-        // Workflow routes - hybrid architecture
+        // Workflow routes
         {
             path: '/workflow',
             redirect: '/workflow/try-on'
@@ -205,13 +180,6 @@ const router = createRouter({
             name: 'workflow',
             component: () => import('../views/GenericWorkflowView.vue'),
             props: true,
-            meta: { requiresAuth: true }
-        },
-        // Agent Chat - 新的 Agent 对话界面
-        {
-            path: '/agent',
-            name: 'agent-chat',
-            component: () => import('../views/AgentChatView.vue'),
             meta: { requiresAuth: true }
         }
     ]

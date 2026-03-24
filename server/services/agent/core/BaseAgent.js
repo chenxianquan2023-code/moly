@@ -10,7 +10,7 @@ export class BaseAgent {
     this.id = config.id;
     this.name = config.name;
     this.description = config.description;
-    this.avatar = config.avatar || '🤖';
+    this.avatar = config.avatar || 'AI';
     this.systemPrompt = config.systemPrompt;
     this.requiredFields = config.requiredFields || [];
     this.tools = config.tools || [];

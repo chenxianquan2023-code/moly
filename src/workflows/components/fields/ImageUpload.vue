@@ -139,27 +139,27 @@ const handleRemove = () => {
   position: relative;
   width: 100%;
   min-height: 200px;
-  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border: 2px dashed #D1D5DB;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: #F9FAFB;
   cursor: pointer;
   transition: all 0.3s ease;
   overflow: hidden;
-  
+
   &:hover:not(.disabled) {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.08);
+    border-color: #2563EB;
+    background: #EFF6FF;
   }
-  
+
   &.has-image {
     border-style: solid;
-    border-color: rgba(255, 255, 255, 0.1);
-    
+    border-color: #E5E7EB;
+
     &:hover {
-      border-color: rgba(255, 255, 255, 0.3);
+      border-color: #93C5FD;
     }
   }
-  
+
   &.disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -178,18 +178,18 @@ const handleRemove = () => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  color: rgba(255, 255, 255, 0.6);
-  
+  color: #6B7280;
+
   .main-text {
     margin: 12px 0 4px 0;
     font-size: 14px;
     font-weight: 500;
   }
-  
+
   .hint-text {
     margin: 0;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
+    color: #9CA3AF;
   }
 }
 

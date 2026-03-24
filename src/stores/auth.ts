@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { UserPoints, PointTransaction } from '@/types/ai.types';
 
 const STORAGE_KEY = 'omni_gen_auth';
+const TOKEN_KEY = 'omni_gen_token';
 const POINTS_KEY = 'omni_gen_points';
 const TRANSACTIONS_KEY = 'omni_gen_transactions';
 
@@ -68,10 +69,10 @@ export const useAuthStore = defineStore('auth', () => {
   const canAfford = computed(() => (cost: number) => points.value >= cost);
 
   // Actions
-  function login(by: { email?: string; phone?: string; userId?: string; displayName?: string }) {
+  function login(by: { email?: string; phone?: string; userId?: string; displayName?: string }, token?: string) {
     isLoading.value = true;
     lastError.value = null;
-    
+
     try {
       if (by.email) {
         email.value = by.email;
@@ -80,15 +81,20 @@ export const useAuthStore = defineStore('auth', () => {
         phone.value = by.phone;
         email.value = null;
       }
-      
+
       if (by.userId) userId.value = by.userId;
       if (by.displayName) userDisplayName.value = by.displayName;
-      
+
+      // 存储 token
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+      }
+
       const stored = loadStoredAuth();
       if (stored?.points !== undefined) {
         points.value = stored.points;
       }
-      
+
       save();
     } catch (error) {
       lastError.value = error instanceof Error ? error.message : '登录失败';
@@ -103,6 +109,7 @@ export const useAuthStore = defineStore('auth', () => {
     phone.value = null;
     userId.value = null;
     userDisplayName.value = null;
+    localStorage.removeItem(TOKEN_KEY);
     save();
   }
 

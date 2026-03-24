@@ -181,28 +181,29 @@ const handleVideoMouseLeave = () => {
 <style scoped lang="scss">
 .image-node {
   // Dynamic width and height set via inline style
-  background: #18181b;
-  border: 1px solid #333;
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 12px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   transition: all 0.3s ease;
-  
+
   .node-header {
     height: 36px;
-    background: #27272a;
+    background: #F9FAFB;
+    border-bottom: 1px solid #E5E7EB;
     display: flex;
     align-items: center;
     padding: 0 15px;
-    
+
     .node-title {
       font-size: 13px;
       font-weight: 600;
-      color: #e4e4e7;
+      color: #374151;
       font-family: 'Inter', sans-serif;
     }
   }
-  
+
   .node-content {
     height: calc(100% - 36px);
     padding: 10px;
@@ -210,47 +211,47 @@ const handleVideoMouseLeave = () => {
     align-items: center;
     justify-content: center;
     position: relative;
-    
+
     .content-image {
       width: 100%;
       height: 100%;
       object-fit: contain;
       border-radius: 8px;
       transition: opacity 0.3s;
-      
+
       &.is-loading {
         opacity: 0.3;
       }
     }
-    
+
     .content-video {
       width: 100%;
       height: 100%;
       object-fit: contain;
       border-radius: 8px;
-      background: #000;
+      background: #F3F4F6;
       cursor: pointer;
       transition: opacity 0.3s;
-      
+
       // Hide controls completely
       &::-webkit-media-controls {
         display: none !important;
       }
-      
+
       &::-webkit-media-controls-enclosure {
         display: none !important;
       }
-      
+
       // Hover effect
       &:hover {
         opacity: 0.95;
       }
     }
-    
+
     .content-placeholder {
       width: 100%;
       height: 100%;
-      background: #09090b;
+      background: #F3F4F6;
       border-radius: 8px;
     }
 
@@ -261,7 +262,7 @@ const handleVideoMouseLeave = () => {
       left: 10px;
       right: 10px;
       bottom: 10px;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(255, 255, 255, 0.85);
       backdrop-filter: blur(2px);
       border-radius: 8px;
       display: flex;
@@ -322,7 +323,7 @@ const handleVideoMouseLeave = () => {
       .loading-text {
         font-size: 12px;
         font-weight: 600;
-        background: linear-gradient(to right, #93c5fd, #c4b5fd);
+        background: linear-gradient(to right, #2563EB, #3B82F6);
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -331,7 +332,7 @@ const handleVideoMouseLeave = () => {
 
       .loading-subtext {
         font-size: 10px;
-        color: rgba(96, 165, 250, 0.7);
+        color: #6B7280;
         font-family: monospace;
         margin-top: 4px;
       }
@@ -361,13 +362,13 @@ const handleVideoMouseLeave = () => {
 .port {
   width: 10px !important;
   height: 10px !important;
-  background: #18181b !important;
-  border: 2px solid #71717a !important;
-  
+  background: #ffffff !important;
+  border: 2px solid #93C5FD !important;
+
   &.port-in {
     left: -5px !important;
   }
-  
+
   &.port-out {
     right: -5px !important;
   }

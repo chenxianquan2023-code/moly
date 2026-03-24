@@ -2,9 +2,9 @@
   <div class="tools-layout">
     <!-- 左侧导航栏 -->
     <aside class="sidebar">
-      <router-link to="/" class="logo">
-        <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-      </router-link>
+      <div class="breadcrumb">
+        <router-link to="/tools" class="breadcrumb-link">AI 工具</router-link>
+      </div>
       <nav class="sidebar-nav">
         <router-link
           to="/tools"
@@ -84,16 +84,19 @@ const isHistory = computed(() => path.value.startsWith('/tools/history'));
   bottom: 0;
   z-index: 100;
 
-  .logo {
-    display: flex;
-    align-items: center;
+  .breadcrumb {
     padding: 0 12px;
     margin-bottom: 24px;
-    
-    .logo-img {
-      height: 32px;
-      width: auto;
-      object-fit: contain;
+
+    .breadcrumb-link {
+      color: #2563EB;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+
+      &:hover {
+        text-decoration: underline;
+      }
     }
   }
 
@@ -164,7 +167,7 @@ const isHistory = computed(() => path.value.startsWith('/tools/history'));
     border-right: none;
     border-top: 1px solid var(--color-border);
     
-    .logo {
+    .breadcrumb {
       display: none;
     }
     

@@ -94,30 +94,30 @@ const selectPreset = (color: string) => {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid #D1D5DB;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover {
     transform: scale(1.05);
-    border-color: #667eea;
+    border-color: #2563EB;
   }
 }
 
 .color-text {
   flex: 1;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
   font-size: 13px;
   font-family: 'Courier New', monospace;
   outline: none;
-  
+
   &:focus {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.1);
+    border-color: #2563EB;
+    background: #ffffff;
   }
 }
 
@@ -135,15 +135,15 @@ const selectPreset = (color: string) => {
   border: 2px solid transparent;
   cursor: pointer;
   transition: all 0.2s;
-  
+
   &:hover {
     transform: scale(1.1);
-    border-color: rgba(255, 255, 255, 0.5);
+    border-color: #9CA3AF;
   }
-  
+
   &.active {
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+    border-color: #2563EB;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
   }
 }
 </style>

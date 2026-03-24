@@ -166,10 +166,10 @@ defineExpose({
 <style scoped lang="scss">
 .generic-config-panel {
   width: 320px;
-  background: #1a1a1a;
+  background: #ffffff;
   padding: 20px;
   overflow-y: auto;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid #E5E7EB;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -183,13 +183,13 @@ defineExpose({
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: #111827;
 }
 
 .config-subtitle {
   margin: 0;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  color: #6B7280;
 }
 
 .config-body {
@@ -200,24 +200,24 @@ defineExpose({
 
 .config-group {
   margin-bottom: 24px;
-  
+
   &:last-of-type {
-    margin-bottom: auto; // 推到底部之前
+    margin-bottom: auto;
   }
 }
 
 .group-title {
   font-size: 14px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  color: #374151;
   margin-bottom: 16px;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #E5E7EB;
 }
 
 .config-field {
   margin-bottom: 16px;
-  
+
   &:last-child {
     margin-bottom: 0;
   }
@@ -227,23 +227,23 @@ defineExpose({
   display: block;
   font-size: 13px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
+  color: #374151;
   margin-bottom: 8px;
-  
+
   strong {
-    color: #667eea;
+    color: #2563EB;
   }
 }
 
 .required-mark {
-  color: #ff4d4f;
+  color: #EF4444;
   margin-left: 4px;
 }
 
 .field-description {
   margin: 6px 0 0 0;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #9CA3AF;
   line-height: 1.4;
 }
 
@@ -251,7 +251,7 @@ defineExpose({
   width: 100%;
   padding: 14px 20px;
   margin-top: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
   border: none;
   border-radius: 10px;
   color: white;
@@ -263,22 +263,22 @@ defineExpose({
   justify-content: center;
   gap: 8px;
   transition: all 0.3s;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+
   &:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
   }
-  
+
   &:active:not(:disabled) {
     transform: translateY(0);
   }
-  
+
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
-  
+
   .spinning {
     animation: spin 1s linear infinite;
   }
@@ -299,15 +299,15 @@ defineExpose({
 }
 
 .generic-config-panel::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
 }
 
 .generic-config-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: #D1D5DB;
   border-radius: 3px;
-  
+
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: #9CA3AF;
   }
 }
 </style>

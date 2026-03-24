@@ -42,9 +42,10 @@
 
 <style scoped lang="scss">
 .footer {
-  background: #1f2937;
-  color: #9ca3af;
+  background: #ffffff;
+  color: #6B7280;
   padding: 48px 24px 24px;
+  border-top: 1px solid #E5E7EB;
 }
 
 .footer-inner {
@@ -57,7 +58,7 @@
   grid-template-columns: 1fr;
   gap: 40px;
   padding-bottom: 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #E5E7EB;
   @media (min-width: 768px) {
     grid-template-columns: 280px 1fr;
   }
@@ -71,13 +72,13 @@
   .logo-img {
     height: 28px;
     width: auto;
-    filter: brightness(0) invert(1);
   }
   .brand-desc {
     font-size: 14px;
     line-height: 1.5;
     margin: 0;
     max-width: 240px;
+    color: #6B7280;
   }
 }
 
@@ -91,7 +92,7 @@
   .link-title {
     font-size: 12px;
     font-weight: 600;
-    color: #d1d5db;
+    color: #374151;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin: 0 0 12px 0;
@@ -99,12 +100,12 @@
   a {
     display: block;
     font-size: 14px;
-    color: #9ca3af;
+    color: #6B7280;
     text-decoration: none;
     margin-bottom: 8px;
     transition: color 0.2s;
     &:hover {
-      color: #fff;
+      color: #2563EB;
     }
   }
 }
@@ -125,6 +126,7 @@
 
 .copyright {
   font-size: 13px;
+  color: #9CA3AF;
 }
 
 .social {
@@ -134,10 +136,10 @@
 
 .social-link {
   font-size: 13px;
-  color: #9ca3af;
+  color: #6B7280;
   text-decoration: none;
   &:hover {
-    color: #fff;
+    color: #2563EB;
   }
 }
 </style>

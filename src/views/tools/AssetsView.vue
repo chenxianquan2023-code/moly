@@ -598,14 +598,14 @@ function confirmUpload() {
 
   &:hover {
     background: #f5f5f5;
-    color: #1a1a1a;
+    color: #111827;
   }
 }
 
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #111827;
   margin: 0 0 20px 0;
 }
 

@@ -1,5 +1,4 @@
 <template>
-  <MainLayout>
     <div class="p-8 max-w-5xl mx-auto">
       <!-- 步骤条 -->
       <div class="flex items-center justify-center mb-10">
@@ -81,7 +80,7 @@
         <!-- 底部操作 -->
         <div class="flex items-center justify-between pt-6 border-t border-gray-100">
           <div class="flex items-center gap-2 text-sm text-yellow-600">
-            <span>⚡</span>
+            <span></span>
             <span>预估消耗 <strong>50</strong> 积分</span>
           </div>
           <div class="flex gap-3">
@@ -102,8 +101,8 @@
 
         <!-- 分析状态 -->
         <div v-if="isAnalyzing" class="text-center py-12">
-          <div class="w-16 h-16 rounded-full gradient-bg flex items-center justify-center text-white text-3xl mx-auto mb-4 animate-pulse">
-            🤖
+          <div class="w-16 h-16 rounded-full gradient-bg flex items-center justify-center text-white text-lg font-bold mx-auto mb-4 animate-pulse">
+            AI
           </div>
           <h3 class="text-lg font-medium text-gray-900 mb-2">正在分析竞品...</h3>
           <p class="text-gray-500">AI 正在抓取竞品数据并分析市场趋势</p>
@@ -158,8 +157,8 @@
       <!-- Step 3: AI 生成中 -->
       <div v-else-if="currentStep === 2" class="bg-white rounded-2xl border border-gray-200 p-8">
         <div class="text-center py-12">
-          <div class="w-20 h-20 rounded-full gradient-bg flex items-center justify-center text-white text-4xl mx-auto mb-6">
-            🤖
+          <div class="w-20 h-20 rounded-full gradient-bg flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
+            AI
           </div>
           <h2 class="text-2xl font-bold text-gray-900 mb-2">AI 正在生成 Listing...</h2>
           <p class="text-gray-500 mb-8">预计需要 30-60 秒，请稍候</p>
@@ -225,12 +224,11 @@
         </div>
       </div>
     </div>
-  </MainLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import MainLayout from '@/layout/MainLayout.vue';
+
 
 const steps = ['输入信息', '市场洞察', 'AI 生成', '结果预览'];
 const currentStep = ref(0);

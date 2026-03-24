@@ -159,7 +159,7 @@ img {
 /* 按钮主样式 */
 .btn-primary {
   background: var(--color-primary);
-  color: white;
+  color: white !important;
   padding: 10px 20px;
   border-radius: var(--radius-md);
   border: none;
@@ -172,6 +172,20 @@ img {
 
 .btn-primary:hover {
   background: var(--color-primary-hover);
+  color: white !important;
+}
+
+/* 所有蓝色背景按钮统一白色文字 */
+.gradient-bg {
+  color: white !important;
+}
+
+button[class*="bg-[#2563EB]"],
+button[class*="bg-[#3B82F6]"],
+button[class*="bg-blue-500"],
+button[class*="bg-blue-600"],
+button[class*="bg-blue-700"] {
+  color: white !important;
 }
 
 /* 按钮次要样式 */
@@ -195,7 +209,7 @@ img {
 
 /* 渐变文字 */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -32,36 +32,37 @@ defineProps<{
 .config-node {
   width: 240px;
   height: 200px;
-  background: #18181b;
-  border: 1px solid #333;
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 12px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   transition: all 0.2s;
-  
+
   .node-header {
     height: 36px;
-    background: #27272a;
+    background: #F9FAFB;
+    border-bottom: 1px solid #E5E7EB;
     display: flex;
     align-items: center;
     padding: 0 15px;
-    
+
     .node-title {
       font-size: 13px;
       font-weight: 600;
-      color: #e4e4e7;
+      color: #374151;
       font-family: 'Inter', sans-serif;
     }
   }
-  
+
   .node-content {
     height: calc(100% - 36px);
     padding: 12px 15px;
     overflow: hidden;
-    
+
     .content-text {
       font-size: 12px;
-      color: #a1a1aa;
+      color: #6B7280;
       line-height: 1.5;
       margin: 0;
       font-family: 'Inter', sans-serif;
@@ -73,8 +74,8 @@ defineProps<{
 .port {
   width: 10px !important;
   height: 10px !important;
-  background: #18181b !important;
-  border: 2px solid #71717a !important;
+  background: #ffffff !important;
+  border: 2px solid #93C5FD !important;
   
   &.port-in {
     left: -5px !important;

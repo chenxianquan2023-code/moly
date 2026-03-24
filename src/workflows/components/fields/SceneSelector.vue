@@ -117,19 +117,19 @@ const handleToggle = (sceneId: string) => {
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s;
-  background: rgba(255, 255, 255, 0.03);
-  
+  background: #F9FAFB;
+
   &:hover:not(.disabled) {
     transform: translateY(-2px);
-    border-color: rgba(102, 126, 234, 0.5);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: rgba(37, 99, 235, 0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
-  
+
   &.active {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.1);
+    border-color: #2563EB;
+    background: #EFF6FF;
   }
-  
+
   &.disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -141,7 +141,7 @@ const handleToggle = (sceneId: string) => {
   width: 100%;
   padding-top: 75%; // 4:3 aspect ratio
   overflow: hidden;
-  
+
   img {
     position: absolute;
     top: 0;
@@ -159,13 +159,13 @@ const handleToggle = (sceneId: string) => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #667eea;
+  background: #2563EB;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .scene-info {
@@ -175,13 +175,13 @@ const handleToggle = (sceneId: string) => {
 .scene-name {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
   margin-bottom: 4px;
 }
 
 .scene-description {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #9CA3AF;
   line-height: 1.4;
 }
 
@@ -189,6 +189,6 @@ const handleToggle = (sceneId: string) => {
   margin-top: 12px;
   text-align: center;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  color: #6B7280;
 }
 </style>

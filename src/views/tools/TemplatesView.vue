@@ -345,7 +345,7 @@ function goToTool(route: string) {
   .advanced-link {
     color: #6b7280; text-decoration: none; font-size: 13px;
     padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 8px;
-    &:hover { background: #f3f4f6; color: #111; }
+    &:hover { background: #f3f4f6; color: #111827; }
   }
 }
 
@@ -526,7 +526,7 @@ function goToTool(route: string) {
 
   &:hover {
     background: #e5e7eb;
-    color: #111;
+    color: #111827;
   }
 }
 

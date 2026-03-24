@@ -3,10 +3,12 @@
     <header class="workbench-header">
       <!-- Left: Logo + Nav -->
       <div class="left-section">
-        <router-link to="/" class="logo">
-          <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-        </router-link>
-        
+        <nav class="breadcrumb">
+          <router-link to="/tools" class="text-[#2563eb] text-sm no-underline hover:underline">AI 工具</router-link>
+          <span class="text-gray-400 text-xs mx-2">›</span>
+          <span class="text-gray-500 text-sm">工作流</span>
+        </nav>
+
         <nav class="main-nav">
           <a href="#" class="nav-item active">工作流</a>
           <a href="#" class="nav-item">资产库</a>
@@ -50,13 +52,13 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #050505;
+  background-color: #F9FAFB;
 }
 
 .workbench-header {
   height: 64px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: #050505;
+  border-bottom: 1px solid #E5E7EB;
+  background-color: #ffffff;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -70,22 +72,6 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
     align-items: center;
     gap: 40px;
 
-    .logo {
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      height: 100%;
-      
-      .logo-img {
-        height: 32px;
-        width: auto;
-        max-width: 100px;
-        object-fit: contain;
-      }
-    }
-
     .main-nav {
       display: flex;
       align-items: center;
@@ -94,19 +80,19 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
       font-weight: 500;
 
       .nav-item {
-        color: #9ca3af;
+        color: #6B7280;
         text-decoration: none;
         padding: 20px 0;
         position: relative;
         transition: color 0.2s;
 
         &:hover {
-          color: #fff;
+          color: #111827;
         }
 
         &.active {
-          color: #60a5fa;
-          border-bottom: 2px solid #60a5fa;
+          color: #2563EB;
+          border-bottom: 2px solid #2563EB;
         }
       }
     }
@@ -125,32 +111,32 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
         left: 12px;
         top: 50%;
         transform: translateY(-50%);
-        color: #6b7280;
+        color: #9CA3AF;
         font-size: 14px;
         transition: color 0.2s;
       }
 
       .search-input {
         width: 256px;
-        background: #1a1a1c;
-        color: #fff;
+        background: #F9FAFB;
+        color: #111827;
         font-size: 14px;
         padding: 6px 16px 6px 36px;
         border-radius: 8px;
-        border: 1px solid transparent;
+        border: 1px solid #E5E7EB;
         outline: none;
         transition: all 0.2s;
 
         &::placeholder {
-          color: #4b5563;
+          color: #9CA3AF;
         }
 
         &:focus {
-          border-color: rgba(59, 130, 246, 0.5);
-          background: #18181b;
-          
+          border-color: #2563EB;
+          background: #ffffff;
+
           & + .search-icon {
-            color: #60a5fa;
+            color: #2563EB;
           }
         }
       }
@@ -158,13 +144,13 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
 
     .notification-icon {
       position: relative;
-      color: #9ca3af;
+      color: #6B7280;
       font-size: 20px;
       cursor: pointer;
       transition: color 0.2s;
 
       &:hover {
-        color: #fff;
+        color: #111827;
       }
 
       .notification-dot {
@@ -173,9 +159,9 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
         right: 0;
         width: 8px;
         height: 8px;
-        background-color: #3b82f6;
+        background-color: #2563EB;
         border-radius: 50%;
-        border: 2px solid #050505;
+        border: 2px solid #ffffff;
       }
     }
 
@@ -183,30 +169,30 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
       display: flex;
       align-items: center;
       gap: 8px;
-      background: #1a1a1c;
+      background: #EFF6FF;
       padding: 6px 12px;
       border-radius: 9999px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid #DBEAFE;
       cursor: pointer;
       transition: border-color 0.2s;
 
       &:hover {
-        border-color: rgba(255, 255, 255, 0.2);
+        border-color: #93C5FD;
       }
 
       .credits-label {
         font-size: 12px;
-        color: #9ca3af;
+        color: #6B7280;
       }
 
       .credits-value {
         font-size: 14px;
         font-weight: 700;
-        color: #fff;
+        color: #2563EB;
       }
 
       .credits-add {
-        color: #3b82f6;
+        color: #2563EB;
         font-size: 16px;
       }
     }
@@ -215,14 +201,14 @@ import { SearchOutlined, BellOutlined, PlusCircleOutlined } from '@ant-design/ic
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: linear-gradient(to bottom right, #4b5563, #6b7280);
+      background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 10px;
       font-weight: 700;
       color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 2px solid #E5E7EB;
       cursor: pointer;
     }
   }

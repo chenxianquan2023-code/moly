@@ -201,7 +201,7 @@ defineExpose({ getData, validate });
   height: 192px;
   border-radius: 12px;
   border: 1px dashed rgba(255, 255, 255, 0.1);
-  background: #1c1c1e;
+  background: #F9FAFB;
   display: flex;
   flex-direction: column;
   align-items: center;

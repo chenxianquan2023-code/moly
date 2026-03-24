@@ -4,7 +4,7 @@
       <div class="header-row">
         <h2 class="section-title">核心能力</h2>
       </div>
-      
+
       <div class="features-wrapper">
         <!-- Card 1: AI 电商 -->
         <div class="custom-card type-blue" @click="$router.push('/workbench')" style="cursor: pointer;">
@@ -42,12 +42,11 @@
           <p class="card-desc">高品质TVC制作</p>
         </div>
       </div>
-      
+
       <div class="trust-footer">
         <p>受到超过<span class="highlight">1,000,000+</span> 家时尚与电商品牌的信赖。</p>
-        
+
         <div class="brand-logos">
-          <!-- Order: WooCommerce, Amazon, Instagram, TikTok, Shopify, eBay -->
           <img :src="tiktokLogo" alt="TikTok" class="brand-logo" />
           <img :src="instagramLogo" alt="Instagram" class="brand-logo" />
           <img :src="amazonLogo" alt="Amazon" class="brand-logo" />
@@ -77,12 +76,12 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
   padding: 80px 0;
   display: flex;
   justify-content: center;
-  background: transparent;
+  background: linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 100%);
 }
 
 .features-container {
   width: 100%;
-  max-width: 1280px; /* Match MainLayout */
+  max-width: 1280px;
   padding: 0 24px;
   display: flex;
   flex-direction: column;
@@ -93,7 +92,7 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
   .section-title {
     font-size: 24px;
     font-weight: 700;
-    color: #fff;
+    color: #111827;
     margin: 0;
     display: flex;
     align-items: center;
@@ -112,8 +111,8 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
 }
 
 .custom-card {
-  background: #111; /* Even darker background */
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 16px;
   padding: 24px;
   height: 100%;
@@ -121,18 +120,18 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
   display: flex;
   flex-direction: column;
   position: relative;
-  min-height: 240px; 
+  min-height: 240px;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
   &:hover {
     transform: translateY(-4px);
-    background: #161616;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   }
-  
-  /* Feature specific hover colors */
-  &.type-blue:hover { border-color: rgba(59, 130, 246, 0.5); }
-  &.type-yellow:hover { border-color: rgba(234, 179, 8, 0.5); }
-  &.type-purple:hover { border-color: rgba(168, 85, 247, 0.5); }
+
+  &.type-blue:hover { border-color: #93C5FD; }
+  &.type-yellow:hover { border-color: #FCD34D; }
+  &.type-purple:hover { border-color: #C4B5FD; }
 
   .card-header-row {
     display: flex;
@@ -140,43 +139,37 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
     align-items: flex-start;
     width: 100%;
     margin-bottom: 16px;
-    
+
     .card-icon-area { margin-bottom: 0; }
   }
 
   .card-icon-area {
     width: 40px;
     height: 40px;
-    background: #1f2937; /* gray-800 */
+    background: #EFF6FF;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 20px;
-    color: #d1d5db; /* gray-300 */
+    color: #2563EB;
     margin-bottom: 16px;
     transition: all 0.3s;
-    
-    /* If direct child of card */
-    &:nth-child(1):last-child {
-       margin-bottom: 16px;
-    }
   }
-  
-  /* Icon hover colors */
-  &.type-blue:hover .card-icon-area { color: #60a5fa; background: rgba(30, 58, 138, 0.3); }
-  &.type-yellow:hover .card-icon-area { color: #facc15; background: rgba(113, 63, 18, 0.3); }
-  &.type-purple:hover .card-icon-area { color: #c084fc; background: rgba(88, 28, 135, 0.3); }
+
+  &.type-blue:hover .card-icon-area { color: #2563EB; background: #DBEAFE; }
+  &.type-yellow:hover .card-icon-area { color: #D97706; background: #FEF3C7; }
+  &.type-purple:hover .card-icon-area { color: #7C3AED; background: #EDE9FE; }
 
   .card-title {
-    color: #fff;
+    color: #111827;
     font-size: 18px;
     font-weight: 700;
     margin-bottom: 8px;
   }
 
   .card-desc {
-    color: #9ca3af; /* gray-400 */
+    color: #6B7280;
     font-size: 14px;
     line-height: 1.6;
     margin-bottom: 0;
@@ -190,35 +183,34 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
   font-weight: 500;
   line-height: 1.4;
   display: inline-block;
-  
+
   &.yellow {
-    background: rgba(113, 63, 18, 0.4); /* yellow-900/40 */
-    color: #eab308; /* yellow-500 */
-    border: 1px solid rgba(161, 98, 7, 0.5);
+    background: #FEF3C7;
+    color: #D97706;
+    border: 1px solid #FCD34D;
   }
-  
+
   &.purple {
-    background: rgba(88, 28, 135, 0.4); /* purple-900/40 */
-    color: #c084fc; /* purple-400 */
-    border: 1px solid rgba(126, 34, 206, 0.5);
+    background: #EDE9FE;
+    color: #7C3AED;
+    border: 1px solid #C4B5FD;
   }
 }
-
 
 .trust-footer {
   margin-top: 80px;
   text-align: center;
   padding-top: 40px;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  border-top: 1px solid #E5E7EB;
 
   p {
-    color: #9ca3af; /* gray-400 */
+    color: #6B7280;
     font-size: 16px;
     margin-bottom: 48px;
-    
+
     .highlight {
       font-weight: 700;
-      color: #e5e7eb; /* gray-200 */
+      color: #2563EB;
     }
   }
 
@@ -228,24 +220,20 @@ import woocommerceLogo from '../../assets/svg/woocommerce.svg';
     align-items: center;
     flex-wrap: wrap;
     gap: 32px 48px;
-    opacity: 0.6;
-    
+    opacity: 0.7;
+
     .brand-logo {
-      // height: 32px; /* Increased base height */
       width: 90px;
-      max-width: 120px; /* Limit width */
+      max-width: 120px;
       object-fit: contain;
-      filter: brightness(0) invert(1);
-      opacity: 0.7;
+      filter: grayscale(1);
+      opacity: 0.6;
       transition: all 0.3s ease;
-      
-      /* Specific adjustment for vertically oriented or small logos if needed, 
-         but generally increasing height helps here */
-      
-      // &:hover {
-      //   opacity: 1;
-      //   filter: none;
-      // }
+
+      &:hover {
+        opacity: 1;
+        filter: grayscale(0);
+      }
     }
   }
 }

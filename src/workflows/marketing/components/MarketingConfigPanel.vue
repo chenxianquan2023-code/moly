@@ -227,7 +227,7 @@ defineExpose({ getData, setExecuting });
 .config-select {
   width: 100%;
   padding: 10px 12px;
-  background: #1c1c1e;
+  background: #F9FAFB;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: #fff;
@@ -247,7 +247,7 @@ defineExpose({ getData, setExecuting });
   }
 
   option {
-    background: #1c1c1e;
+    background: #F9FAFB;
     color: #fff;
   }
 }
@@ -255,7 +255,7 @@ defineExpose({ getData, setExecuting });
 .config-textarea {
   width: 100%;
   padding: 10px 12px;
-  background: #1c1c1e;
+  background: #F9FAFB;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   color: #fff;

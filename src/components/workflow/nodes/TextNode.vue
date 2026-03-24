@@ -75,10 +75,10 @@ const handleInput = (e: Event) => {
 .text-node {
   width: 240px;
   height: 160px;
-  background: #18181b;
-  border: 1px solid #333;
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 12px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.2s;
   position: relative;
 
@@ -88,7 +88,7 @@ const handleInput = (e: Event) => {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(2px);
     display: flex;
     flex-direction: column;
@@ -151,7 +151,7 @@ const handleInput = (e: Event) => {
     .loading-text {
       font-size: 11px;
       font-weight: 600;
-      background: linear-gradient(to right, #93c5fd, #c4b5fd);
+      background: linear-gradient(to right, #2563EB, #3B82F6);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -160,7 +160,7 @@ const handleInput = (e: Event) => {
 
     .loading-subtext {
       font-size: 9px;
-      color: rgba(96, 165, 250, 0.7);
+      color: #6B7280;
       font-family: monospace;
       margin-top: 4px;
     }
@@ -186,46 +186,47 @@ const handleInput = (e: Event) => {
   }
 
   &--editable {
-    border-color: #3f3f46;
+    border-color: #DBEAFE;
   }
 
   &--tall {
     height: 200px;
   }
-  
+
   .node-header {
     height: 36px;
-    background: #27272a;
+    background: #F9FAFB;
+    border-bottom: 1px solid #E5E7EB;
     display: flex;
     align-items: center;
     padding: 0 15px;
-    border-radius: 11px 11px 0 0;  // 顶部圆角与父容器匹配
-    
+    border-radius: 11px 11px 0 0;
+
     .node-title {
       font-size: 13px;
       font-weight: 600;
-      color: #e4e4e7;
+      color: #374151;
       font-family: 'Inter', sans-serif;
     }
   }
-  
+
   .node-content {
     height: calc(100% - 36px);
     padding: 12px 15px;
     overflow-y: auto;
-    
+
     &::-webkit-scrollbar {
       width: 4px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
-      background: #3f3f46;
+      background: #D1D5DB;
       border-radius: 2px;
     }
-    
+
     .content-text {
       font-size: 12px;
-      color: #a1a1aa;
+      color: #6B7280;
       line-height: 1.6;
       margin: 0;
       font-family: 'Inter', sans-serif;
@@ -238,7 +239,7 @@ const handleInput = (e: Event) => {
       height: 100%;
       background: transparent;
       border: none;
-      color: #e4e4e7;
+      color: #111827;
       font-size: 12px;
       line-height: 1.5;
       padding: 0;
@@ -247,15 +248,15 @@ const handleInput = (e: Event) => {
       font-family: 'Inter', sans-serif;
 
       &::placeholder {
-        color: #52525b;
+        color: #9CA3AF;
       }
-      
+
       &::-webkit-scrollbar {
         width: 4px;
       }
-      
+
       &::-webkit-scrollbar-thumb {
-        background: #3f3f46;
+        background: #D1D5DB;
         border-radius: 2px;
       }
     }
@@ -265,8 +266,8 @@ const handleInput = (e: Event) => {
 .port {
   width: 10px !important;
   height: 10px !important;
-  background: #18181b !important;
-  border: 2px solid #71717a !important;
+  background: #ffffff !important;
+  border: 2px solid #93C5FD !important;
   
   &.port-out {
     right: -5px !important;

@@ -54,18 +54,18 @@ const handleInput = (e: Event) => {
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #2563EB 0%, #3B82F6 100%);
   border-radius: 3px;
   outline: none;
   cursor: pointer;
   position: relative;
   z-index: 1;
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
-  
+
   // Chrome/Safari thumb
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -75,16 +75,16 @@ const handleInput = (e: Event) => {
     border-radius: 50%;
     background: white;
     cursor: pointer;
-    border: 2px solid #667eea;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border: 2px solid #2563EB;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     transition: all 0.2s;
-    
+
     &:hover {
       transform: scale(1.2);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
     }
   }
-  
+
   // Firefox thumb
   &::-moz-range-thumb {
     width: 18px;
@@ -92,19 +92,19 @@ const handleInput = (e: Event) => {
     border-radius: 50%;
     background: white;
     cursor: pointer;
-    border: 2px solid #667eea;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    border: 2px solid #2563EB;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     transition: all 0.2s;
-    
+
     &:hover {
       transform: scale(1.2);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
     }
   }
-  
+
   // Firefox track
   &::-moz-range-track {
-    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(90deg, #2563EB 0%, #3B82F6 100%);
     border-radius: 3px;
     height: 6px;
   }
@@ -116,7 +116,7 @@ const handleInput = (e: Event) => {
   left: 0;
   right: 0;
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: #E5E7EB;
   border-radius: 3px;
   transform: translateY(-50%);
   z-index: 0;

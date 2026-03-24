@@ -30,7 +30,7 @@ onMounted(async () => {
     canvas = new CanvasClass(canvasEl.value, {
       width,
       height,
-      backgroundColor: '#1f1f1f', // Dark canvas background
+      backgroundColor: '#F9FAFB',
       preserveObjectStacking: true,
     });
 
@@ -40,7 +40,7 @@ onMounted(async () => {
     const rect = new (fabric as any).Rect({
       left: 100,
       top: 100,
-      fill: '#1677ff',
+      fill: '#2563EB',
       width: 200,
       height: 200,
       rx: 10,
@@ -75,7 +75,7 @@ const handleDrop = async (e: DragEvent) => {
     
     // Create a mock object based on type
     let obj: any;
-    const color = type.includes('Model') ? '#ffa940' : '#1677ff';
+    const color = type.includes('Model') ? '#F59E0B' : '#2563EB';
     
     if ((fabric as any).Rect) {
          obj = new (fabric as any).Rect({
@@ -126,7 +126,7 @@ onUnmounted(() => {
 .canvas-container {
   width: 100%;
   height: 100%;
-  background-color: #2a2a2a; /* Slightly lighter than canvas bg to show bounds */
+  background-color: #F3F4F6;
   display: flex;
   align-items: center;
   justify-content: center;

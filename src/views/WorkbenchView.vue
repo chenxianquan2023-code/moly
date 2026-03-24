@@ -3,8 +3,8 @@
     <!-- Sub Navigation Tabs -->
     <div class="tab-nav-wrapper">
       <div class="tab-nav-container">
-        <button 
-          v-for="tab in tabs" 
+        <button
+          v-for="tab in tabs"
           :key="tab.id"
           @click="activeTab = tab.id"
           class="tab-button"
@@ -21,7 +21,7 @@
       <div class="cards-grid">
         <!-- Dynamic Cards based on active tab -->
         <template v-for="(cardId, index) in filteredCards" :key="cardId.id">
-          
+
           <!-- Card 1: AI 模特换装 -->
           <div v-if="cardId.id === 1" class="feature-card">
             <div class="card-number">{{ index + 1 }}.</div>
@@ -60,46 +60,6 @@
               </div>
             </div>
           </div>
-
-          <!-- Card 3: 图片放大 (with slider) -->
-          <!-- <div v-if="cardId.id === 3" class="feature-card">
-            <div class="card-number">{{ index + 1 }}.</div>
-            <div class="card-layout">
-              <div class="card-content">
-                <div class="card-header">
-                  <h3 class="card-title">图片放大</h3>
-                  <p class="card-subtitle">(测试中)</p>
-                </div>
-                <button class="card-cta disabled">未开放</button>
-              </div>
-              <div class="card-preview slider-preview" 
-                   @mousemove="handleSliderMove($event, cardId.id)"
-                   @touchmove="handleSliderMove($event, cardId.id)">
-                <div class="preview-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.6); z-index: 10;"></div>
-                <img 
-                  src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600" 
-                  class="slider-img after" 
-                  alt="After"
-                />
-                
-                <div class="slider-before" :style="{ width: (sliderPositions[cardId.id] || 50) + '%' }">
-                  <img 
-                    src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=10&w=600&blur=5" 
-                    class="slider-img before"
-                    :style="{ width: (sliderWidths[cardId.id] || 0) + 'px' }"
-                    alt="Before"
-                  />
-                  <div class="slider-label original">ORIGINAL</div>
-                </div>
-
-                <div class="slider-label upscaled">4K UPSCALED</div>
-
-                <div class="slider-handle" :style="{ left: (sliderPositions[cardId.id] || 50) + '%' }">
-                  <div class="handle-circle"></div>
-                </div>
-              </div>
-            </div>
-          </div> -->
 
           <!-- Card 4: 亚马逊 A+ 布局 -->
           <div v-if="cardId.id === 4" class="feature-card">
@@ -182,13 +142,14 @@ const filteredCards = computed(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #050505;
-  color: #fff;
+  background: #F9FAFB;
+  color: #111827;
 }
 
 // Sub Navigation Tabs
 .tab-nav-wrapper {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid #E5E7EB;
+  background: #ffffff;
   margin-bottom: 32px;
 }
 
@@ -205,7 +166,7 @@ const filteredCards = computed(() => {
   padding: 12px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #6b7280;
+  color: #6B7280;
   background: none;
   border: none;
   cursor: pointer;
@@ -213,11 +174,11 @@ const filteredCards = computed(() => {
   transition: color 0.2s;
 
   &:hover {
-    color: #d1d5db;
+    color: #374151;
   }
 
   &.active {
-    color: #fff;
+    color: #2563EB;
   }
 
   .tab-indicator {
@@ -226,7 +187,7 @@ const filteredCards = computed(() => {
     left: 0;
     width: 100%;
     height: 2px;
-    background: #3b82f6;
+    background: #2563EB;
     border-radius: 2px 2px 0 0;
   }
 }
@@ -252,16 +213,18 @@ const filteredCards = computed(() => {
 
 // Feature Card
 .feature-card {
-  background: #0f0f10;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 16px;
   padding: 24px;
   position: relative;
   overflow: hidden;
-  transition: border-color 0.3s;
+  transition: all 0.3s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
   &:hover {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: #93C5FD;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
   }
 
   .card-number {
@@ -271,7 +234,7 @@ const filteredCards = computed(() => {
     font-size: 8rem;
     line-height: 1;
     font-weight: 800;
-    color: rgba(255, 255, 255, 0.03);
+    color: rgba(37, 99, 235, 0.04);
     z-index: 0;
     user-select: none;
     pointer-events: none;
@@ -287,7 +250,7 @@ const filteredCards = computed(() => {
   }
 
   .card-content {
-    width: 33.333%; // 1/3
+    width: 33.333%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -297,13 +260,13 @@ const filteredCards = computed(() => {
       .card-title {
         font-size: 20px;
         font-weight: 700;
-        color: #fff;
+        color: #111827;
         margin: 0 0 4px 0;
       }
 
       .card-subtitle {
         font-size: 12px;
-        color: #9ca3af;
+        color: #6B7280;
         margin: 0 0 24px 0;
       }
     }
@@ -319,30 +282,30 @@ const filteredCards = computed(() => {
       width: fit-content;
 
       &.active {
-        background: #2563eb;
+        background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
         color: #fff;
         box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
 
         &:hover {
-          background: #3b82f6;
+          background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
         }
       }
 
       &.disabled {
-        background: transparent;
-        color: #6b7280;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: #F3F4F6;
+        color: #6B7280;
+        border: 1px solid #E5E7EB;
         cursor: not-allowed;
       }
     }
   }
 
   .card-preview {
-    width: 66.666%; // 2/3
+    width: 66.666%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.2);
+    background: #F9FAFB;
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid #E5E7EB;
     overflow: hidden;
     position: relative;
 
@@ -350,11 +313,10 @@ const filteredCards = computed(() => {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      opacity: 0.8;
+      opacity: 0.9;
       transition: opacity 0.5s;
     }
 
-    // Hover effect for AI model swap card
     &.hoverable:hover {
       .preview-img {
         opacity: 1;
@@ -372,19 +334,19 @@ const filteredCards = computed(() => {
         width: 32px;
         height: 32px;
         border-radius: 50%;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(255, 255, 255, 0.9);
         backdrop-filter: blur(4px);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        border: 1px solid #E5E7EB;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #fff;
+        color: #2563EB;
         font-size: 12px;
       }
     }
 
     &.mockup {
-      background: rgba(188, 170, 164, 0.1);
+      background: #F3F4F6;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -393,80 +355,13 @@ const filteredCards = computed(() => {
       .mockup-img {
         max-height: 100%;
         object-fit: contain;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-      }
-    }
-
-    &.slider-preview {
-      cursor: col-resize;
-      background: #000;
-
-      .slider-img {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-
-        &.before {
-          max-width: none;
-        }
-      }
-
-      .slider-before {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        border-right: 1px solid rgba(255, 255, 255, 0.5);
-      }
-
-      .slider-label {
-        position: absolute;
-        font-size: 10px;
-        font-weight: 700;
-        padding: 2px 4px;
-        border-radius: 2px;
-
-        &.original {
-          bottom: 8px;
-          left: 8px;
-          color: rgba(255, 255, 255, 0.5);
-          background: rgba(0, 0, 0, 0.3);
-        }
-
-        &.upscaled {
-          bottom: 8px;
-          right: 8px;
-          color: #fff;
-          background: rgba(37, 99, 235, 0.8);
-        }
-      }
-
-      .slider-handle {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 2px;
-        background: #fff;
-        cursor: col-resize;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        .handle-circle {
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: #fff;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-          // No icon inside - just empty white circle
-        }
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
       }
     }
 
     &.wireframe {
-      background: #1a1a1c;
+      background: #F3F4F6;
       padding: 12px;
 
       .wireframe-layout {
@@ -482,8 +377,8 @@ const filteredCards = computed(() => {
 
           .wireframe-block {
             flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: #E5E7EB;
+            border: 1px solid #D1D5DB;
             border-radius: 6px;
           }
         }
@@ -501,28 +396,28 @@ const filteredCards = computed(() => {
 
             .wireframe-header-left {
               flex: 2;
-              background: rgba(255, 255, 255, 0.1);
-              border: 1px solid rgba(255, 255, 255, 0.05);
+              background: #E5E7EB;
+              border: 1px solid #D1D5DB;
               border-radius: 6px;
             }
 
             .wireframe-header-right {
               flex: 1;
-              background: rgba(59, 130, 246, 0.1);
-              border: 1px solid rgba(59, 130, 246, 0.2);
+              background: #EFF6FF;
+              border: 1px solid #DBEAFE;
               border-radius: 6px;
               display: flex;
               align-items: center;
               justify-content: center;
-              color: rgba(59, 130, 246, 0.5);
+              color: #2563EB;
               font-size: 20px;
             }
           }
 
           .wireframe-content {
             flex: 1;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: #E5E7EB;
+            border: 1px solid #D1D5DB;
             border-radius: 6px;
             padding: 8px;
             display: grid;
@@ -530,7 +425,7 @@ const filteredCards = computed(() => {
             gap: 8px;
 
             .wireframe-grid-item {
-              background: rgba(255, 255, 255, 0.05);
+              background: #F3F4F6;
               border-radius: 4px;
             }
           }
@@ -546,7 +441,7 @@ const filteredCards = computed(() => {
 
   p {
     font-size: 12px;
-    color: #4b5563;
+    color: #9CA3AF;
     margin: 0;
   }
 }

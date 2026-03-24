@@ -49,9 +49,8 @@ const onDragStart = (event: DragEvent, itemName: string) => {
 <style scoped lang="scss">
 .asset-sidebar {
   width: 320px;
-  background-color: rgba(20, 20, 20, 0.95); /* Deep dark background */
-  backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background-color: #ffffff;
+  border-right: 1px solid #E5E7EB;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -59,23 +58,22 @@ const onDragStart = (event: DragEvent, itemName: string) => {
 
 :deep(.ant-tabs-nav) {
   margin-bottom: 1px;
-  background-color: rgba(255, 255, 255, 0.02);
-  
+  background-color: #ffffff;
+
   &::before {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid #E5E7EB;
   }
 }
 
 :deep(.ant-tabs-tab) {
-  color: rgba(255, 255, 255, 0.45);
+  color: #6B7280;
   &:hover {
-    color: rgba(255, 255, 255, 0.8);
+    color: #111827;
   }
 }
 
 :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) {
-  color: #1677ff !important;
-  text-shadow: 0 0 10px rgba(22, 119, 255, 0.3);
+  color: #2563EB !important;
 }
 
 .asset-grid {
@@ -85,8 +83,7 @@ const onDragStart = (event: DragEvent, itemName: string) => {
   gap: 16px;
   overflow-y: auto;
   max-height: calc(100vh - 110px);
-  
-  /* Custom scrollbar */
+
   &::-webkit-scrollbar {
     width: 6px;
   }
@@ -94,7 +91,7 @@ const onDragStart = (event: DragEvent, itemName: string) => {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: #D1D5DB;
     border-radius: 3px;
   }
 }
@@ -103,7 +100,7 @@ const onDragStart = (event: DragEvent, itemName: string) => {
   cursor: grab;
   text-align: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  
+
   &:active {
     cursor: grabbing;
   }
@@ -111,34 +108,23 @@ const onDragStart = (event: DragEvent, itemName: string) => {
   .asset-thumb {
     height: 120px;
     border-radius: 12px;
-    background-color: #2a2a2a;
+    background-color: #F3F4F6;
     margin-bottom: 12px;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
     position: relative;
     overflow: hidden;
-    
-    /* Glossy overlay effect */
-    &::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 100%);
-    }
   }
 
   &:hover .asset-thumb {
     transform: translateY(-4px);
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
-    border: 1px solid #1677ff;
+    box-shadow: 0 8px 16px rgba(37, 99, 235, 0.12);
+    border: 1px solid #2563EB;
   }
 
   .asset-name {
     font-size: 13px;
-    color: rgba(255, 255, 255, 0.6);
+    color: #6B7280;
     font-weight: 500;
   }
 }

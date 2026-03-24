@@ -74,8 +74,8 @@ function onImgError(e: Event, index: number) {
 
 .tag {
   padding: 8px 16px;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #EFF6FF;
+  color: #2563EB;
   font-size: 14px;
   border-radius: 9999px;
 }

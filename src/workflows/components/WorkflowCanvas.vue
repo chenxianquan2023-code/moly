@@ -38,7 +38,7 @@
       </template>
 
       <!-- Background Grid -->
-      <Background :gap="24" :size="1" pattern-color="#222" />
+      <Background :gap="24" :size="1" pattern-color="#D1D5DB" />
     </VueFlow>
   </main>
 </template>
@@ -92,7 +92,7 @@ defineExpose({
 .canvas-area {
   flex: 1;
   position: relative;
-  background: #0a0a0a;
+  background: #F3F4F6;
 }
 
 .zoom-controls {
@@ -103,12 +103,11 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 2px;
-  background: rgba(26, 26, 26, 0.95);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
   border-radius: 10px;
   padding: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .zoom-btn {
@@ -116,7 +115,7 @@ defineExpose({
   height: 32px;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: #6B7280;
   border-radius: 6px;
   cursor: pointer;
   display: flex;
@@ -124,12 +123,12 @@ defineExpose({
   justify-content: center;
   transition: all 0.2s;
   font-size: 14px;
-  
+
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    background: #F3F4F6;
+    color: #111827;
   }
-  
+
   &:active {
     transform: scale(0.95);
   }
@@ -138,7 +137,7 @@ defineExpose({
 .zoom-divider {
   width: 1px;
   height: 20px;
-  background: rgba(255, 255, 255, 0.15);
+  background: #E5E7EB;
   margin: 0 4px;
 }
 
@@ -147,7 +146,7 @@ defineExpose({
   text-align: center;
   font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
+  color: #6B7280;
 }
 
 .workflow-flow {

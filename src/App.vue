@@ -1,5 +1,5 @@
 <template>
-  <a-config-provider :theme="{ algorithm: theme.darkAlgorithm, token: { colorPrimary: '#1677ff' } }">
+  <a-config-provider :theme="{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563EB' } }">
     <router-view />
   </a-config-provider>
 </template>

@@ -145,16 +145,16 @@ watch(
 <style scoped lang="scss">
 .generic-input-panel {
   width: 320px;
-  background: #1a1a1a;
+  background: #ffffff;
   padding: 20px;
   overflow-y: auto;
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid #E5E7EB;
   height: 100%;
 }
 
 .input-section {
   margin-bottom: 24px;
-  
+
   &:last-child {
     margin-bottom: 0;
   }
@@ -169,11 +169,11 @@ watch(
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
 }
 
 .required-mark {
-  color: #ff4d4f;
+  color: #EF4444;
   margin-left: 4px;
   font-size: 14px;
 }
@@ -181,16 +181,16 @@ watch(
 .field-description {
   margin: 8px 0 0 0;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #9CA3AF;
   line-height: 1.5;
 }
 
 .error-message {
   margin-top: 8px;
   padding: 8px 12px;
-  background: rgba(255, 77, 79, 0.1);
-  border-left: 3px solid #ff4d4f;
-  color: #ff4d4f;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #EF4444;
+  color: #EF4444;
   font-size: 12px;
   border-radius: 4px;
   display: flex;
@@ -204,15 +204,15 @@ watch(
 }
 
 .generic-input-panel::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
 }
 
 .generic-input-panel::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: #D1D5DB;
   border-radius: 3px;
-  
+
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: #9CA3AF;
   }
 }
 </style>

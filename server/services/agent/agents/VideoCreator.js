@@ -12,7 +12,7 @@ export class VideoCreator extends BaseAgent {
       id: 'video-creator',
       name: '短视频摄影师',
       description: '专业的产品短视频制作专家，擅长电商产品展示视频',
-      avatar: '🎬',
+      avatar: 'VC',
       
       systemPrompt: `你是专业的产品短视频摄影师，擅长制作高转化的电商产品视频。
 

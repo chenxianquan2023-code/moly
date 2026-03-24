@@ -177,18 +177,18 @@ onUnmounted(() => {
     justify-content: center;
     height: 48px;
     padding: 0 28px;
-    background: #10b981;
+    background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 12px;
     text-decoration: none;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
     transition: all 0.2s ease;
     &:hover {
-      background: #059669;
+      background: linear-gradient(135deg, #1D4ED8 0%, #2563EB 100%);
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
     }
   }
 
@@ -199,15 +199,15 @@ onUnmounted(() => {
     height: 48px;
     padding: 0 28px;
     background: transparent;
-    color: #2563eb;
+    color: #2563EB;
     font-size: 16px;
     font-weight: 600;
-    border: 2px solid #2563eb;
-    border-radius: 8px;
+    border: 2px solid #2563EB;
+    border-radius: 12px;
     text-decoration: none;
     transition: all 0.2s ease;
     &:hover {
-      background: #eff6ff;
+      background: #EFF6FF;
       transform: translateY(-2px);
     }
   }

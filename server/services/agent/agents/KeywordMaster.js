@@ -12,7 +12,7 @@ export class KeywordMaster extends BaseAgent {
       id: 'keyword-master',
       name: '关键词大师',
       description: '专业的亚马逊SEO专家，擅长挖掘高转化关键词',
-      avatar: '🔍',
+      avatar: 'KW',
       
       systemPrompt: `你是专业的亚马逊SEO专家，精通关键词研究和优化。
 

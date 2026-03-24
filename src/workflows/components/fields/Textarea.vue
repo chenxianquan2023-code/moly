@@ -50,32 +50,32 @@ const handleInput = (e: Event) => {
 .textarea-input {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
+  color: #111827;
   font-size: 14px;
   font-family: inherit;
   line-height: 1.5;
   resize: vertical;
   outline: none;
   transition: all 0.3s;
-  
+
   &::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: #9CA3AF;
   }
-  
+
   &:hover:not(:disabled) {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.08);
+    border-color: #2563EB;
+    background: #EFF6FF;
   }
-  
+
   &:focus {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.1);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: #2563EB;
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
-  
+
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -88,7 +88,7 @@ const handleInput = (e: Event) => {
   bottom: 8px;
   right: 12px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: #9CA3AF;
   pointer-events: none;
 }
 </style>

@@ -268,14 +268,14 @@ onUnmounted(closeQrModal);
 
   &:hover {
     background: #f5f5f5;
-    color: #1a1a1a;
+    color: #111827;
   }
 }
 
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #111827;
   margin: 0 0 20px 0;
 }
 
@@ -294,9 +294,9 @@ onUnmounted(closeQrModal);
     cursor: pointer;
 
     &.active {
-      color: #1677ff;
+      color: #2563EB;
       font-weight: 600;
-      border-bottom: 2px solid #1677ff;
+      border-bottom: 2px solid #2563EB;
       margin-bottom: -1px;
     }
   }
@@ -334,8 +334,8 @@ onUnmounted(closeQrModal);
     transition: border-color 0.2s, color 0.2s;
 
     &:hover {
-      border-color: #1677ff;
-      color: #1677ff;
+      border-color: #2563EB;
+      color: #2563EB;
     }
 
     .qr-icon {
@@ -348,7 +348,7 @@ onUnmounted(closeQrModal);
 
     .new-badge {
       padding: 1px 5px;
-      background: #1677ff;
+      background: #2563EB;
       color: #fff;
       font-size: 10px;
       font-weight: 600;
@@ -358,7 +358,7 @@ onUnmounted(closeQrModal);
 
   &.dragging,
   &:hover:not(.has-image) {
-    border-color: #1677ff;
+    border-color: #2563EB;
     background: #f0f7ff;
   }
 
@@ -401,7 +401,7 @@ onUnmounted(closeQrModal);
     gap: 8px;
     height: 40px;
     padding: 0 20px;
-    background: #1a1a1a;
+    background: #2563EB;
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -460,7 +460,7 @@ onUnmounted(closeQrModal);
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 8px 0;
-  color: #1a1a1a;
+  color: #111827;
 }
 
 .qr-modal-hint {
@@ -507,8 +507,8 @@ onUnmounted(closeQrModal);
     transition: border-color 0.2s, box-shadow 0.2s;
 
     &:hover {
-      border-color: #1677ff;
-      box-shadow: 0 2px 8px rgba(22, 119, 255, 0.2);
+      border-color: #2563EB;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
     }
   }
 
@@ -547,15 +547,15 @@ onUnmounted(closeQrModal);
     cursor: pointer;
 
     &:hover {
-      border-color: #1677ff;
-      color: #1677ff;
+      border-color: #2563EB;
+      color: #2563EB;
     }
   }
 
   .btn-confirm {
     height: 36px;
     padding: 0 20px;
-    background: #1a1a1a;
+    background: #2563EB;
     color: #fff;
     border: none;
     border-radius: 8px;

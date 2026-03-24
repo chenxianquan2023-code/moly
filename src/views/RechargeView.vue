@@ -16,7 +16,6 @@
         </div>
       </div>
       <p class="hint">正式环境可接入微信/支付宝等支付方式</p>
-      <router-link to="/workflow/try-on" class="back-link">返回工作流</router-link>
     </div>
   </div>
 </template>
@@ -37,7 +36,7 @@ function addPoints(amount: number) {
 .recharge-view {
   min-height: 100vh;
   padding: 24px;
-  background: #f5f6f8;
+  background: #F9FAFB;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -50,7 +49,7 @@ function addPoints(amount: number) {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   padding: 32px;
-  color: #1a1a1a;
+  color: #111827;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 
   .title {
@@ -109,14 +108,5 @@ function addPoints(amount: number) {
     margin: 0 0 20px 0;
   }
 
-  .back-link {
-    display: inline-block;
-    color: #1677ff;
-    font-size: 14px;
-    text-decoration: none;
-  }
-  .back-link:hover {
-    text-decoration: underline;
-  }
 }
 </style>

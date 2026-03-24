@@ -2,9 +2,6 @@
   <div class="simplified-tryon">
     <header class="simplified-header">
       <div class="header-inner">
-        <router-link to="/tools" class="logo">
-          <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
-        </router-link>
         <div class="breadcrumb">
           <router-link to="/tools">AI 工具</router-link>
           <RightOutlined class="crumb-icon" />

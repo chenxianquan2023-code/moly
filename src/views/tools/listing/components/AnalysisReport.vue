@@ -137,7 +137,7 @@ const scoreClass = computed(() => {
   &.weaknesses-label { color: var(--color-error); }
   &.suggestions-label { color: var(--color-warning); }
   &.keywords-label { color: var(--color-primary); }
-  &.missing-label { color: #9333ea; }
+  &.missing-label { color: #2563EB; }
 }
 
 .tag-list { display: flex; flex-direction: column; gap: 8px; }
@@ -178,6 +178,6 @@ const scoreClass = computed(() => {
   background: var(--color-primary-light);
   color: var(--color-primary);
 
-  &.missing { background: rgba(147, 51, 234, 0.12); color: #9333ea; }
+  &.missing { background: rgba(37, 99, 235, 0.12); color: #2563EB; }
 }
 </style>

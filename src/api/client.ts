@@ -45,6 +45,15 @@ async function request<T>(
   const mergedConfig = { ...DEFAULT_CONFIG, ...config }
   const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`
 
+  // 注入 Authorization header
+  const token = localStorage.getItem('omni_gen_token')
+  if (token) {
+    mergedConfig.headers = {
+      ...mergedConfig.headers as Record<string, string>,
+      Authorization: `Bearer ${token}`
+    }
+  }
+
   let lastError: AIError
   
   for (let attempt = 0; attempt <= (mergedConfig.retries || 0); attempt++) {
@@ -82,7 +91,7 @@ async function request<T>(
       }
 
       // 如果有 data 字段则返回 data，否则返回整个 result
-      return (result.data ?? result) as T
+      return (result.data || result) as T
       
     } catch (error) {
       lastError = error instanceof Error && 'code' in error
