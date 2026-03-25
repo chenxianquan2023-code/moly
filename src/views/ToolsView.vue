@@ -35,148 +35,75 @@
       </div>
     </div>
 
-    <!-- 主工具网格 - 放在 Banner 下面 -->
-    <section class="section main-tools">
-      <h2 class="section-title">选择场景，快速生成专业图片</h2>
-      <div class="tools-grid">
-        <div 
-          v-for="tool in mainTools" 
-          :key="tool.id"
-          class="tool-card"
-          @click="handleToolClick(tool)"
-        >
-          <div class="tool-preview">
-            <div class="preview-images">
-              <img :src="tool.exampleImages?.before || ''" alt="before" class="before-img" @error="($event.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=400&auto=format&fit=crop'" />
-              <img :src="tool.exampleImages?.after || ''" alt="after" class="after-img" @error="($event.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=90&w=400&auto=format&fit=crop'" />
-              <div class="compare-badge">
-                <span class="arrow">→</span>
-              </div>
+    <!-- Agent 卡片区 -->
+    <section class="agents-section">
+      <div class="agents-grid">
+        <!-- 全能模特 Agent -->
+        <div class="agent-card" @click="handleModelAgent">
+          <div class="agent-visual visual-model">
+            <div class="visual-circles">
+              <span class="circle c1"></span>
+              <span class="circle c2"></span>
+              <span class="circle c3"></span>
             </div>
           </div>
-          <div class="tool-info">
-            <div class="tool-icon">{{ tool.icon }}</div>
-            <h3 class="tool-name">{{ tool.name }}</h3>
-            <p class="tool-desc">{{ tool.description }}</p>
+          <div class="agent-body">
+            <div class="agent-header">
+              <h3 class="agent-title">全能模特</h3>
+              <span class="agent-badge">即将开放</span>
+            </div>
+            <p class="agent-desc">多人种、多场景的虚拟模特换装与商品展示，覆盖全品类电商视觉需求</p>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- 文案与 Listing 入口 -->
-    <section class="section listing-tools">
-      <h2 class="section-title">文案与 Listing</h2>
-      <div class="listing-tools-grid">
-        <div class="tool-card listing-card" @click="router.push('/tools/listing')">
-          <div class="tool-preview listing-preview">
-            <span class="listing-icon">📝</span>
+        <!-- 亚马逊 Agent -->
+        <div class="agent-card">
+          <div class="agent-visual visual-amazon">
+            <div class="visual-bars">
+              <span class="bar b1"></span>
+              <span class="bar b2"></span>
+              <span class="bar b3"></span>
+              <span class="bar b4"></span>
+            </div>
           </div>
-          <div class="tool-info">
-            <h3 class="tool-name">一键生成 Listing</h3>
-            <p class="tool-desc">基于商品信息与竞品分析，自动生成标题、五点、描述与主图建议，支持初创与优化模式。</p>
+          <div class="agent-body">
+            <h3 class="agent-title">亚马逊营销</h3>
+            <p class="agent-desc">从 Listing 文案到 A+ 页面，一站式打造高转化商品详情</p>
+            <div class="agent-entries">
+              <button class="entry-item" @click.stop="router.push('/tools/listing')">
+                <span class="entry-label">Listing 营销大师</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+              <button class="entry-item" @click.stop="router.push('/tools/aplus-wizard')">
+                <span class="entry-label">A+ 设计师</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="tool-card listing-card" @click="router.push('/tools/aplus-wizard')">
-          <div class="tool-preview listing-preview">
-            <span class="listing-icon">✨</span>
-          </div>
-          <div class="tool-info">
-            <h3 class="tool-name">A+ 内容生成</h3>
-            <p class="tool-desc">基于已生成 Listing 与策略，生成 Amazon A+ 模块化文案与配图，支持编辑、锁定与导出交付包。</p>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- 爆款视频复刻 - 横向滚动 -->
-    <section class="section">
-      <div class="section-header-row">
-        <h2 class="section-title">爆款视频复刻</h2>
-        <button class="view-all-btn" @click="handleViewAll('video-replica')">
-          查看全部 <span class="arrow">→</span>
-        </button>
-      </div>
-      <div class="horizontal-scroll">
-        <div 
-          v-for="item in videoReplicas" 
-          :key="item.id"
-          class="scroll-card video-card"
-          @click.stop="handleCardClick(item)"
-        >
-          <img :src="item.cover" alt="" />
-          <div class="play-overlay">
-            <span class="play-icon">▶</span>
+        <!-- 短视频 Agent -->
+        <div class="agent-card">
+          <div class="agent-visual visual-video">
+            <div class="visual-frames">
+              <span class="frame f1"></span>
+              <span class="frame f2"></span>
+              <span class="frame f3"></span>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- AI模特视频 - 带数据统计 -->
-    <section class="section">
-      <div class="section-header-with-stats">
-        <div>
-          <h2 class="section-title">AI模特视频</h2>
-          <p class="section-stats">
-            数据显示，「视频广告」相较图片广告可实现
-            <span class="highlight">37.4%的收入增量</span>
-          </p>
-        </div>
-        <button class="view-all-btn" @click="handleViewAll('model-video')">
-          查看全部 <span class="arrow">→</span>
-        </button>
-      </div>
-      <div class="horizontal-scroll">
-        <div 
-          v-for="item in modelVideos" 
-          :key="item.id"
-          class="scroll-card model-card"
-          @click.stop="handleCardClick(item)"
-        >
-          <img :src="item.cover" alt="" />
-          <div class="model-info">
-            <span class="model-tag">{{ item.tag }}</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 模板区 -->
-    <section class="section templates-section">
-      <div class="section-header-row">
-        <h2 class="section-title">模板</h2>
-        <div class="filter-tabs">
-          <button 
-            v-for="tab in templateTabs" 
-            :key="tab.id"
-            class="filter-tab"
-            :class="{ active: activeTab === tab.id }"
-            @click="activeTab = tab.id"
-          >
-            {{ tab.name }}
-          </button>
-        </div>
-        <div class="sort-options">
-          <button 
-            v-for="opt in sortOptions" 
-            :key="opt.id"
-            class="sort-btn"
-            :class="{ active: activeSort === opt.id }"
-            @click="activeSort = opt.id"
-          >
-            {{ opt.name }}
-          </button>
-        </div>
-      </div>
-      <div class="templates-grid">
-        <div 
-          v-for="template in templates" 
-          :key="template.id"
-          class="template-card"
-          @click="handleTemplateClick(template)"
-        >
-          <img :src="template.cover" alt="" @error="($event.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=400&auto=format&fit=crop'" />
-          <div class="template-overlay">
-            <span class="template-category">{{ template.category }}</span>
+          <div class="agent-body">
+            <h3 class="agent-title">短视频工坊</h3>
+            <p class="agent-desc">为首饰与服饰品类定制的短视频生成方案，适配主流社交平台</p>
+            <div class="agent-entries">
+              <button class="entry-item" @click.stop="handleVideoEntry('jewelry')">
+                <span class="entry-label">首饰摄影师</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+              <button class="entry-item" @click.stop="handleVideoEntry('fashion')">
+                <span class="entry-label">服饰摄影师</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -187,10 +114,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useToolStore } from '@/stores'
 
 const router = useRouter()
-const toolStore = useToolStore()
 
 // Banner 数据
 const banners = ref([
@@ -236,76 +161,6 @@ const bannerStyle = computed(() => ({
   transform: `translateX(-${currentBanner.value * 100}%)`
 }))
 
-// 爆款视频复刻 - 每项带跳转路由
-const videoReplicas = ref([
-  { id: 1, cover: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop', route: '/tools/virtual-try-on' },
-  { id: 2, cover: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=400&auto=format&fit=crop', route: '/tools/scene-generation' },
-  { id: 3, cover: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=400&auto=format&fit=crop', route: '/tools/face-swap' },
-  { id: 4, cover: 'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=400&auto=format&fit=crop', route: '/tools/shoe-try-on' },
-  { id: 5, cover: 'https://images.unsplash.com/photo-1583391730485-32a294f2a441?q=80&w=400&auto=format&fit=crop', route: '/tools/hand-product' },
-  { id: 6, cover: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=400&auto=format&fit=crop', route: '/tools/model-bg-replace' }
-])
-
-// AI模特视频 - 带跳转
-const modelVideos = ref([
-  { id: 1, cover: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=360&auto=format&fit=crop', tag: '热门', route: '/tools/virtual-try-on' },
-  { id: 2, cover: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=360&auto=format&fit=crop', tag: '新品', route: '/tools/face-swap' },
-  { id: 3, cover: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=360&auto=format&fit=crop', tag: '推荐', route: '/tools/virtual-try-on' },
-  { id: 4, cover: 'https://images.unsplash.com/photo-1519699047748-de8e457a634e?q=80&w=360&auto=format&fit=crop', tag: '热门', route: '/tools/model-bg-replace' },
-  { id: 5, cover: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=360&auto=format&fit=crop', tag: '新品', route: '/tools/face-swap' },
-  { id: 6, cover: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=360&auto=format&fit=crop', tag: '推荐', route: '/tools/virtual-try-on' }
-])
-
-// 主工具 - 用 computed 保证与 store 同步，图片与功能一一对应
-const mainTools = computed(() => toolStore.tryOnTools.concat(toolStore.sceneTools).slice(0, 8))
-
-// 模板筛选 - tab id 与模板 category 对应
-const templateTabs = ref([
-  { id: 'all', name: '全部', category: '' },
-  { id: 'promo', name: '大促节点', category: '促销' },
-  { id: 'instagram', name: 'instagram', category: 'instagram' },
-  { id: 'general', name: '通用', category: '通用' },
-  { id: 'fashion', name: '时尚', category: '时尚' },
-  { id: 'electronics', name: '消费电子', category: '消费电子' }
-])
-
-const sortOptions = ref([
-  { id: 'hot', name: '最热' },
-  { id: 'new', name: '最新' }
-])
-
-const activeTab = ref('all')
-const activeSort = ref('hot')
-
-// 模板数据 - 带 category 与 sortId 用于筛选和排序
-const templatesRaw = ref([
-  { id: 1, cover: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop', category: '时尚', sortId: 10 },
-  { id: 2, cover: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=400&auto=format&fit=crop', category: '促销', sortId: 9 },
-  { id: 3, cover: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=400&auto=format&fit=crop', category: '通用', sortId: 8 },
-  { id: 4, cover: 'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=400&auto=format&fit=crop', category: '时尚', sortId: 7 },
-  { id: 5, cover: 'https://images.unsplash.com/photo-1583391730485-32a294f2a441?q=80&w=400&auto=format&fit=crop', category: '促销', sortId: 6 },
-  { id: 6, cover: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=400&auto=format&fit=crop', category: '通用', sortId: 5 },
-  { id: 7, cover: 'https://images.unsplash.com/photo-1519699047748-de8e457a634e?q=80&w=400&auto=format&fit=crop', category: '时尚', sortId: 4 },
-  { id: 8, cover: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop', category: '促销', sortId: 3 }
-])
-
-// 根据当前筛选和排序得到模板列表
-const templates = computed(() => {
-  const tab = templateTabs.value.find(t => t.id === activeTab.value)
-  const category = tab?.category ?? ''
-  let list = templatesRaw.value
-  if (category) {
-    list = list.filter(t => t.category === category)
-  }
-  if (activeSort.value === 'new') {
-    list = [...list].sort((a, b) => b.sortId - a.sortId)
-  } else {
-    list = [...list].sort((a, b) => a.sortId - b.sortId)
-  }
-  return list
-})
-
-// Banner 自动轮播 - 8 秒一页，避免频繁乱动
 onMounted(() => {
   bannerTimer = setInterval(() => {
     currentBanner.value = (currentBanner.value + 1) % banners.value.length
@@ -316,7 +171,6 @@ onUnmounted(() => {
   clearInterval(bannerTimer)
 })
 
-// 方法
 function goToBanner(index: number) {
   currentBanner.value = index
 }
@@ -325,27 +179,12 @@ function handleBannerClick(banner: any) {
   router.push(banner.link)
 }
 
-function handleToolClick(tool: any) {
-  router.push(`/tools/${tool.id}`)
+function handleModelAgent() {
+  // 入口待定
 }
 
-function handleCardClick(item: { route?: string; id?: number }) {
-  if (item?.route) {
-    router.push(item.route)
-  }
-}
-
-function handleViewAll(type: string) {
-  const routes: Record<string, string> = {
-    'video-replica': '/tools/templates',
-    'model-video': '/tools/virtual-try-on',
-    'virtual-tryon': '/tools/virtual-try-on'
-  }
-  router.push(routes[type] || '/tools')
-}
-
-function handleTemplateClick(template: { id: number }) {
-  router.push({ path: '/tools/templates', query: { id: String(template.id) } })
+function handleVideoEntry(type: string) {
+  router.push({ path: '/tools/templates', query: { category: type } })
 }
 </script>
 
@@ -356,7 +195,7 @@ function handleTemplateClick(template: { id: number }) {
 
 // Banner 区域
 .banner-section {
-  margin-bottom: 32px;
+  margin-bottom: 40px;
   overflow: hidden;
   border-radius: var(--radius-xl);
 }
@@ -456,395 +295,232 @@ function handleTemplateClick(template: { id: number }) {
   }
 }
 
-// 区块通用样式
-.section {
+// Agent 卡片区
+.agents-section {
   margin-bottom: 40px;
 }
 
-.section-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
+.agents-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
 
-.section-header-with-stats {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
-.section-stats {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  margin: 8px 0 0;
-  
-  .highlight {
-    color: #f59e0b;
-    font-weight: 600;
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-.view-all-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  color: var(--color-primary);
+.agent-card {
   background: #fff;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  .arrow {
-    font-size: 12px;
-    opacity: 0.9;
-  }
-
-  &:hover {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-    color: var(--color-primary-hover);
-  }
-}
-
-// 横向滚动
-.horizontal-scroll {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  scrollbar-width: thin;
-  
-  &::-webkit-scrollbar {
-    height: 6px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
-  }
-}
-
-.scroll-card {
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: transform 0.3s;
-  
-  &:hover {
-    transform: translateY(-4px);
-  }
-  
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: var(--radius-lg);
-  }
-}
-
-.video-card {
-  width: 200px;
-  height: 280px;
-  position: relative;
-  
-  .play-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: var(--radius-lg);
-    opacity: 0;
-    transition: opacity 0.3s;
-  }
-  
-  &:hover .play-overlay {
-    opacity: 1;
-  }
-  
-  .play-icon {
-    width: 48px;
-    height: 48px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    color: var(--color-text-primary);
-  }
-}
-
-.model-card {
-  width: 180px;
-  height: 240px;
-  position: relative;
-  
-  .model-info {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-  }
-  
-  .model-tag {
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
-}
-
-// 主工具网格
-.main-tools {
-  .tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-  }
-}
-
-.tool-card {
-  background: white;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  cursor: pointer;
-  border: 1px solid var(--color-border);
-  transition: all 0.3s;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-    border-color: var(--color-primary);
-    
-    .after-img {
-      opacity: 1;
-    }
-  }
-}
-
-.tool-preview {
-  position: relative;
-  aspect-ratio: 16/10;
-  background: var(--color-bg);
-}
-
-.preview-images {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  
-  img {
-    width: 50%;
-    height: 100%;
-    object-fit: cover;
-  }
-  
-  .before-img {
-    border-radius: var(--radius-xl) 0 0 0;
-  }
-  
-  .after-img {
-    border-radius: 0 var(--radius-xl) 0 0;
-    opacity: 0.9;
-    transition: opacity 0.3s;
-  }
-}
-
-.compare-badge {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 32px;
-  height: 32px;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 14px;
-}
-
-.tool-info {
-  padding: 16px;
-}
-
-.tool-icon {
-  font-size: 24px;
-  margin-bottom: 8px;
-}
-
-.tool-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0 0 4px;
-}
-
-.tool-desc {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-// 文案与 Listing 入口
-.listing-tools {
-  .listing-tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
-  }
-}
-
-.listing-card {
-  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  cursor: default;
   display: flex;
   flex-direction: column;
 
-  .listing-preview {
-    aspect-ratio: 16/8;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: #d1d5db;
+  }
+}
+
+.agent-visual {
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visual-model {
+  background: linear-gradient(145deg, #faf5ff, #f3e8ff, #ede9fe);
+
+  .visual-circles {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    align-items: flex-end;
+    gap: 12px;
+
+    .circle {
+      border-radius: 50%;
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.15);
+      transition: transform 0.4s ease;
+    }
+
+    .c1 { width: 44px; height: 44px; }
+    .c2 { width: 68px; height: 68px; background: rgba(168, 85, 247, 0.18); }
+    .c3 { width: 52px; height: 52px; }
   }
 
-  .listing-icon {
-    font-size: 48px;
+  &:hover .circle {
+    transform: translateY(-4px);
+  }
+}
+
+.visual-amazon {
+  background: linear-gradient(145deg, #fffbeb, #fef3c7, #fde68a33);
+
+  .visual-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 80px;
+
+    .bar {
+      width: 20px;
+      border-radius: 4px 4px 0 0;
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.15);
+      transition: height 0.4s ease;
+    }
+
+    .b1 { height: 32px; }
+    .b2 { height: 56px; background: rgba(245, 158, 11, 0.3); }
+    .b3 { height: 44px; }
+    .b4 { height: 68px; background: rgba(245, 158, 11, 0.25); }
+  }
+
+  &:hover .bar {
+    &.b1 { height: 40px; }
+    &.b2 { height: 64px; }
+    &.b3 { height: 52px; }
+    &.b4 { height: 76px; }
+  }
+}
+
+.visual-video {
+  background: linear-gradient(145deg, #eff6ff, #dbeafe, #bfdbfe33);
+
+  .visual-frames {
+    display: flex;
+    gap: 8px;
+    perspective: 600px;
+
+    .frame {
+      width: 44px;
+      height: 60px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      transition: transform 0.4s ease;
+    }
+
+    .f1 { transform: rotateY(8deg); }
+    .f2 {
+      width: 52px;
+      height: 68px;
+      background: rgba(59, 130, 246, 0.2);
+      transform: translateY(-4px);
+    }
+    .f3 { transform: rotateY(-8deg); }
+  }
+
+  &:hover .frame {
+    &.f1 { transform: rotateY(12deg) translateY(-4px); }
+    &.f2 { transform: translateY(-8px); }
+    &.f3 { transform: rotateY(-12deg) translateY(-4px); }
+  }
+}
+
+.agent-body {
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.agent-badge {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.agent-desc {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin: 12px 0 0 0;
+}
+
+.agent-entries {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 4px;
+}
+
+.entry-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:last-child {
+    border-bottom: none;
   }
 
   &:hover {
-    .listing-preview {
-      background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    padding-left: 8px;
+
+    .entry-arrow {
+      opacity: 1;
+      transform: translateX(0);
+      color: var(--color-primary);
+    }
+
+    .entry-label {
+      color: var(--color-text-primary);
     }
   }
 }
 
-// 模板区
-.templates-section {
-  .section-header-row {
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-}
-
-.filter-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filter-tab {
-  padding: 8px 16px;
-  background: white;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+.entry-label {
   font-size: 14px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover {
-    border-color: var(--color-text-tertiary);
-  }
-  
-  &.active {
-    background: #bef264;
-    border-color: #bef264;
-    color: var(--color-text-primary);
-    font-weight: 500;
-  }
+  font-weight: 500;
+  color: #374151;
+  transition: color 0.2s;
 }
 
-.sort-options {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.sort-btn {
-  padding: 8px 16px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+.entry-arrow {
   font-size: 14px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-  }
-
-  &.active {
-    border-color: var(--color-primary);
-    color: var(--color-primary);
-    font-weight: 500;
-    background: var(--color-primary-light);
-  }
-}
-
-.templates-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-}
-
-.template-card {
-  aspect-ratio: 3/4;
-  cursor: pointer;
-  position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: transform 0.3s;
-  
-  &:hover {
-    transform: translateY(-4px);
-  }
-  
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
-.template-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 16px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-}
-
-.template-category {
-  color: white;
-  font-size: 13px;
+  color: var(--color-text-tertiary);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.2s ease;
 }
 
 // 响应式
 @media (max-width: 768px) {
-  .quick-tools-bar {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  
   .banner-item {
     flex-direction: column;
     padding: 20px;
@@ -857,29 +533,6 @@ function handleTemplateClick(template: { id: number }) {
       width: 80px;
       height: 80px;
     }
-  }
-  
-  .video-card {
-    width: 160px;
-    height: 220px;
-  }
-  
-  .model-card {
-    width: 140px;
-    height: 190px;
-  }
-  
-  .main-tools .tools-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-
-  .listing-tools .listing-tools-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .templates-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>
