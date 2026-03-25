@@ -1,24 +1,25 @@
 <template>
   <form class="space-y-4" @submit.prevent="handleSubmit">
-    <!-- 国内：手机号登录 | 邮箱登录 两个 Tab，默认手机号 -->
-    <div v-if="regionMode === 'cn'" class="flex justify-center gap-12 border-b border-[#E5E7EB] mb-6">
+    <!-- 手机号登录 | 邮箱登录 两个 Tab，默认手机号 -->
+    <div class="flex justify-center gap-12 border-b border-[#E5E7EB] mb-6">
       <button
         type="button"
-        :class="['pb-3 text-[15px] transition-colors relative', method === 'phone_code' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
+        class="pb-3 text-[15px] font-medium"
+        style="color: #111827 !important;"
         @click="switchMethod('phone_code')"
       >
-        手机号登录
+        <span>手机号登录</span>
+        <span class="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#2563EB]"></span>
       </button>
       <button
         type="button"
-        :class="['pb-3 text-[15px] transition-colors relative', method === 'email' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB]' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
+        class="pb-3 text-[15px]"
+        style="color: #6B7280 !important;"
         @click="switchMethod('email')"
       >
-        邮箱登录
+        <span>邮箱登录</span>
       </button>
     </div>
-    <!-- 海外：仅邮箱登录，无 Tab，显示标题 -->
-    <h2 v-else class="text-lg font-semibold text-[#1F2937] mb-6">邮箱登录</h2>
 
     <!-- 手机号登录 -->
     <template v-if="method === 'phone_code'">
@@ -121,13 +122,12 @@ import { useVerification } from '@/composables/useVerification';
 import { useAuthStore } from '@/stores/auth';
 import * as api from '@/api/auth';
 import { validatePhone, validateEmail, validateCode, validatePassword } from '@/utils/validators';
-import type { RegionMode } from '@/types/auth.types';
 
-const props = defineProps<{ regionMode: RegionMode }>();
 const auth = useAuthStore();
 const emit = defineEmits<{ success: [] }>();
 
-const method = ref<'phone_code' | 'email'>(props.regionMode === 'cn' ? 'phone_code' : 'email');
+// 默认显示国内版本：手机号+邮箱两个选项
+const method = ref<'phone_code' | 'email'>('phone_code');
 const DOMESTIC_COUNTRY_CODE = '86';
 const phoneDisplay = ref('');
 const phone = ref('');

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import MainLayout from '../layout/MainLayout.vue'
+import WorkbenchLayout from '../layout/WorkbenchLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({

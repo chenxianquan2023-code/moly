@@ -2,18 +2,12 @@
   <div class="flex h-screen bg-gray-50">
     <!-- 左侧导航栏 -->
     <aside class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-      <!-- Breadcrumb navigation -->
+      <!-- Logo -->
       <div class="h-16 flex items-center px-6 border-b border-gray-100">
-        <nav class="flex items-center gap-2 text-sm">
-          <template v-if="isDashboard">
-            <span class="text-gray-700 font-medium">首页</span>
-          </template>
-          <template v-else>
-            <router-link to="/tools" class="text-[#2563eb] no-underline hover:underline">AI 工具</router-link>
-            <span v-if="currentToolName" class="text-gray-400 text-xs">›</span>
-            <span v-if="currentToolName" class="text-gray-500">{{ currentToolName }}</span>
-          </template>
-        </nav>
+        <router-link to="/" class="flex items-center gap-2 no-underline">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center font-bold text-white text-lg">M</div>
+          <span class="text-[22px] font-[800] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] bg-clip-text text-transparent" style="font-family: 'Nunito', sans-serif">Moly</span>
+        </router-link>
       </div>
 
       <!-- 导航菜单 -->
@@ -59,39 +53,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-
-const isDashboard = computed(() => route.path === '/dashboard');
-
-const toolNameMap: Record<string, string> = {
-  '/tools/virtual-try-on': 'AI 模特试穿',
-  '/tools/face-swap': '模特换脸',
-  '/tools/shoe-try-on': '试鞋',
-  '/tools/scene-generation': '商品场景图',
-  '/tools/hand-product': '手持商品',
-  '/tools/model-bg-replace': '换背景',
-  '/tools/background-replace': '背景替换',
-  '/tools/detail-enhance': '细节增强',
-  '/tools/upscale': '图片放大',
-  '/tools/cutout-white-bg': '抠图白底',
-  '/tools/ai-shadow': 'AI 阴影',
-  '/tools/listing': '一键生成 Listing',
-  '/tools/listing/create': '创建 Listing',
-  '/tools/listing/optimize': '优化 Listing',
-  '/tools/aplus-wizard': 'A+ 内容生成',
-  '/workbench': '工作台',
-  '/templates': '模版中心',
-  '/assets': '资产库',
-  '/history': '历史记录',
-  '/recharge': '充值',
-};
-
-const currentToolName = computed(() => {
-  return toolNameMap[route.path] || '';
-});
 
 const menuItems = [
   {

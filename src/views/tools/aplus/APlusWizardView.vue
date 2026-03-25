@@ -1,6 +1,5 @@
 <template>
-  <MainLayout>
-    <div class="p-8 max-w-5xl mx-auto">
+  <div class="p-8 max-w-5xl mx-auto">
       <!-- 步骤条 -->
       <div class="flex items-center justify-center mb-10">
         <div class="flex items-center">
@@ -141,13 +140,11 @@
           </div>
         </div>
       </div>
-    </div>
-  </MainLayout>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import MainLayout from '@/layout/MainLayout.vue';
 
 const steps = ['选择 Listing', '选择模板', '生成内容', '结果预览'];
 const currentStep = ref(0);
