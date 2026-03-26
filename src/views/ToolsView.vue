@@ -39,7 +39,7 @@
     <section class="agents-section">
       <div class="agents-grid">
         <!-- 全能模特 Agent -->
-        <div class="agent-card" @click="handleModelAgent">
+        <div class="agent-card">
           <div class="agent-visual visual-model">
             <div class="visual-circles">
               <span class="circle c1"></span>
@@ -48,11 +48,14 @@
             </div>
           </div>
           <div class="agent-body">
-            <div class="agent-header">
-              <h3 class="agent-title">全能模特</h3>
-              <span class="agent-badge">即将开放</span>
-            </div>
+            <h3 class="agent-title">全能模特</h3>
             <p class="agent-desc">多人种、多场景的虚拟模特换装与商品展示，覆盖全品类电商视觉需求</p>
+            <div class="agent-entries">
+              <button class="entry-item" @click.stop="handleModelAgent">
+                <span class="entry-label">进入全能模特工作台</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -180,7 +183,7 @@ function handleBannerClick(banner: any) {
 }
 
 function handleModelAgent() {
-  // 入口待定
+  router.push('/tools/omni-model')
 }
 
 function handleVideoEntry(type: string) {
@@ -433,30 +436,12 @@ function handleVideoEntry(type: string) {
   flex-direction: column;
 }
 
-.agent-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .agent-title {
   font-size: 18px;
   font-weight: 700;
   color: var(--color-text-primary);
   margin: 0;
   letter-spacing: -0.01em;
-}
-
-.agent-badge {
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-  white-space: nowrap;
-  background: var(--color-bg-subtle);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
 }
 
 .agent-desc {
@@ -470,32 +455,31 @@ function handleVideoEntry(type: string) {
   margin-top: 20px;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--color-border-light);
-  padding-top: 4px;
+  gap: 10px;
+  border-top: none;
+  padding-top: 0;
 }
 
 .entry-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--color-border-light);
+  padding: 12px 14px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
 
-  &:last-child {
-    border-bottom: none;
-  }
-
   &:hover {
-    padding-left: 8px;
+    background: #edf4ff;
+    border-color: #bfdbfe;
+    transform: translateY(-1px);
 
     .entry-arrow {
       opacity: 1;
       transform: translateX(0);
-      color: var(--color-primary);
+      color: #2563eb;
     }
 
     .entry-label {
@@ -507,15 +491,15 @@ function handleVideoEntry(type: string) {
 .entry-label {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: #1f2937;
   transition: color 0.2s;
 }
 
 .entry-arrow {
   font-size: 14px;
-  color: var(--color-text-tertiary);
-  opacity: 0;
-  transform: translateX(-4px);
+  color: #60a5fa;
+  opacity: 1;
+  transform: translateX(0);
   transition: all 0.2s ease;
 }
 

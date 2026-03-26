@@ -32,7 +32,7 @@ class GeminiService {
             apiKey: config.apiKey,
             httpOptions: {
                 baseUrl: config.baseUrl,
-                timeout: 360000, // 6分钟超时，防止图片生成时504错误
+                timeout: 600000, // 10分钟超时，降低大图生成超时概率
             },
         })
     }
@@ -46,7 +46,7 @@ class GeminiService {
             apiKey: this.config.apiKey,
             httpOptions: {
                 baseUrl: this.config.baseUrl,
-                timeout: 180000, // 3分钟超时，防止图片生成时504错误
+                timeout: 600000, // 10分钟超时，配置更新后保持一致
             },
         })
     }
@@ -195,6 +195,28 @@ class GeminiService {
     }
 
     /**
+     * 为请求增加超时控制（用于前端可控等待时长）
+     */
+    private withTimeout<T>(promise: Promise<T>, timeoutMs?: number, message?: string): Promise<T> {
+        if (!timeoutMs || timeoutMs <= 0) return promise
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(new Error(message || `Request timeout after ${timeoutMs}ms`))
+            }, timeoutMs)
+
+            promise
+                .then((value) => {
+                    clearTimeout(timer)
+                    resolve(value)
+                })
+                .catch((error) => {
+                    clearTimeout(timer)
+                    reject(error)
+                })
+        })
+    }
+
+    /**
      * 发送文本请求 (使用分析模型)
      */
     async generateText(prompt: string): Promise<string> {
@@ -260,6 +282,8 @@ class GeminiService {
             aspectRatio?: string
             imageSize?: string
             temperature?: number
+            model?: string
+            requestTimeoutMs?: number
         }
     ): Promise<string> {
         try {
@@ -271,17 +295,23 @@ class GeminiService {
                 parts.push(imagePart)
             }
 
-            // 使用图片生成模型 (gemini-3-pro-image-preview)
-            const result = await this.generateContent(
-                this.config.imageModel,
-                parts,
-                {
-                    temperature: options?.temperature ?? 0.7,
-                    maxOutputTokens: 8192,
-                    responseModalities: ['TEXT', 'IMAGE'],
-                    aspectRatio: options?.aspectRatio,
-                    imageSize: options?.imageSize,
-                }
+            const modelName = options?.model || this.config.imageModel
+
+            // 使用图片生成模型（默认走全局配置，支持单次覆盖）
+            const result = await this.withTimeout(
+                this.generateContent(
+                    modelName,
+                    parts,
+                    {
+                        temperature: options?.temperature ?? 0.7,
+                        maxOutputTokens: 8192,
+                        responseModalities: ['TEXT', 'IMAGE'],
+                        aspectRatio: options?.aspectRatio,
+                        imageSize: options?.imageSize,
+                    }
+                ),
+                options?.requestTimeoutMs,
+                '生图请求超时，请稍后重试'
             )
 
             if (result.imageData) {

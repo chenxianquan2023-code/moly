@@ -74,6 +74,12 @@ const router = createRouter({
                     component: () => import('../views/tools/HistoryView.vue')
                 },
                 {
+                    path: 'omni-model',
+                    name: 'tools-omni-model',
+                    component: () => import('../views/tools/OmniModelView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: 'virtual-try-on',
                     name: 'tools-virtual-tryon',
                     component: () => import('../views/tools/SimplifiedTryOnView.vue'),
