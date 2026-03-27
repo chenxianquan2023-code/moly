@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.AUTH_PORT || 3001;
 
 app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // 手机扫码上传：token -> { expiresAt }
 const uploadTokens = new Map();
@@ -600,6 +600,28 @@ app.post('/api/amazon/fetch-listing', async (req, res) => {
       message: `抓取失败: ${err.message}`,
       listing: null,
     });
+  }
+});
+
+// ── 可灵 API 代理（绕过浏览器 CORS 限制）────────────────────────────────────
+const KLING_BASE = 'https://api-beijing.klingai.com';
+
+app.use('/api/kling', async (req, res) => {
+  const targetUrl = `${KLING_BASE}${req.path}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+
+    const fetchOptions = { method: req.method, headers };
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    const upstream = await fetch(targetUrl, fetchOptions);
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    res.status(502).json({ code: -1, message: `代理请求失败: ${err.message}` });
   }
 });
 

@@ -9,7 +9,7 @@ import type {
     WorkflowExecutionResult
 } from '../types/service';
 import { geminiService } from '@/services/gemini.service';
-import { soraService } from '@/services/sora.service';
+import { klingService } from '@/services/kling.service';
 
 export class MarketingWorkflowService extends WorkflowService {
 
@@ -144,33 +144,21 @@ export class MarketingWorkflowService extends WorkflowService {
                 this.updateProgress(20, '正在分析图片内容 (Gemini Vision)...');
 
                 try {
-                    // Step 1: 使用 Gemini Flash 分析图片
-                    const analyzePrompt = `请详细描述这两张图片用于生成产品爆炸图动画视频：
-- 图1：产品的类型、外观、材质、颜色、结构特点
-- 图2：拆解风格、布局方式、组件排列方式、背景风格
+                    // 直接传商品图给可灵，跳过 Gemini 分析（避免图片信息丢失）
+                    this.updateProgress(30, '正在提交图生视频任务 (可灵)...');
 
-请生成适合视频生成 AI 使用的详细文字描述，包含产品特征和拆解动画的视觉效果要求。`;
+                    // 构建视频提示词：用户输入 + 拆解动画指令
+                    const videoPrompt = userPrompt
+                        ? `${userPrompt}。产品爆炸图风格，展示产品各组件拆解过程，背景干净。`
+                        : '产品爆炸图风格，展示产品各组件拆解过程，背景干净，工业设计风格。';
 
-                    const imageDescription = await geminiService.generateWithImagesUsingFlash(
-                        analyzePrompt,
-                        imagesToProcess
+                    this.updateProgress(50, '正在生成视频 (可灵)，请稍候约1-3分钟...');
+
+                    const generatedVideoUrl = await klingService.imageToVideo(
+                        productUrl,
+                        videoPrompt,
+                        { model: 'kling-v1-6', duration: '5', mode: 'std' }
                     );
-
-                    console.log('[MarketingWorkflow] Gemini image analysis:', imageDescription);
-
-                    // Step 2: 合并用户自定义需求和图片分析结果
-                    const finalPrompt = userPrompt
-                        ? `${imageDescription}\n\n用户需求：${userPrompt}\n\n${prompt}`
-                        : `${imageDescription}\n\n${prompt}`;
-
-                    this.updateProgress(40, '正在创建视频生成任务...');
-
-                    // Step 3: 使用 Sora 生成视频（只传文本，不传图片）
-                    this.updateProgress(50, '正在生成分解动画 (Sora)，请稍候...');
-
-                    const generatedVideoUrl = await soraService.generateVideo(finalPrompt, {
-                        model: 'sora-2'
-                    });
 
                     this.updateProgress(85, '视频生成完成，正在加载...');
                     videoUrl = generatedVideoUrl;

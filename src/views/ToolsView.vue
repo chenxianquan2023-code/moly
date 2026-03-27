@@ -184,12 +184,7 @@ function handleModelAgent() {
 }
 
 function handleVideoEntry(type: string) {
-  if (type === 'jewelry') {
-    router.push('/tools/jewelry-promo-video')
-    return
-  }
-
-  router.push({ path: '/tools/templates', query: { category: type } })
+  router.push('/workflow/jewelry')
 }
 </script>
 

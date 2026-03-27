@@ -207,6 +207,12 @@ const router = createRouter({
             meta: { requiresAuth: true }
         },
         {
+            path: '/workflow/jewelry',
+            name: 'workflow-jewelry',
+            component: () => import('../views/JewelryVideoView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
             path: '/workflow/:workflowType',
             name: 'workflow',
             component: () => import('../views/GenericWorkflowView.vue'),
