@@ -197,7 +197,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { klingService } from '@/services/kling.service';
-import { AI_CONFIG } from '@/config/ai.config';
+import { geminiService } from '@/services/gemini.service';
 
 const modelRef = ref<HTMLInputElement | null>(null);
 const sceneRef = ref<HTMLInputElement | null>(null);
@@ -214,7 +214,6 @@ const videoUrl = ref<string | null>(null);
 const firstFrameImage = ref<string | null>(null);
 const lastFrameImage = ref<string | null>(null);
 const errorMsg = ref('');
-const geminiVisionCapability = ref<'unknown' | 'ok' | 'blocked'>('unknown');
 
 // ── 文件处理 ──────────────────────────────────────────────────────────────────
 
@@ -277,94 +276,8 @@ function isGatewayLikeError(error: unknown): boolean {
   return /502|503|504|bad gateway|gateway timeout|gemini 代理请求失败/i.test(message);
 }
 
-type GeminiPart = { text?: string; inlineData?: { data?: string; mimeType?: string } };
-
-async function ensureGeminiVisionCapability(): Promise<void> {
-  if (geminiVisionCapability.value === 'ok') return;
-  if (geminiVisionCapability.value === 'blocked') {
-    throw new Error('当前 Gemini Key/通道不支持“图片参考输入”，请更换可用 key 或供应商通道。');
-  }
-
-  const tinyPngBase64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAQAAAAAYLlVAAAAM0lEQVR4Ae3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4G4M2AAH1nYgNAAAAAElFTkSuQmCC';
-
-  const response = await fetch(`/api/gemini/v1beta/models/${encodeURIComponent(AI_CONFIG.imageModel)}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${AI_CONFIG.apiKey}`,
-    },
-    body: JSON.stringify({
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: 'Describe the image in one short sentence.' },
-          { inlineData: { mimeType: 'image/png', data: tinyPngBase64 } },
-        ],
-      }],
-    }),
-  });
-
-  if (!response.ok) {
-    geminiVisionCapability.value = 'blocked';
-    throw new Error('当前 Gemini Key/通道不支持“图片参考输入”，请更换可用 key 或供应商通道。');
-  }
-
-  geminiVisionCapability.value = 'ok';
-}
-
-async function generateImageViaProxy(prompt: string, refs: string[]): Promise<string> {
-  const parts: GeminiPart[] = [{ text: prompt }];
-  for (const dataUrl of refs) {
-    const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
-    if (!match) continue;
-    parts.push({
-      inlineData: {
-        mimeType: match[1] || 'image/jpeg',
-        data: match[2] || '',
-      },
-    });
-  }
-
-  const modelName = encodeURIComponent(AI_CONFIG.imageModel || 'gemini-3.1-flash-image-preview');
-  const response = await fetch(`/api/gemini/v1beta/models/${modelName}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${AI_CONFIG.apiKey}`,
-    },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 8192,
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { aspectRatio: '9:16', imageSize: '1K' },
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    const compactErr = errText
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 160);
-    throw new Error(`Gemini 代理请求失败: ${response.status} ${compactErr}`.trim());
-  }
-
-  const data = await response.json();
-  const candidate = data?.candidates?.[0];
-  const responseParts: GeminiPart[] = candidate?.content?.parts || [];
-  const imagePart = responseParts.find((part) => part?.inlineData?.data);
-  if (imagePart?.inlineData?.data) {
-    const mime = imagePart.inlineData.mimeType || 'image/png';
-    return `data:${mime};base64,${imagePart.inlineData.data}`;
-  }
-  const textPart = responseParts.find((part) => part?.text);
-  if (textPart?.text) return textPart.text;
-  throw new Error('Gemini 未返回可用图片');
+async function generateImageViaGemini(prompt: string, refs: string[]): Promise<string> {
+  return geminiService.generateImage(prompt, refs, { aspectRatio: '9:16', imageSize: '1K' });
 }
 
 async function generateFrameWithRetry(
@@ -387,7 +300,7 @@ async function generateFrameWithRetry(
       for (const imageUrl of group) {
         refs.push(await compressForGemini(imageUrl, { maxSide: attempt.maxSide, quality: attempt.quality }));
       }
-      return await generateImageViaProxy(prompt, refs);
+      return await generateImageViaGemini(prompt, refs);
     } catch (error) {
       const retryable = isFetchLikeError(error) || isGatewayLikeError(error);
       if (retryable && i < attempts.length - 1) {
@@ -470,87 +383,60 @@ async function generate() {
   lastFrameImage.value = null;
 
   try {
-    // 检测 Gemini 图片能力，失败则降级为直接用模特图生成视频
-    statusText.value = '正在检测 Gemini 图像能力...';
-    let geminiAvailable = false;
-    try {
-      await ensureGeminiVisionCapability();
-      geminiAvailable = true;
-    } catch {
-      geminiAvailable = false;
-    }
+    // ── Gemini 双帧路径 ──────────────────────────────────────────────────────
+    const selected = selectedJewelry.value.length > 0
+      ? selectedJewelry.value
+      : [jewelryImages.value[0]];
+    const rawRefAll: string[] = [modelImage.value];
+    for (const item of selected) rawRefAll.push(item.url);
+    if (sceneImage.value) rawRefAll.push(sceneImage.value);
+    const rawRefNoScene: string[] = [modelImage.value];
+    for (const item of selected) rawRefNoScene.push(item.url);
+    const rawRefCore: string[] = [modelImage.value, selected[0]?.url].filter(Boolean) as string[];
+    const rawRefGroups = [rawRefAll, rawRefNoScene, rawRefCore];
 
-    if (geminiAvailable) {
-      // ── Gemini 双帧路径 ──────────────────────────────────────────────────────
-      const selected = selectedJewelry.value.length > 0
-        ? selectedJewelry.value
-        : [jewelryImages.value[0]];
-      const rawRefAll: string[] = [modelImage.value];
-      for (const item of selected) rawRefAll.push(item.url);
-      if (sceneImage.value) rawRefAll.push(sceneImage.value);
-      const rawRefNoScene: string[] = [modelImage.value];
-      for (const item of selected) rawRefNoScene.push(item.url);
-      const rawRefCore: string[] = [modelImage.value, selected[0]?.url].filter(Boolean) as string[];
-      const rawRefGroups = [rawRefAll, rawRefNoScene, rawRefCore];
+    const jewelryCount = selected.length;
+    const hasScene = !!sceneImage.value;
+    const userExtra = extraPrompt.value.trim();
+    const jewelryRangeText = jewelryCount > 1 ? `图2至图${jewelryCount + 1}` : '图2';
+    const sceneText = hasScene ? `最后一张是场景参考图。` : '未提供场景图，请沿用图1原始背景。';
 
-      const jewelryCount = selected.length;
-      const hasScene = !!sceneImage.value;
-      const userExtra = extraPrompt.value.trim();
-      const jewelryRangeText = jewelryCount > 1 ? `图2至图${jewelryCount + 1}` : '图2';
-      const sceneText = hasScene ? `最后一张是场景参考图。` : '未提供场景图，请沿用图1原始背景。';
+    const firstFramePrompt = [
+      '你是高端珠宝广告视觉导演，请根据参考图生成用于视频的首帧。',
+      `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
+      '核心目标：首帧呈现模特佩戴首饰的正面视角，构图具备商业大片感，突出首饰质感与细节。',
+      '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
+      '硬性约束：模特脸部身份与体型保持一致，不改变人物身份。',
+      hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
+      '镜头要求：中近景到近景，首饰清晰可见，光线高级，画面干净，适配 9:16 竖屏。',
+      userExtra ? `用户补充要求：${userExtra}` : '',
+    ].filter(Boolean).join('\n');
 
-      const firstFramePrompt = [
-        '你是高端珠宝广告视觉导演，请根据参考图生成用于视频的首帧。',
-        `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
-        '核心目标：首帧呈现模特佩戴首饰的正面视角，构图具备商业大片感，突出首饰质感与细节。',
-        '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
-        '硬性约束：模特脸部身份与体型保持一致，不改变人物身份。',
-        hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
-        '镜头要求：中近景到近景，首饰清晰可见，光线高级，画面干净，适配 9:16 竖屏。',
-        userExtra ? `用户补充要求：${userExtra}` : '',
-      ].filter(Boolean).join('\n');
+    const firstFrame = await generateFrameWithRetry(firstFramePrompt, rawRefGroups, 'Gemini 生成首帧（正面特写）...');
+    if (!firstFrame.startsWith('data:image')) throw new Error('首帧生成失败：模型未返回图片');
+    firstFrameImage.value = firstFrame;
 
-      const firstFrame = await generateFrameWithRetry(firstFramePrompt, rawRefGroups, 'Gemini 生成首帧（正面特写）...');
-      if (!firstFrame.startsWith('data:image')) throw new Error('首帧生成失败：模型未返回图片');
-      firstFrameImage.value = firstFrame;
+    const lastFramePrompt = [
+      '你是高端珠宝广告视觉导演，请根据同一组参考图生成视频尾帧。',
+      `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
+      '核心目标：尾帧呈现模特佩戴首饰的侧面或 3/4 侧角视角，形成与首帧明显不同的镜头角度变化。',
+      '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
+      '硬性约束：模特身份一致，不改变人物；保持整体穿搭和妆造风格一致。',
+      hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
+      '镜头要求：重点突出首饰，强化金属/宝石高光与质感，画面具备电影级广告氛围，适配 9:16 竖屏。',
+      userExtra ? `用户补充要求：${userExtra}` : '',
+    ].filter(Boolean).join('\n');
 
-      const lastFramePrompt = [
-        '你是高端珠宝广告视觉导演，请根据同一组参考图生成视频尾帧。',
-        `图1是模特图，${jewelryRangeText}是首饰参考图。${sceneText}`,
-        '核心目标：尾帧呈现模特佩戴首饰的侧面或 3/4 侧角视角，形成与首帧明显不同的镜头角度变化。',
-        '硬性约束：首饰款式、颜色、材质、镶嵌细节必须与参考首饰图一致。',
-        '硬性约束：模特身份一致，不改变人物；保持整体穿搭和妆造风格一致。',
-        hasScene ? '硬性约束：背景场景需贴近场景参考图氛围与色调。' : '硬性约束：背景沿用模特原图场景风格，不额外更换场景。',
-        '镜头要求：重点突出首饰，强化金属/宝石高光与质感，画面具备电影级广告氛围，适配 9:16 竖屏。',
-        userExtra ? `用户补充要求：${userExtra}` : '',
-      ].filter(Boolean).join('\n');
+    const lastFrame = await generateFrameWithRetry(lastFramePrompt, rawRefGroups, 'Gemini 生成尾帧（侧面特写）...');
+    if (!lastFrame.startsWith('data:image')) throw new Error('尾帧生成失败：模型未返回图片');
+    lastFrameImage.value = lastFrame;
 
-      const lastFrame = await generateFrameWithRetry(lastFramePrompt, rawRefGroups, 'Gemini 生成尾帧（侧面特写）...');
-      if (!lastFrame.startsWith('data:image')) throw new Error('尾帧生成失败：模型未返回图片');
-      lastFrameImage.value = lastFrame;
-
-      statusText.value = '可灵双帧生成视频，约需 2–5 分钟...';
-      videoUrl.value = await klingService.imageToVideo(
-        firstFrame,
-        '高端首饰商业广告视频，首帧到尾帧平滑过渡，镜头运动自然。前段突出正面佩戴细节，后段过渡到侧面特写，强调首饰高光与材质。保持人物身份一致，风格统一，画面稳定流畅，大片感强。',
-        { model: 'kling-v1-6', duration: '10', mode: 'pro', tailImageUrl: lastFrame, maxPollingTime: 600000 }
-      );
-    } else {
-      // ── 降级路径：直接用模特图生成视频 ──────────────────────────────────────
-      statusText.value = '可灵生成视频，约需 2–5 分钟...';
-      const userExtra = extraPrompt.value.trim();
-      const videoPrompt = [
-        '高端首饰商业广告视频，镜头从全身缓慢推进，展示模特整体气质，',
-        '运镜至耳部给耳饰特写，再平移至颈部给项链特写，',
-        userExtra ? userExtra + '，' : '',
-        '慢动作拍摄，专业摄影灯光，精致奢华风格，画面稳定流畅。',
-      ].filter(Boolean).join('');
-      videoUrl.value = await klingService.imageToVideo(
-        modelImage.value,
-        videoPrompt,
-        { model: 'kling-v1-6', duration: '10', mode: 'std', maxPollingTime: 600000 }
-      );
-    }
+    statusText.value = '可灵双帧生成视频，约需 2–5 分钟...';
+    videoUrl.value = await klingService.imageToVideo(
+      firstFrame,
+      '高端首饰商业广告视频，首帧到尾帧平滑过渡，镜头运动自然。前段突出正面佩戴细节，后段过渡到侧面特写，强调首饰高光与材质。保持人物身份一致，风格统一，画面稳定流畅，大片感强。',
+      { model: 'kling-v1-6', duration: '10', mode: 'pro', tailImageUrl: lastFrame, maxPollingTime: 600000 }
+    );
   } catch (err: any) {
     const rawMessage = err?.message || '请重试';
     if (isFetchLikeError(err) || isGatewayLikeError(err)) {

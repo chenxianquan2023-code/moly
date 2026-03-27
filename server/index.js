@@ -609,39 +609,49 @@ const GEMINI_BASE = process.env.GEMINI_BASE_URL || 'https://www.ezmodel.cloud';
 const GEMINI_URL = new URL(GEMINI_BASE);
 
 app.use('/api/gemini', (req, res) => {
-  const path = req.path + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
-  const body = (req.method !== 'GET' && req.method !== 'HEAD') ? JSON.stringify(req.body) : undefined;
-  const timeoutMs = req.method === 'GET' ? 30000 : 300000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const reqPath = req.path + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
+  const bodyStr = (req.method !== 'GET' && req.method !== 'HEAD') ? JSON.stringify(req.body) : null;
+  const bodyBuf = bodyStr ? Buffer.from(bodyStr, 'utf8') : null;
+  const socketTimeout = req.method === 'GET' ? 30000 : 300000;
 
-  const target = `${GEMINI_URL.origin}${path}`;
-  const headers = { 'Content-Type': 'application/json' };
-  if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+  const authHeader = req.headers['authorization'] || '';
+  const apiKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
 
-  fetch(target, {
+  const options = {
+    hostname: GEMINI_URL.hostname,
+    port: 443,
+    path: reqPath,
     method: req.method,
-    headers,
-    body,
-    signal: controller.signal,
-  })
-    .then(async (proxyRes) => {
-      clearTimeout(timer);
-      const text = await proxyRes.text();
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (apiKey) options.headers['x-goog-api-key'] = apiKey;
+  if (bodyBuf) options.headers['Content-Length'] = bodyBuf.length;
+
+  const proxyReq = https.request(options, (proxyRes) => {
+    let data = '';
+    proxyRes.setEncoding('utf8');
+    proxyRes.on('data', chunk => data += chunk);
+    proxyRes.on('end', () => {
       try {
-        res.status(proxyRes.status).json(JSON.parse(text));
+        res.status(proxyRes.statusCode).json(JSON.parse(data));
       } catch {
-        res.status(proxyRes.status).send(text);
+        res.status(proxyRes.statusCode).send(data);
       }
-    })
-    .catch((err) => {
-      clearTimeout(timer);
-      const message = err?.name === 'AbortError'
-        ? `Gemini 请求超时（${timeoutMs / 1000}s）`
-        : `Gemini 代理请求失败: ${err?.message || 'unknown error'}`;
-      console.error('[Gemini Proxy] error:', message);
-      if (!res.headersSent) res.status(err?.name === 'AbortError' ? 504 : 502).json({ code: -1, message });
     });
+  });
+
+  proxyReq.setTimeout(socketTimeout, () => {
+    proxyReq.destroy();
+    if (!res.headersSent) res.status(504).json({ code: -1, message: `Gemini 请求超时（${socketTimeout / 1000}s）` });
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error('[Gemini Proxy] error:', err.message);
+    if (!res.headersSent) res.status(502).json({ code: -1, message: `Gemini 代理请求失败: ${err.message}` });
+  });
+
+  if (bodyBuf) proxyReq.write(bodyBuf);
+  proxyReq.end();
 });
 
 const KLING_BASE = 'https://api-beijing.klingai.com';
