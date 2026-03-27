@@ -473,32 +473,27 @@ function handleVideoEntry(type: string) {
   margin-top: 20px;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--color-border-light);
-  padding-top: 4px;
+  gap: 10px;
 }
 
 .entry-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 4px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--color-border-light);
+  padding: 12px 14px;
+  background: #f8fbff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
 
-  &:last-child {
-    border-bottom: none;
-  }
-
   &:hover {
-    padding-left: 8px;
+    background: #edf4ff;
+    border-color: #bfdbfe;
+    transform: translateY(-1px);
 
     .entry-arrow {
-      opacity: 1;
-      transform: translateX(0);
-      color: var(--color-primary);
+      color: #2563eb;
     }
 
     .entry-label {
@@ -510,15 +505,14 @@ function handleVideoEntry(type: string) {
 .entry-label {
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: #1f2937;
   transition: color 0.2s;
 }
 
 .entry-arrow {
   font-size: 14px;
-  color: var(--color-text-tertiary);
-  opacity: 0;
-  transform: translateX(-4px);
+  color: #60a5fa;
+  opacity: 1;
   transition: all 0.2s ease;
 }
 
