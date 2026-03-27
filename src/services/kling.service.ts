@@ -55,26 +55,57 @@ async function generateJWT(accessKey: string, secretKey: string): Promise<string
     return `${headerB64}.${payloadB64}.${sigB64}`;
 }
 
-// ─── 图片转纯 base64（可灵要求纯 base64，不带 data:image/... 前缀）──────────
+// ─── 图片压缩 + 转纯 base64（可灵要求纯 base64，图片限制 ≤5MB JPEG）──────────
+
+const KLING_MAX_SIZE = 1280; // 长边最大像素
+const KLING_JPEG_QUALITY = 0.85;
+
+async function compressToJpegBase64(dataUrl: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let { width, height } = img;
+            if (width > KLING_MAX_SIZE || height > KLING_MAX_SIZE) {
+                if (width > height) {
+                    height = Math.round(height * KLING_MAX_SIZE / width);
+                    width = KLING_MAX_SIZE;
+                } else {
+                    width = Math.round(width * KLING_MAX_SIZE / height);
+                    height = KLING_MAX_SIZE;
+                }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', KLING_JPEG_QUALITY);
+            resolve(compressed.split(',')[1] || '');
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+    });
+}
 
 async function imageToBase64(imageUrl: string): Promise<string> {
-    // 已是 data URL，提取纯 base64 部分
+    let dataUrl: string;
+
     if (imageUrl.startsWith('data:')) {
-        return imageUrl.split(',')[1] || '';
+        dataUrl = imageUrl;
+    } else {
+        // Blob URL 或网络 URL，先 fetch 成 dataUrl
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
     }
 
-    // 网络 URL 或 Blob URL，统一 fetch 后转 base64
-    const response = await fetch(imageUrl);
-    const blob = await response.blob();
-    return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            resolve(dataUrl.split(',')[1] || '');
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
+    // 统一压缩为 JPEG，控制大小
+    return compressToJpegBase64(dataUrl);
 }
 
 // ─── 主服务类 ────────────────────────────────────────────────────────────────
