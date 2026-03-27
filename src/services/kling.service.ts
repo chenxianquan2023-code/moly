@@ -115,6 +115,7 @@ export interface KlingVideoOptions {
     duration?: '5' | '10';
     mode?: 'std' | 'pro';
     cfgScale?: number;       // 提示词相关性 0-1，默认 0.5
+    tailImageUrl?: string;   // 尾帧图片（与 image 组成双帧生成，通常需配合 pro）
     maxPollingTime?: number; // 最大等待时间（毫秒），默认 300000 (5分钟)
     pollingInterval?: number;
 }
@@ -132,7 +133,7 @@ class KlingService {
      * 图生视频
      * @param imageUrl  主图（商品图），支持 http/https URL、data URL、blob URL
      * @param prompt    视频描述提示词（可选，不传也能生成）
-     * @param options   生成参数
+     * @param options   生成参数（可选 tailImageUrl 做首尾双帧）
      * @returns 视频直链 URL
      */
     async imageToVideo(
@@ -150,6 +151,9 @@ class KlingService {
         // Step 1: 图片转纯 base64
         console.log('[KlingService] Converting image to base64...');
         const resolvedImage = await imageToBase64(imageUrl);
+        const resolvedTailImage = options.tailImageUrl
+            ? await imageToBase64(options.tailImageUrl)
+            : null;
 
         // Step 2: 创建任务
         console.log('[KlingService] Creating image2video task...');
@@ -163,6 +167,7 @@ class KlingService {
             cfg_scale: cfgScale,
         };
         if (prompt) body.prompt = prompt;
+        if (resolvedTailImage) body.image_tail = resolvedTailImage;
 
         const createResp = await fetch(`${KLING_BASE_URL}/v1/videos/image2video`, {
             method: 'POST',
