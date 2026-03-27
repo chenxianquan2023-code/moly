@@ -140,6 +140,12 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'omni-model',
+                    name: 'tools-omni-model',
+                    component: () => import('../views/tools/OmniModelView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: 'listing',
                     name: 'tools-listing',
                     component: () => import('../views/tools/listing/ListingEntryView.vue'),

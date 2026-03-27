@@ -39,7 +39,7 @@
     <section class="agents-section">
       <div class="agents-grid">
         <!-- 全能模特 Agent -->
-        <div class="agent-card" @click="handleModelAgent">
+        <div class="agent-card">
           <div class="agent-visual visual-model">
             <div class="visual-circles">
               <span class="circle c1"></span>
@@ -48,11 +48,14 @@
             </div>
           </div>
           <div class="agent-body">
-            <div class="agent-header">
-              <h3 class="agent-title">全能模特</h3>
-              <span class="agent-badge">即将开放</span>
-            </div>
+            <h3 class="agent-title">全能模特</h3>
             <p class="agent-desc">多人种、多场景的虚拟模特换装与商品展示，覆盖全品类电商视觉需求</p>
+            <div class="agent-entries">
+              <button class="entry-item" @click.stop="handleModelAgent">
+                <span class="entry-label">进入全能模特工作台</span>
+                <span class="entry-arrow">&rarr;</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -180,7 +183,7 @@ function handleBannerClick(banner: any) {
 }
 
 function handleModelAgent() {
-  // 入口待定
+  router.push('/tools/omni-model')
 }
 
 function handleVideoEntry(type: string) {
