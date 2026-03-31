@@ -1,8 +1,11 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4">
-    <div class="w-full max-w-[400px] bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] p-8">
-      <router-link to="/" class="flex justify-center mb-6">
-        <img src="@/assets/logo.png" alt="Moly" class="h-20 w-auto" />
+  <div class="min-h-screen flex items-center justify-center bg-white p-4">
+    <div class="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] w-[420px] p-10">
+      <router-link to="/" class="flex items-center justify-center gap-2.5 mb-8">
+        <div class="w-9 h-9 rounded-[10px] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
+          <span class="text-white text-xl font-[800] leading-none" style="font-family:'Nunito',sans-serif">M</span>
+        </div>
+        <span class="text-[26px] font-[800] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] bg-clip-text text-transparent" style="font-family:'Nunito',sans-serif">Moly</span>
       </router-link>
 
       <LoginForm
@@ -42,7 +45,7 @@ const route = useRoute();
 const { mode: regionMode, loading: regionLoading } = useRegion();
 
 function onSuccess() {
-  const redirect = (route.query.redirect as string) || '/workflow/try-on';
+  const redirect = (route.query.redirect as string) || '/';
   router.push(redirect);
   message.success('登录成功');
 }

@@ -456,8 +456,8 @@ async function generate() {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #0f0f0f;
-  color: #e5e7eb;
+  background: #F9FAFB;
+  color: #111827;
   overflow: hidden;
 }
 
@@ -466,17 +466,18 @@ async function generate() {
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: #fff;
+  border-bottom: 1px solid #E5E7EB;
   flex-shrink: 0;
 }
 
 .back-btn {
-  background: none; border: none; color: #6b7280;
+  background: none; border: none; color: #6B7280;
   cursor: pointer; font-size: 14px; padding: 4px 8px; border-radius: 6px;
-  &:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  &:hover { color: #111827; background: #F3F4F6; }
 }
-.page-title { font-size: 18px; font-weight: 600; margin: 0; }
-.page-sub { font-size: 13px; color: #6b7280; }
+.page-title { font-size: 18px; font-weight: 600; margin: 0; color: #111827; }
+.page-sub { font-size: 13px; color: #9CA3AF; }
 
 .page-body { flex: 1; display: flex; overflow: hidden; }
 
@@ -484,7 +485,8 @@ async function generate() {
 .upload-col {
   width: 340px;
   flex-shrink: 0;
-  border-right: 1px solid rgba(255,255,255,0.08);
+  background: #fff;
+  border-right: 1px solid #E5E7EB;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -495,16 +497,16 @@ async function generate() {
 .section { display: flex; flex-direction: column; gap: 7px; }
 
 .section-label { display: flex; align-items: baseline; gap: 7px; }
-.num { font-size: 11px; font-weight: 700; color: #3b82f6; letter-spacing: 1px; }
-.title { font-size: 13px; font-weight: 500; color: #d1d5db; }
-.hint { font-size: 11px; color: #4b5563; margin-left: auto; }
+.num { font-size: 11px; font-weight: 700; color: #2563EB; letter-spacing: 1px; }
+.title { font-size: 13px; font-weight: 500; color: #111827; }
+.hint { font-size: 11px; color: #9CA3AF; margin-left: auto; }
 
 // 通用上传区
 .drop-zone {
   height: 140px;
   border-radius: 10px;
-  border: 1.5px dashed rgba(255,255,255,0.12);
-  background: #161616;
+  border: 1.5px dashed #D1D5DB;
+  background: #F9FAFB;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -513,8 +515,8 @@ async function generate() {
   overflow: hidden;
   transition: border-color 0.2s, background 0.2s;
 
-  &:hover:not(.filled) { border-color: rgba(59,130,246,0.5); background: #1a1a1a; }
-  &.filled { border-style: solid; border-color: rgba(59,130,246,0.25); cursor: default; }
+  &:hover:not(.filled) { border-color: #3B82F6; background: #EFF6FF; }
+  &.filled { border-style: solid; border-color: #BFDBFE; cursor: default; }
   &.small { height: 100px; }
 }
 
@@ -522,7 +524,7 @@ async function generate() {
 
 .overlay {
   position: absolute; inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.4);
   display: flex; align-items: center; justify-content: center; gap: 10px;
   opacity: 0; transition: opacity 0.2s;
   .drop-zone:hover & { opacity: 1; }
@@ -533,7 +535,7 @@ async function generate() {
   font-size: 13px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   &.del { background: rgba(239,68,68,0.9); color: #fff; }
-  &.rep { background: rgba(59,130,246,0.9); color: #fff; }
+  &.rep { background: rgba(37,99,235,0.9); color: #fff; }
   &:hover { transform: scale(1.1); }
 }
 
@@ -542,8 +544,8 @@ async function generate() {
   align-items: center; gap: 5px; pointer-events: none;
 }
 .ph-icon { font-size: 26px; }
-.ph-text { font-size: 12px; color: #6b7280; }
-.ph-sub { font-size: 11px; color: #374151; }
+.ph-text { font-size: 12px; color: #6B7280; }
+.ph-sub { font-size: 11px; color: #9CA3AF; }
 
 // 首饰多图格子
 .jewelry-grid {
@@ -557,21 +559,21 @@ async function generate() {
   height: 90px;
   border-radius: 8px;
   overflow: hidden;
-  border: 2px solid rgba(255,255,255,0.08);
+  border: 2px solid #E5E7EB;
   cursor: pointer;
   transition: border-color 0.15s;
 
   .thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
   &.selected {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 1px #3b82f6;
+    border-color: #2563EB;
+    box-shadow: 0 0 0 1px #2563EB;
   }
 
   .thumb-check {
     position: absolute; top: 4px; left: 4px;
     width: 18px; height: 18px;
-    background: #3b82f6; color: #fff;
+    background: #2563EB; color: #fff;
     border-radius: 50%; font-size: 10px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
   }
@@ -579,7 +581,7 @@ async function generate() {
   .thumb-del {
     position: absolute; top: 4px; right: 4px;
     width: 18px; height: 18px;
-    background: rgba(0,0,0,0.75); color: #fff;
+    background: rgba(0,0,0,0.6); color: #fff;
     border: none; border-radius: 50%; font-size: 9px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     opacity: 0; transition: opacity 0.15s;
@@ -591,8 +593,8 @@ async function generate() {
 .jewelry-add {
   height: 90px;
   border-radius: 8px;
-  border: 1.5px dashed rgba(255,255,255,0.12);
-  background: #161616;
+  border: 1.5px dashed #D1D5DB;
+  background: #F9FAFB;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -601,17 +603,17 @@ async function generate() {
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
 
-  &:hover { border-color: rgba(59,130,246,0.5); background: #1a1a1a; }
+  &:hover { border-color: #3B82F6; background: #EFF6FF; }
 }
 
-.add-icon { font-size: 20px; color: #4b5563; }
-.add-text { font-size: 10px; color: #4b5563; }
+.add-icon { font-size: 20px; color: #9CA3AF; }
+.add-text { font-size: 10px; color: #9CA3AF; }
 
 .jewelry-tip {
   font-size: 11px;
-  color: #3b82f6;
+  color: #2563EB;
   padding: 4px 8px;
-  background: rgba(59,130,246,0.08);
+  background: #EFF6FF;
   border-radius: 6px;
   text-align: center;
 }
@@ -620,24 +622,24 @@ async function generate() {
 
 .extra-input {
   width: 100%; box-sizing: border-box;
-  background: #161616;
-  border: 1.5px solid rgba(255,255,255,0.08);
+  background: #F9FAFB;
+  border: 1.5px solid #E5E7EB;
   border-radius: 10px;
-  color: #d1d5db; font-size: 13px; font-family: inherit;
+  color: #111827; font-size: 13px; font-family: inherit;
   padding: 10px 12px; resize: none; outline: none;
-  &::placeholder { color: #374151; }
-  &:focus { border-color: rgba(59,130,246,0.4); }
+  &::placeholder { color: #9CA3AF; }
+  &:focus { border-color: #3B82F6; background: #fff; }
 }
 
 .generate-btn {
   width: 100%; padding: 12px;
-  background: #2563eb; color: #fff;
+  background: #2563EB; color: #fff;
   border: none; border-radius: 10px;
   font-size: 15px; font-weight: 600; cursor: pointer;
   transition: background 0.2s;
-  &:hover:not(:disabled) { background: #1d4ed8; }
+  &:hover:not(:disabled) { background: #1D4ED8; }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &.loading { background: #1e3a6e; }
+  &.loading { background: #1D4ED8; }
 }
 
 .btn-loading {
@@ -646,15 +648,16 @@ async function generate() {
 
 .spin-dot {
   width: 14px; height: 14px; flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.3);
+  border: 2px solid rgba(255,255,255,0.4);
   border-top-color: #fff; border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
 
 .error-msg {
-  font-size: 12px; color: #f87171;
+  font-size: 12px; color: #DC2626;
   padding: 8px 12px;
-  background: rgba(239,68,68,0.08); border-radius: 8px;
+  background: #FEF2F2; border-radius: 8px;
+  border: 1px solid #FECACA;
 }
 
 // ── 右侧 ────────────────────────────────────────────
@@ -670,15 +673,15 @@ async function generate() {
 }
 
 .frame-preview {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid #E5E7EB;
   border-radius: 14px;
-  background: #121212;
+  background: #fff;
   padding: 10px 12px;
 }
 
 .frame-preview-title {
   font-size: 12px;
-  color: #9ca3af;
+  color: #6B7280;
   margin-bottom: 8px;
 }
 
@@ -696,13 +699,13 @@ async function generate() {
 
 .frame-label {
   font-size: 11px;
-  color: #9ca3af;
+  color: #6B7280;
 }
 
 .frame-box {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid #E5E7EB;
   border-radius: 10px;
-  background: #171717;
+  background: #F9FAFB;
   height: 148px;
   overflow: hidden;
   display: flex;
@@ -718,15 +721,15 @@ async function generate() {
 
 .frame-empty {
   font-size: 12px;
-  color: #6b7280;
+  color: #9CA3AF;
 }
 
 .result-stage {
   flex: 1;
   min-height: 420px;
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid #E5E7EB;
   border-radius: 14px;
-  background: #121212;
+  background: #fff;
   padding: 16px;
   display: flex;
   align-items: center;
@@ -737,9 +740,9 @@ async function generate() {
   text-align: center; display: flex;
   flex-direction: column; align-items: center; gap: 10px;
 }
-.empty-icon { font-size: 52px; opacity: 0.25; }
-.empty-text { font-size: 16px; color: #4b5563; }
-.empty-sub { font-size: 13px; color: #374151; }
+.empty-icon { font-size: 52px; opacity: 0.3; }
+.empty-text { font-size: 16px; color: #6B7280; }
+.empty-sub { font-size: 13px; color: #9CA3AF; }
 
 .result-loading {
   text-align: center; display: flex;
@@ -748,15 +751,15 @@ async function generate() {
 
 .spinner {
   width: 44px; height: 44px;
-  border: 3px solid rgba(255,255,255,0.08);
-  border-top-color: #3b82f6; border-radius: 50%;
+  border: 3px solid #DBEAFE;
+  border-top-color: #2563EB; border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.loading-text { font-size: 15px; color: #9ca3af; }
-.loading-sub { font-size: 12px; color: #4b5563; }
+.loading-text { font-size: 15px; color: #374151; }
+.loading-sub { font-size: 12px; color: #6B7280; }
 
 .result-video {
   width: 100%; height: 100%;
@@ -774,13 +777,13 @@ async function generate() {
 .action-btn {
   padding: 8px 20px; border-radius: 8px; font-size: 13px;
   text-decoration: none; cursor: pointer;
-  background: rgba(255,255,255,0.06);
-  color: #d1d5db; border: 1px solid rgba(255,255,255,0.1);
-  &:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  background: #fff; color: #374151;
+  border: 1px solid #E5E7EB;
+  &:hover { background: #F9FAFB; color: #111827; border-color: #D1D5DB; }
   &.outline {
-    background: rgba(37,99,235,0.1); color: #60a5fa;
-    border-color: rgba(37,99,235,0.3);
-    &:hover:not(:disabled) { background: rgba(37,99,235,0.2); }
+    background: #EFF6FF; color: #2563EB;
+    border-color: #BFDBFE;
+    &:hover:not(:disabled) { background: #DBEAFE; }
     &:disabled { opacity: 0.4; cursor: not-allowed; }
   }
 }

@@ -3,7 +3,10 @@
     <!-- 左侧导航栏 -->
     <aside class="sidebar">
       <router-link to="/" class="logo">
-        <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
+        <div class="logo-icon">
+          <span class="logo-m">M</span>
+        </div>
+        <span class="logo-text">Moly</span>
       </router-link>
       <nav class="sidebar-nav">
         <router-link
@@ -87,13 +90,38 @@ const isHistory = computed(() => path.value.startsWith('/tools/history'));
   .logo {
     display: flex;
     align-items: center;
+    gap: 10px;
     padding: 0 12px;
     margin-bottom: 24px;
-    
-    .logo-img {
+    text-decoration: none;
+
+    .logo-icon {
+      width: 32px;
       height: 32px;
-      width: auto;
-      object-fit: contain;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-m {
+      color: white;
+      font-size: 17px;
+      font-weight: 800;
+      font-family: 'Nunito', sans-serif;
+      line-height: 1;
+    }
+
+    .logo-text {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
   }
 
@@ -143,9 +171,9 @@ const isHistory = computed(() => path.value.startsWith('/tools/history'));
 // 内容区域
 .content-body {
   flex: 1;
-  padding: 24px;
+  padding: 32px;
   overflow-y: auto;
-  background: #ffffff;
+  background: #F9FAFB;
   min-height: 100vh;
 }
 

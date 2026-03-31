@@ -3,7 +3,10 @@
     <header class="main-header" :class="{ 'scrolled': isScrolled }">
       <div class="header-container">
         <div class="logo" @click="router.push('/')">
-          <img src="../assets/logo.png" alt="Moly" class="logo-img" />
+          <div class="logo-icon">
+            <span class="logo-m">M</span>
+          </div>
+          <span class="logo-text">Moly</span>
         </div>
         
         <nav class="main-nav">
@@ -123,19 +126,36 @@ onUnmounted(() => {
   .logo {
     display: flex;
     align-items: center;
+    gap: 10px;
     cursor: pointer;
-    height: 100%;
-    padding: 0;
-    margin: 0;
-    background: #ffffff;
 
-    .logo-img {
-      height: 84px;
-      width: auto;
-      max-height: 84px;
-      object-fit: contain;
-      object-position: left center;
-      display: block;
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-m {
+      color: white;
+      font-size: 20px;
+      font-weight: 800;
+      font-family: 'Nunito', sans-serif;
+      line-height: 1;
+    }
+
+    .logo-text {
+      font-size: 26px;
+      font-weight: 800;
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
   }
 

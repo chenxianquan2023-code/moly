@@ -1,24 +1,26 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-6">
-    <div class="w-full max-w-[420px] bg-white rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-10">
-      <router-link to="/" class="flex justify-center mb-6">
-        <img src="@/assets/logo.png" alt="Moly" class="h-8 w-auto" />
+  <div class="min-h-screen flex items-center justify-center bg-white p-6">
+    <div class="bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] w-[420px] p-10">
+      <router-link to="/" class="flex items-center justify-center gap-2.5 mb-6">
+        <div class="w-9 h-9 rounded-[10px] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
+          <span class="text-white text-xl font-[800] leading-none" style="font-family:'Nunito',sans-serif">M</span>
+        </div>
+        <span class="text-[26px] font-[800] bg-gradient-to-br from-[#3B82F6] to-[#2563EB] bg-clip-text text-transparent" style="font-family:'Nunito',sans-serif">Moly</span>
       </router-link>
-      <p class="text-sm text-[#6B7280] text-center mb-6">只需一个 Moly 账号，即可使用所有 AI 工作流与积分权益。</p>
 
         <div v-if="!regionLoading" class="space-y-5">
-        <div class="flex border-b border-[#E5E7EB]">
+        <div class="flex justify-center gap-12 border-b border-[#E5E7EB] mb-2">
           <button
             v-if="regionMode === 'cn'"
             type="button"
-            :class="['flex-1 py-3 text-sm font-medium transition-colors', registerType === 'phone' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
+            :class="['pb-3 text-[15px] transition-colors relative', registerType === 'phone' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB] after:content-[\'\']' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
             @click="registerType = 'phone'"
           >
             手机号注册
           </button>
           <button
             type="button"
-            :class="['flex-1 py-3 text-sm font-medium transition-colors', registerType === 'email' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
+            :class="['pb-3 text-[15px] transition-colors relative', registerType === 'email' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB] after:content-[\'\']' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
             @click="registerType = 'email'"
           >
             邮箱注册
@@ -195,7 +197,7 @@ async function handleSubmit() {
         const loginRes = await api.login({ account: email.value.trim(), password: password.value });
         if (loginRes.success && loginRes.user) {
           auth.login({ email: loginRes.user.email ?? email.value });
-          router.push((route.query.redirect as string) || '/workflow/try-on');
+          router.push((route.query.redirect as string) || '/');
           message.success('注册成功');
         } else {
           router.push({ name: 'login', query: route.query });

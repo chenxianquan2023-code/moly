@@ -8,25 +8,25 @@
           title="AI 虚拟试穿"
           description="上传模特和服装，一键生成试穿效果图"
           :icon="UserOutlined"
-          @click="$router.push('/tools')"
+          @click="$router.push('/tools/omni-model')"
         />
         <FeatureCard
-          title="智能场景渲染"
-          description="自动生成多种场景图，适配不同营销需求"
-          :icon="PictureOutlined"
-          @click="$router.push('/workbench')"
+          title="Listing 营销大师"
+          description="基于商品信息与竞品分析，自动生成标题、五点、描述"
+          :icon="FileTextOutlined"
+          @click="$router.push('/tools/listing')"
         />
         <FeatureCard
-          title="AI 商品图"
-          description="无需拍摄，AI 生成高质量商品展示图"
-          :icon="CameraOutlined"
-          @click="$router.push('/workbench')"
-        />
-        <FeatureCard
-          title="批量处理"
-          description="支持批量生成，提升工作效率"
+          title="A+ 设计师"
+          description="生成 Amazon A+ 模块化文案与配图，提升详情页转化"
           :icon="AppstoreOutlined"
-          @click="$router.push('/workbench')"
+          @click="$router.push('/tools/aplus-wizard')"
+        />
+        <FeatureCard
+          title="短视频工坊"
+          description="首饰、服饰品类专属短视频一键生成，适配主流社交平台"
+          :icon="PlayCircleOutlined"
+          @click="$router.push('/workflow/jewelry')"
         />
       </div>
     </div>
@@ -34,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { UserOutlined, PictureOutlined, CameraOutlined, AppstoreOutlined } from '@ant-design/icons-vue';
+import { UserOutlined, FileTextOutlined, AppstoreOutlined, PlayCircleOutlined } from '@ant-design/icons-vue';
 import FeatureCard from './FeatureCard.vue';
 </script>
 

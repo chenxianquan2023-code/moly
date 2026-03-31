@@ -1,186 +1,134 @@
 <template>
   <div class="tools-view">
-    <!-- Banner 轮播 -->
-    <div class="banner-section">
-      <div class="banner-slider" :style="bannerStyle">
-        <div 
-          v-for="(banner, index) in banners" 
-          :key="index"
-          class="banner-item"
-          :class="{ active: currentBanner === index }"
-          @click="handleBannerClick(banner)"
-        >
-          <div class="banner-content">
-            <span class="banner-tag">{{ banner.tag }}</span>
-            <h3 class="banner-title">{{ banner.title }}</h3>
-            <p class="banner-desc">{{ banner.description }}</p>
-            <button class="banner-btn" @click.stop="handleBannerClick(banner)">
-              {{ banner.buttonText }}
-              <span class="arrow">→</span>
-            </button>
-          </div>
-          <div class="banner-images">
-            <img v-for="(img, i) in banner.images" :key="i" :src="img" alt="" />
+
+    <!-- Hero Banner -->
+    <div class="banner">
+      <div class="banner-inner">
+        <div class="banner-content">
+          <span class="banner-badge">
+            <svg class="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            AI 智能创作
+          </span>
+          <h2 class="banner-title">全能 AI 视觉创作平台</h2>
+          <p class="banner-desc">模特试穿 · 首饰视频 · Listing 文案 · A+ 设计，一站式搞定电商视觉</p>
+          <button class="banner-btn" @click="handleModelAgent">立即体验全能模特</button>
+        </div>
+        <div class="banner-deco">
+          <div class="deco-card">
+            <svg class="deco-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
           </div>
         </div>
       </div>
-      <div class="banner-dots">
-        <span 
-          v-for="(_, index) in banners" 
-          :key="index"
-          class="banner-dot"
-          :class="{ active: currentBanner === index }"
-          @click.stop="goToBanner(index)"
-        />
-      </div>
+      <!-- 装饰圆 -->
+      <div class="deco-circle deco-circle-1"></div>
+      <div class="deco-circle deco-circle-2"></div>
     </div>
 
-    <!-- Agent 卡片区 -->
-    <section class="agents-section">
-      <div class="agents-grid">
-        <!-- 全能模特 Agent -->
-        <div class="agent-card">
-          <div class="agent-visual visual-model">
-            <div class="visual-circles">
-              <span class="circle c1"></span>
-              <span class="circle c2"></span>
-              <span class="circle c3"></span>
-            </div>
+    <!-- 全能模特 -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">全能模特</h2>
+        <span class="section-sub">多人种、多场景虚拟模特换装与商品展示</span>
+      </div>
+      <div class="scene-grid">
+        <div class="scene-card" @click="handleModelAgent">
+          <div class="scene-icon" style="background:#EFF6FF">
+            <svg fill="none" stroke="#2563EB" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+            </svg>
           </div>
-          <div class="agent-body">
-            <h3 class="agent-title">全能模特</h3>
-            <p class="agent-desc">多人种、多场景的虚拟模特换装与商品展示，覆盖全品类电商视觉需求</p>
-            <div class="agent-entries">
-              <button class="entry-item" @click.stop="handleModelAgent">
-                <span class="entry-label">进入全能模特工作台</span>
-                <span class="entry-arrow">&rarr;</span>
-              </button>
-            </div>
+          <div class="scene-text">
+            <h3>进入全能模特工作台</h3>
+            <p>覆盖服饰、配饰、鞋履全品类电商视觉需求</p>
           </div>
-        </div>
-
-        <!-- 亚马逊 Agent -->
-        <div class="agent-card">
-          <div class="agent-visual visual-amazon">
-            <div class="visual-bars">
-              <span class="bar b1"></span>
-              <span class="bar b2"></span>
-              <span class="bar b3"></span>
-              <span class="bar b4"></span>
-            </div>
-          </div>
-          <div class="agent-body">
-            <h3 class="agent-title">亚马逊营销</h3>
-            <p class="agent-desc">从 Listing 文案到 A+ 页面，一站式打造高转化商品详情</p>
-            <div class="agent-entries">
-              <button class="entry-item" @click.stop="router.push('/tools/listing')">
-                <span class="entry-label">Listing 营销大师</span>
-                <span class="entry-arrow">&rarr;</span>
-              </button>
-              <button class="entry-item" @click.stop="router.push('/tools/aplus-wizard')">
-                <span class="entry-label">A+ 设计师</span>
-                <span class="entry-arrow">&rarr;</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 短视频 Agent -->
-        <div class="agent-card">
-          <div class="agent-visual visual-video">
-            <div class="visual-frames">
-              <span class="frame f1"></span>
-              <span class="frame f2"></span>
-              <span class="frame f3"></span>
-            </div>
-          </div>
-          <div class="agent-body">
-            <h3 class="agent-title">短视频工坊</h3>
-            <p class="agent-desc">为首饰与服饰品类定制的短视频生成方案，适配主流社交平台</p>
-            <div class="agent-entries">
-              <button class="entry-item" @click.stop="handleVideoEntry('jewelry')">
-                <span class="entry-label">首饰摄影师</span>
-                <span class="entry-arrow">&rarr;</span>
-              </button>
-              <button class="entry-item" @click.stop="handleVideoEntry('fashion')">
-                <span class="entry-label">服饰摄影师</span>
-                <span class="entry-arrow">&rarr;</span>
-              </button>
-            </div>
-          </div>
+          <svg class="scene-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
         </div>
       </div>
     </section>
+
+    <!-- 亚马逊营销 -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">亚马逊营销</h2>
+        <span class="section-sub">从 Listing 文案到 A+ 页面，一站式打造高转化详情</span>
+      </div>
+      <div class="listing-grid">
+        <div class="listing-card" @click="router.push('/tools/listing')">
+          <div class="listing-icon" style="background:#EFF6FF">
+            <svg fill="none" stroke="#2563EB" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          </div>
+          <div class="listing-text">
+            <h3>Listing 营销大师</h3>
+            <p>基于商品信息与竞品分析，自动生成标题、五点、描述</p>
+          </div>
+          <svg class="scene-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+
+        <div class="listing-card" @click="router.push('/tools/aplus-wizard')">
+          <div class="listing-icon" style="background:#F5F3FF">
+            <svg fill="none" stroke="#7C3AED" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+            </svg>
+          </div>
+          <div class="listing-text">
+            <h3>A+ 设计师</h3>
+            <p>基于 Listing 与策略，生成 Amazon A+ 模块化文案与配图</p>
+          </div>
+          <svg class="scene-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 短视频工坊 -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">短视频工坊</h2>
+        <span class="section-sub">为首饰与服饰品类定制的短视频生成方案，适配主流社交平台</span>
+      </div>
+      <div class="tool-grid">
+        <div class="tool-card" @click="handleVideoEntry('jewelry')">
+          <div class="tool-icon" style="background:#FFF7ED">
+            <svg fill="none" stroke="#EA580C" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 010 .656l-5.603 3.113a.375.375 0 01-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112z" />
+            </svg>
+          </div>
+          <h3 class="tool-name">首饰摄影师</h3>
+          <p class="tool-desc">模特 + 首饰 → 专业展示视频</p>
+        </div>
+
+        <div class="tool-card" @click="handleVideoEntry('fashion')">
+          <div class="tool-icon" style="background:#F0FDF4">
+            <svg fill="none" stroke="#16A34A" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.91 11.672a.375.375 0 010 .656l-5.603 3.113a.375.375 0 01-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112z" />
+            </svg>
+          </div>
+          <h3 class="tool-name">服饰摄影师</h3>
+          <p class="tool-desc">服装上身效果一键生成视频</p>
+        </div>
+      </div>
+    </section>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-
-// Banner 数据
-const banners = ref([
-  {
-    tag: 'NEW',
-    title: '对话改图框选模式上线！',
-    description: '独家框选工具，专为「全能图像模型2」定制！',
-    buttonText: '立即体验',
-    images: [
-      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=400&auto=format&fit=crop'
-    ],
-    link: '/tools/face-swap'
-  },
-  {
-    tag: '热门',
-    title: 'AI 试鞋视频震撼上线',
-    description: '鞋类专属：一张图，秒变模特上脚视频！',
-    buttonText: '立即使用',
-    images: [
-      'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400&auto=format&fit=crop'
-    ],
-    link: '/tools/shoe-try-on'
-  },
-  {
-    tag: '推荐',
-    title: 'AI 口播数字人已上线',
-    description: '让UGC风格的数字人来介绍您的商品卖点吧！',
-    buttonText: '立即体验',
-    images: [
-      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop'
-    ],
-    link: '/tools/digital-human'
-  }
-])
-
-const currentBanner = ref(0)
-let bannerTimer: ReturnType<typeof setInterval>
-
-const bannerStyle = computed(() => ({
-  transform: `translateX(-${currentBanner.value * 100}%)`
-}))
-
-onMounted(() => {
-  bannerTimer = setInterval(() => {
-    currentBanner.value = (currentBanner.value + 1) % banners.value.length
-  }, 8000)
-})
-
-onUnmounted(() => {
-  clearInterval(bannerTimer)
-})
-
-function goToBanner(index: number) {
-  currentBanner.value = index
-}
-
-function handleBannerClick(banner: any) {
-  router.push(banner.link)
-}
 
 function handleModelAgent() {
   router.push('/tools/omni-model')
@@ -193,343 +141,354 @@ function handleVideoEntry(type: string) {
 
 <style scoped lang="scss">
 .tools-view {
-  padding-bottom: 40px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 48px;
 }
 
-// Banner 区域
-.banner-section {
-  margin-bottom: 40px;
+// ── Banner ────────────────────────────────────────────────────────────────────
+.banner {
+  position: relative;
   overflow: hidden;
-  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 45%, #3b82f6 75%, #60a5fa 100%);
+  border-radius: 20px;
+  padding: 40px 40px;
+  margin-bottom: 36px;
 }
 
-.banner-slider {
-  display: flex;
-  transition: transform 0.5s ease;
-}
-
-.banner-item {
-  flex: 0 0 100%;
-  min-width: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: var(--radius-xl);
-  padding: 32px;
+.banner-inner {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  cursor: pointer;
 }
 
 .banner-content {
-  color: white;
-  flex: 1;
+  max-width: 480px;
 }
 
-.banner-tag {
-  display: inline-block;
+.banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
   background: rgba(255, 255, 255, 0.2);
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 12px;
+  backdrop-filter: blur(4px);
+  border-radius: 999px;
+  font-size: 13px;
+  color: #fff;
+  margin-bottom: 16px;
+
+  .badge-icon {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .banner-title {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
-  margin: 0 0 8px;
+  color: #fff;
+  margin: 0 0 10px;
+  line-height: 1.3;
 }
 
 .banner-desc {
   font-size: 14px;
-  opacity: 0.9;
-  margin: 0 0 20px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.6;
+  margin: 0 0 24px;
 }
 
 .banner-btn {
-  background: white;
-  color: #667eea;
+  display: inline-flex;
+  align-items: center;
+  padding: 11px 24px;
+  background: #fff;
+  color: #2563eb;
   border: none;
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: transform 0.2s;
-  
-  &:hover {
-    transform: scale(1.02);
-  }
-}
-
-.banner-images {
-  display: flex;
-  gap: 12px;
-  
-  img {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: var(--radius-md);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-  }
-}
-
-.banner-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 16px;
-
-  .banner-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-border);
-    cursor: pointer;
-    transition: background 0.3s;
-
-    &.active {
-      background: var(--color-primary);
-    }
-  }
-}
-
-// Agent 卡片区
-.agents-section {
-  margin-bottom: 40px;
-}
-
-.agents-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-.agent-card {
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-  cursor: default;
-  display: flex;
-  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-    border-color: #d1d5db;
+    background: rgba(255, 255, 255, 0.92);
+    transform: translateY(-1px);
   }
 }
 
-.agent-visual {
-  height: 180px;
-  position: relative;
-  overflow: hidden;
+.banner-deco {
+  display: none;
+  @media (min-width: 640px) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    height: 140px;
+  }
+}
+
+.deco-card {
+  width: 100px;
+  height: 100px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-}
 
-.visual-model {
-  background: linear-gradient(145deg, #faf5ff, #f3e8ff, #ede9fe);
-
-  .visual-circles {
-    display: flex;
-    align-items: flex-end;
-    gap: 12px;
-
-    .circle {
-      border-radius: 50%;
-      background: rgba(168, 85, 247, 0.12);
-      border: 1px solid rgba(168, 85, 247, 0.15);
-      transition: transform 0.4s ease;
-    }
-
-    .c1 { width: 44px; height: 44px; }
-    .c2 { width: 68px; height: 68px; background: rgba(168, 85, 247, 0.18); }
-    .c3 { width: 52px; height: 52px; }
-  }
-
-  &:hover .circle {
-    transform: translateY(-4px);
+  .deco-icon {
+    width: 52px;
+    height: 52px;
+    color: rgba(255, 255, 255, 0.8);
   }
 }
 
-.visual-amazon {
-  background: linear-gradient(145deg, #fffbeb, #fef3c7, #fde68a33);
-
-  .visual-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    height: 80px;
-
-    .bar {
-      width: 20px;
-      border-radius: 4px 4px 0 0;
-      background: rgba(245, 158, 11, 0.2);
-      border: 1px solid rgba(245, 158, 11, 0.15);
-      transition: height 0.4s ease;
-    }
-
-    .b1 { height: 32px; }
-    .b2 { height: 56px; background: rgba(245, 158, 11, 0.3); }
-    .b3 { height: 44px; }
-    .b4 { height: 68px; background: rgba(245, 158, 11, 0.25); }
-  }
-
-  &:hover .bar {
-    &.b1 { height: 40px; }
-    &.b2 { height: 64px; }
-    &.b3 { height: 52px; }
-    &.b4 { height: 76px; }
-  }
+.deco-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
 }
 
-.visual-video {
-  background: linear-gradient(145deg, #eff6ff, #dbeafe, #bfdbfe33);
-
-  .visual-frames {
-    display: flex;
-    gap: 8px;
-    perspective: 600px;
-
-    .frame {
-      width: 44px;
-      height: 60px;
-      border-radius: 6px;
-      background: rgba(59, 130, 246, 0.12);
-      border: 1px solid rgba(59, 130, 246, 0.15);
-      transition: transform 0.4s ease;
-    }
-
-    .f1 { transform: rotateY(8deg); }
-    .f2 {
-      width: 52px;
-      height: 68px;
-      background: rgba(59, 130, 246, 0.2);
-      transform: translateY(-4px);
-    }
-    .f3 { transform: rotateY(-8deg); }
-  }
-
-  &:hover .frame {
-    &.f1 { transform: rotateY(12deg) translateY(-4px); }
-    &.f2 { transform: translateY(-8px); }
-    &.f3 { transform: rotateY(-12deg) translateY(-4px); }
-  }
+.deco-circle-1 {
+  width: 220px;
+  height: 220px;
+  top: -80px;
+  right: -40px;
 }
 
-.agent-body {
-  padding: 24px;
-  flex: 1;
+.deco-circle-2 {
+  width: 160px;
+  height: 160px;
+  bottom: -60px;
+  left: 40%;
+}
+
+// ── Section ───────────────────────────────────────────────────────────────────
+.section {
+  margin-bottom: 36px;
+}
+
+.section-header {
   display: flex;
-  flex-direction: column;
-}
-
-.agent-header {
-  display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
-.agent-title {
+.section-title {
   font-size: 18px;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: #111827;
   margin: 0;
-  letter-spacing: -0.01em;
 }
 
-.agent-badge {
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-  white-space: nowrap;
-  background: var(--color-bg-subtle);
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
+.section-sub {
+  font-size: 13px;
+  color: #9CA3AF;
 }
 
-.agent-desc {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-  margin: 12px 0 0 0;
-}
-
-.agent-entries {
-  margin-top: 20px;
+// ── Scene cards ───────────────────────────────────────────────────────────────
+.scene-grid {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
-.entry-item {
+.scene-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  background: #f8fbff;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
+  gap: 16px;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid #F3F4F6;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
 
   &:hover {
-    background: #edf4ff;
-    border-color: #bfdbfe;
+    border-color: #BFDBFE;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
     transform: translateY(-1px);
 
-    .entry-arrow {
-      color: #2563eb;
-    }
-
-    .entry-label {
-      color: var(--color-text-primary);
+    .scene-arrow {
+      color: #3B82F6;
+      transform: translateX(2px);
     }
   }
 }
 
-.entry-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1f2937;
-  transition: color 0.2s;
+.scene-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
 }
 
-.entry-arrow {
-  font-size: 14px;
-  color: #60a5fa;
-  opacity: 1;
+.scene-text {
+  flex: 1;
+  min-width: 0;
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 4px;
+  }
+
+  p {
+    font-size: 13px;
+    color: #9CA3AF;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.scene-arrow {
+  width: 18px;
+  height: 18px;
+  color: #D1D5DB;
+  flex-shrink: 0;
   transition: all 0.2s ease;
 }
 
-// 响应式
-@media (max-width: 768px) {
-  .banner-item {
-    flex-direction: column;
-    padding: 20px;
+// ── Listing cards ─────────────────────────────────────────────────────────────
+.listing-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
   }
-  
-  .banner-images {
-    margin-top: 20px;
-    
-    img {
-      width: 80px;
-      height: 80px;
+}
+
+.listing-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 20px;
+  background: #fff;
+  border: 1px solid #F3F4F6;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #BFDBFE;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
+    transform: translateY(-1px);
+
+    .scene-arrow {
+      color: #3B82F6;
+      transform: translateX(2px);
     }
   }
+}
+
+.listing-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.listing-text {
+  flex: 1;
+  min-width: 0;
+
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 5px;
+  }
+
+  p {
+    font-size: 13px;
+    color: #9CA3AF;
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+// ── Tool cards ────────────────────────────────────────────────────────────────
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+
+  @media (min-width: 640px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.tool-card {
+  background: #fff;
+  border: 1px solid #F3F4F6;
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: #BFDBFE;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
+    transform: translateY(-1px);
+  }
+}
+
+.tool-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+
+  svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.tool-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 6px;
+}
+
+.tool-desc {
+  font-size: 12px;
+  color: #9CA3AF;
+  margin: 0;
+  line-height: 1.5;
 }
 </style>

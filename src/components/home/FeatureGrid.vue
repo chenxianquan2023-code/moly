@@ -7,7 +7,7 @@
       
       <div class="features-wrapper">
         <!-- Card 1: AI 电商 -->
-        <div class="custom-card type-blue" @click="$router.push('/workbench')" style="cursor: pointer;">
+        <div class="custom-card type-blue" @click="$router.push('/tools/omni-model')" style="cursor: pointer;">
           <div class="card-icon-area">
             <UserOutlined />
           </div>
@@ -16,7 +16,7 @@
         </div>
 
         <!-- Card 2: Amazon A+ -->
-        <div class="custom-card type-yellow" @click="$router.push('/workflow/marketing')" style="cursor: pointer;">
+        <div class="custom-card type-yellow" @click="$router.push('/tools/listing')" style="cursor: pointer;">
           <div class="card-header-row">
             <div class="card-icon-area">
               <AppstoreOutlined />
@@ -29,7 +29,7 @@
         </div>
 
         <!-- Card 3: Video -->
-        <div class="custom-card type-purple">
+        <div class="custom-card type-purple" @click="$router.push('/workflow/jewelry')" style="cursor: pointer;">
           <div class="card-header-row">
             <div class="card-icon-area">
               <PlayCircleOutlined />

@@ -624,7 +624,9 @@ async function generate() {
       shouldRefund = false
       message.success(`${currentMode.value.label}生成成功`)
     } else {
-      message.error('模型返回了文本结果，请调整参考图后重试')
+      console.warn('[OmniModelView] model returned text instead of image:', result)
+      const hint = result?.slice(0, 80) || '未知原因'
+      message.error(`模型未返回图片：${hint}… 请换一张参考图或稍后重试`, 6)
     }
   } catch (error) {
     console.error('[OmniModelView] generate failed:', error)

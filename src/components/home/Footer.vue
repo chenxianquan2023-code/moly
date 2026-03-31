@@ -11,8 +11,8 @@
         <div class="links">
           <div class="link-group">
             <h4 class="link-title">产品</h4>
-            <router-link to="/workflow/try-on">虚拟试穿</router-link>
-            <router-link to="/workbench">工作台</router-link>
+            <router-link to="/tools/omni-model">虚拟试穿</router-link>
+            <router-link to="/tools">工具中心</router-link>
           </div>
           <div class="link-group">
             <h4 class="link-title">资源</h4>

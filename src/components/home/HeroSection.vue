@@ -177,18 +177,18 @@ onUnmounted(() => {
     justify-content: center;
     height: 48px;
     padding: 0 28px;
-    background: #10b981;
+    background: #2563EB;
     color: #fff;
     font-size: 16px;
     font-weight: 600;
     border-radius: 8px;
     text-decoration: none;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
     transition: all 0.2s ease;
     &:hover {
-      background: #059669;
+      background: #1D4ED8;
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
     }
   }
 

@@ -396,19 +396,19 @@ onUnmounted(() => {
   max-width: 240px;
   margin: 0 auto;
   padding: 14px 28px;
-  background: #1f2937;
+  background: #2563EB;
   color: #fff;
   font-size: 16px;
   font-weight: 600;
   border-radius: 12px;
   text-decoration: none;
   transition: all 0.2s;
-  box-shadow: 0 4px 14px rgba(31, 41, 55, 0.3);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 
   &:hover {
-    background: #111827;
+    background: #1D4ED8;
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(31, 41, 55, 0.35);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
   }
 }
 </style>
