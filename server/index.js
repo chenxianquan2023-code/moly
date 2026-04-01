@@ -615,7 +615,10 @@ app.use('/api/gemini', (req, res) => {
   const socketTimeout = req.method === 'GET' ? 30000 : 300000;
 
   const authHeader = req.headers['authorization'] || '';
-  const apiKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  const googApiKey = req.headers['x-goog-api-key'] || '';
+  const apiKey = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : (authHeader || googApiKey || process.env.GEMINI_API_KEY || '');
 
   const options = {
     hostname: GEMINI_URL.hostname,
@@ -624,7 +627,10 @@ app.use('/api/gemini', (req, res) => {
     method: req.method,
     headers: { 'Content-Type': 'application/json' },
   };
-  if (apiKey) options.headers['x-goog-api-key'] = apiKey;
+  if (apiKey) {
+    options.headers['x-goog-api-key'] = apiKey;
+    options.headers['Authorization'] = `Bearer ${apiKey}`;
+  }
   if (bodyBuf) options.headers['Content-Length'] = bodyBuf.length;
 
   const proxyReq = https.request(options, (proxyRes) => {
