@@ -8,8 +8,8 @@
 
 // 走本地 Express 代理，避免浏览器 CORS 限制
 const KLING_BASE_URL = '/api/kling';
-const KLING_ACCESS_KEY = import.meta.env.VITE_KLING_ACCESS_KEY || '';
-const KLING_SECRET_KEY = import.meta.env.VITE_KLING_SECRET_KEY || '';
+const KLING_ACCESS_KEY = import.meta.env.VITE_KLING_ACCESS_KEY || 'AFPCRgb9mRpRTFAnefJMK9DeytHPhJkA';
+const KLING_SECRET_KEY = import.meta.env.VITE_KLING_SECRET_KEY || '9NKRYQQJepkHJ9KFmAgtMbYgBPgEAEC8';
 
 // ─── JWT 生成（Web Crypto API，浏览器原生，无需第三方库）───────────────────
 
