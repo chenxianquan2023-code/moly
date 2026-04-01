@@ -677,7 +677,8 @@ app.use('/api/kling', (req, res) => {
     method: req.method,
     headers: { 'Content-Type': 'application/json' },
   };
-  if (req.headers['authorization']) options.headers['Authorization'] = req.headers['authorization'];
+  const klingAuth = req.headers['authorization'] || (process.env.KLING_API_KEY ? `Bearer ${process.env.KLING_API_KEY}` : '');
+  if (klingAuth) options.headers['Authorization'] = klingAuth;
   if (bodyBuf) options.headers['Content-Length'] = bodyBuf.length;
 
   const proxyReq = https.request(options, (proxyRes) => {
