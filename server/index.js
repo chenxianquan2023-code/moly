@@ -20,7 +20,7 @@ const UPLOAD_DIR = join(__dirname, 'uploads');
 try { mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (_) {}
 
 const app = express();
-const PORT = process.env.AUTH_PORT || 3001;
+const PORT = process.env.PORT || process.env.AUTH_PORT || 3001;
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '50mb' }));
@@ -700,6 +700,9 @@ app.use('/api/kling', (req, res) => {
   if (bodyBuf) proxyReq.write(bodyBuf);
   proxyReq.end();
 });
+
+// Health check
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // 生产环境：托管前端打包后的静态文件
 const distPath = join(__dirname, '..', 'dist');

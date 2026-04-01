@@ -5,11 +5,11 @@
         <h1 class="page-title">历史记录</h1>
         <div class="header-right">
           <template v-if="selectionMode">
-            <span class="selected-count">已经选择 {{ selectedIds.size }} 张</span>
+            <span class="selected-count">已选择 {{ selectedIds.size }} 张</span>
             <button class="action-btn" @click="handleDownload">
               <DownloadOutlined /> 下载
             </button>
-            <button class="action-btn" @click="showQrModal = true">
+            <button class="action-btn" @click="openQrModal">
               <MobileOutlined /> 下载到手机
             </button>
             <button class="action-btn danger" @click="handleDelete">
@@ -18,7 +18,7 @@
             <button class="action-btn" @click="exitSelectionMode">取消</button>
           </template>
           <template v-else>
-            <button class="batch-btn" @click="enterSelectionMode">
+            <button class="batch-btn" :disabled="!filteredHistory.length" @click="enterSelectionMode">
               <UnorderedListOutlined /> 批量处理
             </button>
             <span class="points"><ThunderboltFilled class="icon" /> {{ auth.points }} 积分</span>
@@ -31,7 +31,7 @@
 
     <div class="history-body">
       <aside class="sub-sidebar">
-        <div class="category-header">服饰模特</div>
+        <div class="category-header">工具分类</div>
         <nav class="sub-nav">
           <button
             v-for="t in toolFilters"
@@ -46,39 +46,57 @@
       </aside>
 
       <main class="history-main">
-        <div class="history-grid">
+        <div v-if="filteredHistory.length" class="history-grid">
           <div
             v-for="h in filteredHistory"
             :key="h.id"
             class="history-card"
-            :class="{ selectable: selectionMode }"
+            :class="{ selectable: selectionMode, selected: selectedIds.has(h.id) }"
             @click="selectionMode ? toggleSelect(h.id) : openDetail(h)"
           >
             <div v-if="selectionMode" class="card-checkbox">
-              <a-checkbox
-                :checked="selectedIds.has(h.id)"
-                @change.stop="toggleSelect(h.id)"
-              />
+              <a-checkbox :checked="selectedIds.has(h.id)" @change.stop="toggleSelect(h.id)" />
             </div>
             <div class="card-thumb">
-              <img :src="h.resultUrl" :alt="h.toolName" />
+              <img :src="h.resultUrl" :alt="h.toolName" loading="lazy" />
             </div>
             <div class="card-info">
               <span class="card-tool">{{ h.toolName }}</span>
-              <span class="card-date">{{ h.createdAt }}</span>
+              <span class="card-date">{{ formatDate(h.createdAt) }}</span>
             </div>
           </div>
         </div>
-        <p v-if="!filteredHistory.length" class="empty-hint">暂无历史记录</p>
+
+        <div v-else class="empty-state">
+          <div class="empty-icon">
+            <HistoryOutlined />
+          </div>
+          <p class="empty-title">暂无历史记录</p>
+          <p class="empty-desc">使用工具生成图片后，结果会保存在这里</p>
+          <router-link to="/tools" class="empty-link">去使用工具</router-link>
+        </div>
       </main>
+    </div>
+
+    <!-- 图片详情弹窗 -->
+    <div v-if="detailItem" class="modal-mask" @click.self="detailItem = null">
+      <div class="modal-card detail-modal">
+        <button class="close-btn" @click="detailItem = null"><CloseOutlined /></button>
+        <div class="detail-preview">
+          <img :src="detailItem.resultUrl" :alt="detailItem.toolName" />
+        </div>
+        <div class="detail-footer">
+          <span class="detail-tool">{{ detailItem.toolName }}</span>
+          <span class="detail-date">{{ formatDate(detailItem.createdAt) }}</span>
+          <button class="dl-btn" @click="downloadOne(detailItem)"><DownloadOutlined /> 下载</button>
+        </div>
+      </div>
     </div>
 
     <!-- 下载到手机 QR 码弹窗 -->
     <div v-if="showQrModal" class="modal-mask" @click.self="showQrModal = false">
       <div class="modal-card qr-modal">
-        <button class="close-btn" aria-label="关闭" @click="showQrModal = false">
-          <CloseOutlined />
-        </button>
+        <button class="close-btn" @click="showQrModal = false"><CloseOutlined /></button>
         <h2 class="modal-title">下载到手机</h2>
         <p class="qr-desc">扫码在手机上查看并保存图片</p>
         <div class="qr-wrap">
@@ -90,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import {
   ThunderboltFilled,
   DownloadOutlined,
@@ -98,20 +116,15 @@ import {
   MobileOutlined,
   UnorderedListOutlined,
   CloseOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons-vue';
 import { useAuthStore } from '@/stores/auth';
+import { useHistoryStore, type HistoryRecord } from '@/stores/history';
 import { message } from 'ant-design-vue';
 import QRCode from 'qrcode';
 
 const auth = useAuthStore();
-
-interface HistoryItem {
-  id: string;
-  toolName: string;
-  toolId: string;
-  resultUrl: string;
-  createdAt: string;
-}
+const historyStore = useHistoryStore();
 
 const toolFilters = [
   { id: '', name: '全部' },
@@ -126,72 +139,7 @@ const toolFilters = [
   { id: 'cutout-white-bg', name: '抠图白底图' },
   { id: 'upscale', name: '高清放大' },
   { id: 'ai-shadow', name: 'AI阴影生成' },
-];
-
-const mockHistory: HistoryItem[] = [
-  {
-    id: '1',
-    toolName: 'AI 模特试穿',
-    toolId: 'virtual-try-on',
-    resultUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-07 14:30',
-  },
-  {
-    id: '2',
-    toolName: 'AI 商品场景图',
-    toolId: 'scene-generation',
-    resultUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-07 12:15',
-  },
-  {
-    id: '3',
-    toolName: 'AI 细节增强',
-    toolId: 'detail-enhance',
-    resultUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=90&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-06 18:00',
-  },
-  {
-    id: '4',
-    toolName: 'AI 背景替换',
-    toolId: 'background-replace',
-    resultUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-06 10:20',
-  },
-  {
-    id: '5',
-    toolName: 'AI 模特换脸',
-    toolId: 'face-swap',
-    resultUrl: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-05 16:45',
-  },
-  {
-    id: '6',
-    toolName: 'AI 模特试穿',
-    toolId: 'virtual-try-on',
-    resultUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-05 11:00',
-  },
-  {
-    id: '7',
-    toolName: 'AI 试鞋',
-    toolId: 'shoe-try-on',
-    resultUrl: 'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-04 20:30',
-  },
-  {
-    id: '8',
-    toolName: '手持商品图',
-    toolId: 'hand-product',
-    resultUrl: 'https://images.unsplash.com/photo-1583391730485-32a294f2a441?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-04 14:15',
-  },
-  {
-    id: '9',
-    toolName: '模特换背景',
-    toolId: 'model-bg-replace',
-    resultUrl: 'https://images.unsplash.com/photo-1519699047748-de8e457a634e?q=80&w=200&auto=format&fit=crop',
-    createdAt: '2025-03-03 09:00',
-  },
+  { id: 'omni-model', name: '全能模特' },
 ];
 
 const activeToolId = ref('');
@@ -199,11 +147,18 @@ const selectionMode = ref(false);
 const selectedIds = ref<Set<string>>(new Set());
 const showQrModal = ref(false);
 const qrDataUrl = ref('');
+const detailItem = ref<HistoryRecord | null>(null);
 
 const filteredHistory = computed(() => {
-  if (!activeToolId.value) return mockHistory;
-  return mockHistory.filter((h) => h.toolId === activeToolId.value);
+  if (!activeToolId.value) return historyStore.sortedRecords;
+  return historyStore.sortedRecords.filter((h) => h.toolId === activeToolId.value);
 });
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function enterSelectionMode() {
   selectionMode.value = true;
@@ -222,27 +177,54 @@ function toggleSelect(id: string) {
   selectedIds.value = next;
 }
 
-function handleDownload() {
-  message.success(`已下载 ${selectedIds.value.size} 张图片`);
+async function downloadOne(item: HistoryRecord) {
+  await downloadImage(item.resultUrl, `${item.toolName}-${item.id.slice(-6)}.jpg`);
+}
+
+async function handleDownload() {
+  const items = filteredHistory.value.filter((h) => selectedIds.value.has(h.id));
+  for (const item of items) {
+    await downloadImage(item.resultUrl, `${item.toolName}-${item.id.slice(-6)}.jpg`);
+  }
+  message.success(`已下载 ${items.length} 张图片`);
+}
+
+async function downloadImage(url: string, filename: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch {
+    window.open(url, '_blank');
+  }
 }
 
 function handleDelete() {
-  message.success('已删除选中项');
+  const count = selectedIds.value.size;
+  historyStore.removeRecords([...selectedIds.value]);
+  message.success(`已删除 ${count} 张`);
   exitSelectionMode();
 }
 
-function openDetail(_h: HistoryItem) {
-  message.info('详情功能即将开放');
+function openDetail(h: HistoryRecord) {
+  detailItem.value = h;
 }
 
-onMounted(() => {
-  const downloadUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${window.location.pathname || ''}#/history?batch=${Date.now()}`
-    : 'https://moly.ai';
-  QRCode.toDataURL(downloadUrl, { width: 180, margin: 2 }).then((url) => {
-    qrDataUrl.value = url;
-  }).catch(() => {});
-});
+async function openQrModal() {
+  showQrModal.value = true;
+  const urls = filteredHistory.value
+    .filter((h) => selectedIds.value.has(h.id))
+    .map((h) => h.resultUrl)
+    .join('\n');
+  const target = urls || window.location.href;
+  QRCode.toDataURL(target, { width: 180, margin: 2 })
+    .then((url) => { qrDataUrl.value = url; })
+    .catch(() => {});
+}
 </script>
 
 <style scoped lang="scss">
@@ -280,18 +262,14 @@ onMounted(() => {
 
   .points {
     color: #6b7280;
-    .icon {
-      color: #f59e0b;
-    }
+    .icon { color: #f59e0b; }
   }
 
   .recharge-link,
   .login-link {
     color: #2563eb;
     text-decoration: none;
-    &:hover {
-      text-decoration: underline;
-    }
+    &:hover { text-decoration: underline; }
   }
 
   .batch-btn,
@@ -310,24 +288,19 @@ onMounted(() => {
     background: #2563eb;
     color: #fff;
     border: none;
-    &:hover {
-      background: #1d4ed8;
-    }
+    &:hover:not(:disabled) { background: #1d4ed8; }
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
   }
 
   .action-btn {
     background: #f3f4f6;
     color: #374151;
     border: 1px solid #e5e7eb;
-    &:hover {
-      background: #e5e7eb;
-    }
+    &:hover { background: #e5e7eb; }
     &.danger {
       color: #dc2626;
       border-color: #fecaca;
-      &:hover {
-        background: #fee2e2;
-      }
+      &:hover { background: #fee2e2; }
     }
   }
 
@@ -412,13 +385,17 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  border: 2px solid transparent;
 
   &:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   }
 
-  &.selectable {
-    cursor: default;
+  &.selectable { cursor: default; }
+
+  &.selected {
+    border-color: #2563eb;
+    background: #eff6ff;
   }
 
   .card-checkbox {
@@ -431,7 +408,6 @@ onMounted(() => {
   .card-thumb {
     aspect-ratio: 1;
     overflow: hidden;
-
     img {
       width: 100%;
       height: 100%;
@@ -458,14 +434,46 @@ onMounted(() => {
   }
 }
 
-.empty-hint {
-  color: #9ca3af;
-  font-size: 14px;
-  text-align: center;
-  padding: 48px 16px;
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px;
+  gap: 12px;
+
+  .empty-icon {
+    font-size: 48px;
+    color: #d1d5db;
+  }
+
+  .empty-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .empty-desc {
+    font-size: 14px;
+    color: #9ca3af;
+    margin: 0;
+  }
+
+  .empty-link {
+    margin-top: 8px;
+    padding: 10px 24px;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    &:hover { background: #1d4ed8; }
+  }
 }
 
-/* QR Modal */
+/* Modals */
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -478,14 +486,11 @@ onMounted(() => {
   padding: 24px;
 }
 
-.modal-card.qr-modal {
+.modal-card {
   position: relative;
-  width: 100%;
-  max-width: 340px;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  padding: 28px;
 }
 
 .close-btn {
@@ -502,11 +507,73 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 
   &:hover {
     background: #f5f5f5;
     color: #1a1a1a;
   }
+}
+
+.detail-modal {
+  max-width: 600px;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+
+  .detail-preview {
+    background: #f9fafb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 360px;
+
+    img {
+      max-width: 100%;
+      max-height: 480px;
+      object-fit: contain;
+    }
+  }
+
+  .detail-footer {
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid #e5e7eb;
+
+    .detail-tool {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .detail-date {
+      font-size: 13px;
+      color: #9ca3af;
+      flex: 1;
+    }
+
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      &:hover { background: #1d4ed8; }
+    }
+  }
+}
+
+.qr-modal {
+  width: 100%;
+  max-width: 340px;
+  padding: 28px;
 }
 
 .modal-title {

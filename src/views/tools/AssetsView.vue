@@ -10,12 +10,10 @@
           <router-link v-if="auth.isLoggedIn" to="/recharge" class="recharge-link">充值</router-link>
           <router-link v-else to="/login" class="login-link">登录</router-link>
           <button class="action-btn mobile" @click="showMobileUploadTip">
-            <MobileOutlined />
-            手机上传
+            <MobileOutlined /> 手机上传
           </button>
           <button class="action-btn primary" @click="showUploadModal = true">
-            <CloudUploadOutlined />
-            上传
+            <CloudUploadOutlined /> 上传
           </button>
         </div>
       </div>
@@ -27,13 +25,12 @@
         <div class="sidebar-header">
           <span class="sidebar-title">自建目录</span>
           <button class="new-folder-btn" @click="addNewFolder">
-            <PlusOutlined />
-            新建目录
+            <PlusOutlined /> 新建
           </button>
         </div>
         <ul class="folder-tree">
           <li
-            v-for="folder in directories"
+            v-for="folder in folders"
             :key="folder.id"
             class="folder-item"
             :class="{ active: activeFolderId === folder.id }"
@@ -41,6 +38,7 @@
           >
             <FolderOutlined class="folder-icon" />
             <span class="folder-name">{{ folder.name }}</span>
+            <span class="folder-count">{{ folderCount(folder.id) }}</span>
           </li>
         </ul>
       </aside>
@@ -48,23 +46,49 @@
       <!-- 主内容区 -->
       <main class="assets-main">
         <p class="section-intro">管理您的图片与素材</p>
-        <div class="upload-placeholder-area" @click="showUploadModal = true">
+
+        <div
+          class="upload-placeholder-area"
+          :class="{ dragging: globalDragging }"
+          @click="showUploadModal = true"
+          @drop.prevent="onGlobalDrop"
+          @dragover.prevent="globalDragging = true"
+          @dragleave="globalDragging = false"
+        >
           <CloudUploadOutlined class="placeholder-icon" />
           <p>点击或拖拽上传图片到资产库</p>
           <span class="hint">支持 JPG、PNG、WebP</span>
         </div>
+
         <div v-if="displayAssets.length" class="assets-grid">
-          <div v-for="a in displayAssets" :key="a.id" class="asset-card">
+          <div
+            v-for="a in displayAssets"
+            :key="a.id"
+            class="asset-card"
+            @mouseenter="hoveredId = a.id"
+            @mouseleave="hoveredId = ''"
+          >
             <div class="asset-thumb">
-              <img :src="a.url" :alt="a.name" />
+              <img :src="a.url" :alt="a.name" loading="lazy" />
+              <div v-if="hoveredId === a.id" class="asset-actions">
+                <button class="asset-action-btn" title="删除" @click.stop="removeAsset(a.id)">
+                  <DeleteOutlined />
+                </button>
+                <a class="asset-action-btn" :href="a.url" :download="a.name" title="下载">
+                  <DownloadOutlined />
+                </a>
+              </div>
             </div>
             <div class="asset-info">
-              <span>{{ a.name }}</span>
+              <span class="asset-name">{{ a.name }}</span>
             </div>
           </div>
         </div>
+
         <div v-else class="empty-state">
-          <p>该目录暂无资产，点击上方区域或「上传」按钮添加</p>
+          <div class="empty-icon"><PictureOutlined /></div>
+          <p class="empty-title">该目录暂无资产</p>
+          <p class="empty-desc">点击上方区域或「上传」按钮添加图片</p>
         </div>
       </main>
     </div>
@@ -72,12 +96,9 @@
     <!-- 上传弹窗 -->
     <div v-if="showUploadModal" class="modal-mask" @click.self="closeUploadModal">
       <div class="modal-card">
-        <button class="close-btn" aria-label="关闭" @click="closeUploadModal">
-          <CloseOutlined />
-        </button>
+        <button class="close-btn" @click="closeUploadModal"><CloseOutlined /></button>
         <h2 class="modal-title">上传资产</h2>
 
-        <!-- 大拖拽区 -->
         <div
           class="drop-zone"
           :class="{ 'has-image': pendingPreviewUrl, dragging }"
@@ -91,20 +112,12 @@
             <CloudUploadOutlined class="drop-icon" />
             <p class="drop-text">拖拽图片到此处，或</p>
             <button type="button" class="btn-local" @click.stop="fileInput?.click()">
-              <FolderOutlined />
-              本地上传
+              <FolderOutlined /> 本地上传
             </button>
           </template>
         </div>
-        <input
-          ref="fileInput"
-          type="file"
-          accept="image/*"
-          class="hidden-input"
-          @change="onFileChange"
-        />
+        <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="onFileChange" />
 
-        <!-- 或试试样片 -->
         <div class="samples">
           <p class="samples-title">或试试样片</p>
           <div class="samples-list">
@@ -112,6 +125,7 @@
               v-for="(s, i) in sampleThumbnails"
               :key="i"
               class="sample-item"
+              :class="{ active: pendingPreviewUrl === s.url }"
               @click="useSample(s.url)"
             >
               <img :src="s.url" :alt="s.label" class="sample-img" />
@@ -120,11 +134,10 @@
           </div>
         </div>
 
-        <!-- 选择保存目录 + 确认 -->
         <div v-if="pendingPreviewUrl" class="save-section">
-          <label class="save-label">选择保存目录</label>
+          <label class="save-label">保存到目录</label>
           <select v-model="saveToFolderId" class="save-select">
-            <option v-for="f in directories" :key="f.id" :value="f.id">{{ f.name }}</option>
+            <option v-for="f in folders" :key="f.id" :value="f.id">{{ f.name }}</option>
           </select>
         </div>
 
@@ -133,10 +146,10 @@
           <button
             type="button"
             class="btn-confirm"
-            :disabled="!pendingPreviewUrl"
+            :disabled="!pendingPreviewUrl || uploading"
             @click="confirmUpload"
           >
-            确认上传
+            {{ uploading ? '上传中...' : '确认上传' }}
           </button>
         </div>
       </div>
@@ -145,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   ThunderboltFilled,
   CloudUploadOutlined,
@@ -153,65 +166,54 @@ import {
   PlusOutlined,
   FolderOutlined,
   CloseOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  PictureOutlined,
 } from '@ant-design/icons-vue';
 import { useAuthStore } from '@/stores/auth';
+import { useAssetStore } from '@/stores/asset';
 import { message } from 'ant-design-vue';
 
 const auth = useAuthStore();
+const assetStore = useAssetStore();
 
-// 目录（本地状态）
-interface Directory {
+// 目录（localStorage 持久化）
+const FOLDERS_KEY = 'moly_asset_folders';
+
+interface Folder {
   id: string;
   name: string;
 }
-const defaultDirectories: Directory[] = [
+
+const defaultFolders: Folder[] = [
   { id: 'default', name: '默认目录' },
   { id: 'product', name: '商品图' },
   { id: 'model', name: '模特图' },
 ];
-const directories = ref<Directory[]>([...defaultDirectories]);
-let nextDirId = 100;
 
-// 资产（本地状态）
-interface Asset {
-  id: string;
-  name: string;
-  url: string;
-  folderId: string;
+function loadFolders(): Folder[] {
+  try {
+    const raw = localStorage.getItem(FOLDERS_KEY);
+    return raw ? JSON.parse(raw) : [...defaultFolders];
+  } catch {
+    return [...defaultFolders];
+  }
 }
-const assets = ref<Asset[]>([
-  {
-    id: '1',
-    name: '商品图1',
-    url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&auto=format&fit=crop',
-    folderId: 'product',
-  },
-  {
-    id: '2',
-    name: '模特图',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-    folderId: 'model',
-  },
-]);
-let nextAssetId = 3;
 
-// 当前选中的目录
-const activeFolderId = ref<string>('default');
+function saveFolders(list: Folder[]) {
+  localStorage.setItem(FOLDERS_KEY, JSON.stringify(list));
+}
 
-// 筛选：全部 / 上传文件（这里上传文件=全部，可后续扩展）
-const filterCategory = ref<'all' | 'uploaded'>('all');
+const folders = ref<Folder[]>(loadFolders());
+const activeFolderId = ref<string>(folders.value[0]?.id ?? 'default');
 
-// 展示的资产
+function folderCount(folderId: string): number {
+  return assetStore.assets.filter((a) => a.category === folderId).length;
+}
+
 const displayAssets = computed(() => {
-  let list = assets.value;
-  if (activeFolderId.value) {
-    list = list.filter((a) => a.folderId === activeFolderId.value);
-  }
-  if (filterCategory.value === 'uploaded') {
-    // 可后续区分：只显示用户上传的
-    list = list.filter((a) => a.url.startsWith('blob:'));
-  }
-  return list;
+  if (activeFolderId.value === 'all') return assetStore.assets;
+  return assetStore.assets.filter((a) => a.category === activeFolderId.value);
 });
 
 function selectFolder(id: string) {
@@ -221,7 +223,14 @@ function selectFolder(id: string) {
 function addNewFolder() {
   const name = prompt('输入新目录名称');
   if (!name?.trim()) return;
-  directories.value.push({ id: String(nextDirId++), name: name.trim() });
+  const id = `folder-${Date.now()}`;
+  folders.value.push({ id, name: name.trim() });
+  saveFolders(folders.value);
+}
+
+function removeAsset(id: string) {
+  assetStore.removeAsset(id);
+  message.success('已删除');
 }
 
 function showMobileUploadTip() {
@@ -232,19 +241,33 @@ function showMobileUploadTip() {
 const showUploadModal = ref(false);
 const fileInput = ref<HTMLInputElement | null>(null);
 const pendingPreviewUrl = ref('');
-const saveToFolderId = ref('default');
+const pendingFile = ref<File | null>(null);
+const saveToFolderId = ref(activeFolderId.value);
 const dragging = ref(false);
+const globalDragging = ref(false);
+const uploading = ref(false);
+const hoveredId = ref('');
 
 const sampleThumbnails = [
-  { url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400&auto=format&fit=crop', label: '示例服装' },
-  { url: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?q=80&w=400&auto=format&fit=crop', label: '示例包' },
-  { url: 'https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=400&auto=format&fit=crop', label: '示例椅' },
+  {
+    url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=400&auto=format&fit=crop',
+    label: '示例服装',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?q=80&w=400&auto=format&fit=crop',
+    label: '示例包',
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=400&auto=format&fit=crop',
+    label: '示例椅',
+  },
 ];
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
   if (file && file.type.startsWith('image/')) {
+    pendingFile.value = file;
     pendingPreviewUrl.value = URL.createObjectURL(file);
   }
   input.value = '';
@@ -254,38 +277,65 @@ function onDrop(e: DragEvent) {
   dragging.value = false;
   const file = e.dataTransfer?.files?.[0];
   if (file && file.type.startsWith('image/')) {
+    pendingFile.value = file;
     pendingPreviewUrl.value = URL.createObjectURL(file);
+  }
+}
+
+function onGlobalDrop(e: DragEvent) {
+  globalDragging.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith('image/')) {
+    pendingFile.value = file;
+    pendingPreviewUrl.value = URL.createObjectURL(file);
+    saveToFolderId.value = activeFolderId.value;
+    showUploadModal.value = true;
   }
 }
 
 function useSample(url: string) {
   pendingPreviewUrl.value = url;
+  pendingFile.value = null;
 }
 
 function closeUploadModal() {
-  if (pendingPreviewUrl.value && pendingPreviewUrl.value.startsWith('blob:')) {
+  if (pendingPreviewUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(pendingPreviewUrl.value);
   }
   pendingPreviewUrl.value = '';
+  pendingFile.value = null;
   dragging.value = false;
   showUploadModal.value = false;
 }
 
-function confirmUpload() {
-  if (!pendingPreviewUrl.value) return;
-
-  const name = `资产_${nextAssetId}`;
-  const folderId = saveToFolderId.value || 'default';
-  assets.value.push({
-    id: String(nextAssetId++),
-    name,
-    url: pendingPreviewUrl.value,
-    folderId,
-  });
-
-  message.success('上传成功');
-  closeUploadModal();
+async function confirmUpload() {
+  if (!pendingPreviewUrl.value || uploading.value) return;
+  uploading.value = true;
+  try {
+    const folderId = saveToFolderId.value || 'default';
+    if (pendingFile.value) {
+      await assetStore.addAsset(pendingFile.value, 'generic', {
+        name: pendingFile.value.name,
+        category: folderId,
+      });
+    } else {
+      // 样片 URL
+      const label = sampleThumbnails.find((s) => s.url === pendingPreviewUrl.value)?.label || '样片';
+      assetStore.addAssetFromUrl(pendingPreviewUrl.value, label, folderId);
+    }
+    activeFolderId.value = folderId;
+    message.success('上传成功');
+    closeUploadModal();
+  } catch {
+    message.error('上传失败，请重试');
+  } finally {
+    uploading.value = false;
+  }
 }
+
+onMounted(() => {
+  saveToFolderId.value = activeFolderId.value;
+});
 </script>
 
 <style scoped lang="scss">
@@ -330,18 +380,14 @@ function confirmUpload() {
 
   .points {
     color: #6b7280;
-    .icon {
-      color: #f59e0b;
-    }
+    .icon { color: #f59e0b; }
   }
 
   .recharge-link,
   .login-link {
     color: #2563eb;
     text-decoration: none;
-    &:hover {
-      text-decoration: underline;
-    }
+    &:hover { text-decoration: underline; }
   }
 
   .action-btn {
@@ -358,19 +404,14 @@ function confirmUpload() {
       background: #2563eb;
       color: #fff;
       border: none;
-      &:hover {
-        background: #1d4ed8;
-      }
+      &:hover { background: #1d4ed8; }
     }
 
     &.mobile {
       background: #fff;
       color: #374151;
       border: 1px solid #d1d5db;
-      &:hover {
-        background: #f9fafb;
-        border-color: #9ca3af;
-      }
+      &:hover { background: #f9fafb; border-color: #9ca3af; }
     }
   }
 }
@@ -379,8 +420,6 @@ function confirmUpload() {
   display: flex;
   width: 100%;
   min-height: calc(100vh - 65px);
-  margin: 0;
-  padding: 0;
 }
 
 .sidebar {
@@ -416,11 +455,7 @@ function confirmUpload() {
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s;
-    &:hover {
-      background: #eff6ff;
-      border-color: #93c5fd;
-      color: #1d4ed8;
-    }
+    &:hover { background: #eff6ff; border-color: #93c5fd; }
   }
 
   .folder-tree {
@@ -441,9 +476,7 @@ function confirmUpload() {
     cursor: pointer;
     transition: background 0.2s;
 
-    &:hover {
-      background: #f3f4f6;
-    }
+    &:hover { background: #f3f4f6; }
 
     &.active {
       background: #eff6ff;
@@ -463,6 +496,12 @@ function confirmUpload() {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+
+    .folder-count {
+      font-size: 11px;
+      color: #9ca3af;
+      flex-shrink: 0;
+    }
   }
 }
 
@@ -479,7 +518,7 @@ function confirmUpload() {
 }
 
 .upload-placeholder-area {
-  min-height: 200px;
+  min-height: 160px;
   border: 2px dashed #d1d5db;
   border-radius: 16px;
   background: #fff;
@@ -489,16 +528,17 @@ function confirmUpload() {
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
   margin-bottom: 24px;
 
-  &:hover {
+  &:hover,
+  &.dragging {
     border-color: #2563eb;
-    background: #f9fafb;
+    background: #eff6ff;
   }
 
   .placeholder-icon {
-    font-size: 48px;
+    font-size: 40px;
     color: #9ca3af;
   }
 
@@ -536,26 +576,85 @@ function confirmUpload() {
   .asset-thumb {
     aspect-ratio: 1;
     overflow: hidden;
+    position: relative;
 
     img {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
+
+    .asset-actions {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .asset-action-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      color: #374151;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      text-decoration: none;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #fff;
+        color: #2563eb;
+      }
+    }
   }
 
   .asset-info {
     padding: 8px 12px;
-    font-size: 13px;
-    color: #374151;
+
+    .asset-name {
+      font-size: 13px;
+      color: #374151;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 
 .empty-state {
-  padding: 48px 24px;
+  padding: 60px 24px;
   text-align: center;
-  font-size: 14px;
-  color: #9ca3af;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+
+  .empty-icon {
+    font-size: 48px;
+    color: #d1d5db;
+  }
+
+  .empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .empty-desc {
+    font-size: 13px;
+    color: #9ca3af;
+    margin: 0;
+  }
 }
 
 /* 上传弹窗 */
@@ -595,11 +694,7 @@ function confirmUpload() {
   display: flex;
   align-items: center;
   justify-content: center;
-
-  &:hover {
-    background: #f5f5f5;
-    color: #1a1a1a;
-  }
+  &:hover { background: #f5f5f5; color: #1a1a1a; }
 }
 
 .modal-title {
@@ -610,7 +705,7 @@ function confirmUpload() {
 }
 
 .drop-zone {
-  min-height: 220px;
+  min-height: 180px;
   border: 2px dashed #d9d9d9;
   border-radius: 12px;
   background: #fafafa;
@@ -637,7 +732,7 @@ function confirmUpload() {
   }
 
   .drop-icon {
-    font-size: 48px;
+    font-size: 40px;
     color: #9ca3af;
   }
 
@@ -651,7 +746,7 @@ function confirmUpload() {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 40px;
+    height: 38px;
     padding: 0 20px;
     background: #2563eb;
     color: #fff;
@@ -659,16 +754,12 @@ function confirmUpload() {
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-    transition: opacity 0.2s;
-
-    &:hover {
-      opacity: 0.9;
-    }
+    &:hover { opacity: 0.9; }
   }
 
   .preview-img {
     max-width: 100%;
-    max-height: 220px;
+    max-height: 200px;
     object-fit: contain;
   }
 }
@@ -699,14 +790,15 @@ function confirmUpload() {
   .sample-item {
     width: 80px;
     padding: 0;
-    border: 1px solid #eee;
+    border: 2px solid #eee;
     border-radius: 8px;
     overflow: hidden;
     background: #fff;
     cursor: pointer;
     transition: border-color 0.2s, box-shadow 0.2s;
 
-    &:hover {
+    &:hover,
+    &.active {
       border-color: #2563eb;
       box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
     }
@@ -764,11 +856,7 @@ function confirmUpload() {
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-
-    &:hover {
-      border-color: #2563eb;
-      color: #2563eb;
-    }
+    &:hover { border-color: #2563eb; color: #2563eb; }
   }
 
   .btn-confirm {
@@ -780,16 +868,8 @@ function confirmUpload() {
     border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
-
-    &:hover:not(:disabled) {
-      opacity: 0.9;
-      background: #1d4ed8;
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+    &:hover:not(:disabled) { background: #1d4ed8; }
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
   }
 }
 </style>

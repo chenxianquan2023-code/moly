@@ -174,6 +174,25 @@ export const useAssetStore = defineStore('asset', () => {
     searchQuery.value = query;
   }
 
+  function addAssetFromUrl(url: string, name: string, category: string): Asset {
+    const asset: Asset = {
+      id: generateId(),
+      name,
+      url,
+      type: 'generic',
+      category,
+      tags: [],
+      size: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      usageCount: 0,
+    };
+    assets.value.unshift(asset);
+    updateCategoryCounts();
+    saveAssets();
+    return asset;
+  }
+
   // 辅助函数
   function updateCategoryCounts() {
     categories.value.forEach(cat => {
@@ -248,6 +267,7 @@ export const useAssetStore = defineStore('asset', () => {
     
     // Actions
     addAsset,
+    addAssetFromUrl,
     removeAsset,
     updateAsset,
     incrementUsage,
