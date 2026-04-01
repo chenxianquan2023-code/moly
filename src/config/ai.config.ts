@@ -17,8 +17,9 @@ export const AI_CONFIG: AIConfig = {
     // 图片生成模型 (Pro - 用于生成成果图，质量高)
     imageModel: import.meta.env.VITE_GEMINI_IMAGE_MODEL || 'gemini-3-pro-image-preview',
 
-    // 代理地址
-    baseUrl: import.meta.env.VITE_GEMINI_BASE_URL || 'https://www.ezmodel.cloud'
+    // 代理地址：优先用环境变量，生产环境走同源 /api/gemini/ 代理避免 CORS
+    baseUrl: import.meta.env.VITE_GEMINI_BASE_URL ||
+        (typeof window !== 'undefined' ? window.location.origin + '/api/gemini/' : 'https://www.ezmodel.cloud')
 }
 
 // 提示词模板
