@@ -77,7 +77,8 @@
           <button
             type="submit"
             :disabled="submitting"
-            class="w-full h-12 rounded-lg bg-[#2563EB] text-white font-medium text-base hover:bg-[#1d4ed8] disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+            class="w-full h-12 rounded-full bg-[#2563EB] !text-white font-medium text-base hover:bg-[#1d4ed8] active:bg-[#1e40af] disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30"
+            style="color: white;"
           >
             <span v-if="submitting" class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             {{ submitting ? '注册中...' : '注册' }}
