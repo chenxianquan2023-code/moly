@@ -176,6 +176,12 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'marketing-poster',
+                    name: 'tools-marketing-poster',
+                    component: () => import('../views/tools/MarketingPosterView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: 'profile',
                     name: 'tools-profile',
                     component: () => import('../views/tools/ProfileView.vue'),

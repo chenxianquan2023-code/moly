@@ -52,7 +52,10 @@
         </router-link>
       </div>
     </aside>
-    
+
+    <!-- Moly AI 助手悬浮气泡 -->
+    <MolyAgent />
+
     <!-- 右侧内容区 -->
     <main class="main-content">
       <!-- 页面内容 -->
@@ -68,6 +71,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { HomeOutlined, AppstoreOutlined, FolderOutlined, HistoryOutlined } from '@ant-design/icons-vue';
 import { useAuthStore } from '@/stores/auth';
+import MolyAgent from '@/components/MolyAgent.vue';
 
 const route = useRoute();
 const auth = useAuthStore();

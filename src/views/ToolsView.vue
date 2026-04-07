@@ -91,6 +91,30 @@
       </div>
     </section>
 
+    <!-- 营销海报 -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">营销海报</h2>
+        <span class="section-sub">上传图片一键生成朋友圈爆款海报，晒转介绍、晒团队、晒产品</span>
+      </div>
+      <div class="scene-grid">
+        <div class="scene-card" @click="router.push('/tools/marketing-poster')">
+          <div class="scene-icon" style="background:#FFF7ED">
+            <svg fill="none" stroke="#EA580C" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+          </div>
+          <div class="scene-text">
+            <h3>营销海报生成器</h3>
+            <p>晒转介绍 / 晒团队 / 晒产品，3 种海报风格，上传截图即可生成</p>
+          </div>
+          <svg class="scene-arrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </section>
+
     <!-- 短视频工坊 -->
     <section class="section">
       <div class="section-header">
