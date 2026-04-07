@@ -129,42 +129,47 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM = process.env.RESEND_FROM || 'Moly <moly@matrue.cn>';
+
 async function sendEmail(to, subject, text) {
+  // 优先用 Resend HTTP API（不受 SMTP 端口封锁影响）
+  if (RESEND_API_KEY) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, text }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || `Resend error ${res.status}`);
+    console.log('[Auth] Resend 邮件发送成功:', to, data.id);
+    return { sent: true };
+  }
+
+  // 兜底：SMTP（本地开发用）
   if (!SMTP_USER || !SMTP_PASS) {
-    console.log('[Auth] 未配置 SMTP，跳过发送。邮件内容:', { to, subject, text });
+    console.log('[Auth] 未配置邮件，验证码:', { to, subject, text });
     return { sent: false };
   }
   const port = Number(SMTP_PORT);
-  const hostname = SMTP_HOST || 'smtp.qq.com';
-
-  // 手动解析 IPv4，绕过系统 DNS 可能返回 IPv6 的问题
-  let smtpHost = hostname;
-  try {
-    const addrs = await dns.promises.resolve4(hostname);
-    if (addrs && addrs.length > 0) {
-      smtpHost = addrs[0];
-      console.log(`[Auth] SMTP resolved ${hostname} -> ${smtpHost}`);
-    }
-  } catch (e) {
-    console.warn('[Auth] DNS resolve4 failed, using hostname:', e.message);
-  }
-
   const transporter = createTransport({
-    host: smtpHost,
+    host: SMTP_HOST || 'smtp.qq.com',
     port,
     secure: port === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
     connectionTimeout: 10000,
     socketTimeout: 15000,
-    greetingTimeout: 8000,
-    tls: { servername: hostname }, // SNI 仍用原始域名（SSL 证书校验需要）
   });
   try {
     await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text });
-    console.log('[Auth] 邮件发送成功:', to);
+    console.log('[Auth] SMTP 邮件发送成功:', to);
     return { sent: true };
   } catch (err) {
-    console.error('[Auth] 邮件发送失败:', err.message);
+    console.error('[Auth] SMTP 邮件发送失败:', err.message);
     throw err;
   }
 }
