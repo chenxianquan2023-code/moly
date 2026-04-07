@@ -66,6 +66,7 @@
         <div class="upload-section">
           <div class="section-label">选择风格参考 <span class="optional-tag">让 AI 模仿此风格</span></div>
           <div class="ref-grid">
+            <!-- 内置示例 -->
             <button
               v-for="(url, i) in currentType.examples"
               :key="i"
@@ -77,7 +78,26 @@
               <img :src="url" :alt="`风格${i+1}`" />
               <div class="ref-check" v-if="referenceImage === url">✓</div>
             </button>
+            <!-- 用户上传的自定义参考 -->
+            <button
+              v-for="(url, i) in customRefs"
+              :key="'custom-'+i"
+              class="ref-thumb"
+              :class="{ selected: referenceImage === url }"
+              @click="referenceImage = referenceImage === url ? null : url"
+              title="自定义风格参考"
+            >
+              <img :src="url" :alt="`自定义${i+1}`" />
+              <div class="ref-check" v-if="referenceImage === url">✓</div>
+              <button class="ref-del" @click.stop="removeCustomRef(i)" title="删除">×</button>
+            </button>
+            <!-- 上传按钮 -->
+            <button class="ref-upload-btn" @click="refFileRef?.click()" title="上传自己的风格参考图">
+              <PlusOutlined style="font-size:20px;color:#9ca3af" />
+              <span>上传参考</span>
+            </button>
           </div>
+          <input ref="refFileRef" type="file" class="hidden-input" accept="image/*" @change="onRefFileChange" />
           <div v-if="referenceImage" class="ref-hint">已选择风格参考，AI 将模仿该海报的排版和视觉风格</div>
         </div>
       </aside>
@@ -163,7 +183,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { RightOutlined, ThunderboltFilled, PictureOutlined, ExperimentOutlined, LoadingOutlined } from '@ant-design/icons-vue';
+import { RightOutlined, ThunderboltFilled, PictureOutlined, ExperimentOutlined, LoadingOutlined, PlusOutlined } from '@ant-design/icons-vue';
 import { geminiService } from '@/services/gemini.service';
 import { useAuthStore } from '@/stores/auth';
 import { message } from 'ant-design-vue';
@@ -181,6 +201,8 @@ const priceText = ref('');
 const productStyle = ref<'hard' | 'soft'>('hard');
 const aspectRatio = ref('9:16');
 const referenceImage = ref<string | null>(null);
+const customRefs = ref<string[]>([]);
+const refFileRef = ref<HTMLInputElement | null>(null);
 
 const types = [
   {
@@ -278,6 +300,21 @@ function onFileChange(e: Event) {
   if (!file) return;
   inputImage.value = URL.createObjectURL(file);
   (e.target as HTMLInputElement).value = '';
+}
+
+function onRefFileChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  customRefs.value.push(url);
+  referenceImage.value = url;
+  (e.target as HTMLInputElement).value = '';
+}
+
+function removeCustomRef(i: number) {
+  const url = customRefs.value[i];
+  if (referenceImage.value === url) referenceImage.value = null;
+  customRefs.value.splice(i, 1);
 }
 
 function onDrop(e: DragEvent) {
@@ -506,6 +543,28 @@ async function generate() {
   &.selected { border-color: #2563eb; }
   &:hover:not(.selected) { border-color: #93c5fd; }
 
+  .ref-del {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    font-size: 12px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    padding: 0;
+    line-height: 1;
+  }
+  &:hover .ref-del { opacity: 1; }
+
   .ref-check {
     position: absolute;
     top: 4px;
@@ -520,6 +579,23 @@ async function generate() {
     align-items: center;
     justify-content: center;
   }
+}
+
+.ref-upload-btn {
+  border: 2px dashed #d1d5db;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  aspect-ratio: 9/16;
+  font-size: 11px;
+  color: #9ca3af;
+  transition: all 0.2s;
+  &:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
 }
 
 .ref-hint {
