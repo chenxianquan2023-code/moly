@@ -135,15 +135,29 @@ async function sendEmail(to, subject, text) {
     return { sent: false };
   }
   const port = Number(SMTP_PORT);
+  const hostname = SMTP_HOST || 'smtp.qq.com';
+
+  // 手动解析 IPv4，绕过系统 DNS 可能返回 IPv6 的问题
+  let smtpHost = hostname;
+  try {
+    const addrs = await dns.promises.resolve4(hostname);
+    if (addrs && addrs.length > 0) {
+      smtpHost = addrs[0];
+      console.log(`[Auth] SMTP resolved ${hostname} -> ${smtpHost}`);
+    }
+  } catch (e) {
+    console.warn('[Auth] DNS resolve4 failed, using hostname:', e.message);
+  }
+
   const transporter = createTransport({
-    host: SMTP_HOST || 'smtp.qq.com',
+    host: smtpHost,
     port,
-    secure: port === 465,        // 465=SSL, 587=STARTTLS
+    secure: port === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
     connectionTimeout: 10000,
     socketTimeout: 15000,
     greetingTimeout: 8000,
-    family: 4,                   // 强制 IPv4，避免 Railway 上 IPv6 不可达
+    tls: { servername: hostname }, // SNI 仍用原始域名（SSL 证书校验需要）
   });
   try {
     await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text });
