@@ -130,10 +130,34 @@ const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM || process.env.SMTP_USER;
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || 'Moly <moly@matrue.cn>';
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Moly';
+const EMAIL_FROM_ADDR = process.env.EMAIL_FROM_ADDR || 'moly@matrue.cn';
 
 async function sendEmail(to, subject, text) {
-  // 优先用 Resend HTTP API（不受 SMTP 端口封锁影响）
+  // 优先 Brevo
+  if (BREVO_API_KEY) {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': BREVO_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: EMAIL_FROM_NAME, email: EMAIL_FROM_ADDR },
+        to: [{ email: to }],
+        subject,
+        textContent: text,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || `Brevo error ${res.status}`);
+    console.log('[Auth] Brevo 邮件发送成功:', to, data.messageId);
+    return { sent: true };
+  }
+
+  // 其次 Resend
   if (RESEND_API_KEY) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -141,7 +165,7 @@ async function sendEmail(to, subject, text) {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, text }),
+      body: JSON.stringify({ from: `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDR}>`, to: [to], subject, text }),
       signal: AbortSignal.timeout(15000),
     });
     const data = await res.json();
