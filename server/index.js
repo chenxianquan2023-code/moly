@@ -5,6 +5,8 @@
  */
 
 import 'dotenv/config';
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first'); // 强制 IPv4 优先，修复 Railway 上 IPv6 ENETUNREACH
 import express from 'express';
 import cors from 'cors';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
