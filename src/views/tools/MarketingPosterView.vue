@@ -60,19 +60,25 @@
             </div>
           </div>
           <input ref="fileRef" type="file" class="hidden-input" accept="image/*" @change="onFileChange" />
-          <!-- 示例图 -->
-          <div class="example-row">
-            <span class="example-label">示例：</span>
+        </div>
+
+        <!-- 风格参考选择 -->
+        <div class="upload-section">
+          <div class="section-label">选择风格参考 <span class="optional-tag">让 AI 模仿此风格</span></div>
+          <div class="ref-grid">
             <button
               v-for="(url, i) in currentType.examples"
               :key="i"
-              class="example-thumb"
-              @click="inputImage = url"
-              title="点击使用此示例"
+              class="ref-thumb"
+              :class="{ selected: referenceImage === url }"
+              @click="referenceImage = referenceImage === url ? null : url"
+              :title="`风格参考 ${i+1}`"
             >
-              <img :src="url" :alt="`示例${i+1}`" />
+              <img :src="url" :alt="`风格${i+1}`" />
+              <div class="ref-check" v-if="referenceImage === url">✓</div>
             </button>
           </div>
+          <div v-if="referenceImage" class="ref-hint">已选择风格参考，AI 将模仿该海报的排版和视觉风格</div>
         </div>
       </aside>
 
@@ -174,6 +180,7 @@ const subtitleText = ref('');
 const priceText = ref('');
 const productStyle = ref<'hard' | 'soft'>('hard');
 const aspectRatio = ref('9:16');
+const referenceImage = ref<string | null>(null);
 
 const types = [
   {
@@ -257,6 +264,7 @@ function switchType(key: typeof activeType.value) {
   subtitleText.value = '';
   priceText.value = '';
   resultImage.value = null;
+  referenceImage.value = null;
   clearImage();
 }
 
@@ -281,6 +289,10 @@ function buildPrompt(): string {
   const title = titleText.value.trim() || currentType.value.titlePlaceholder;
   const subtitle = subtitleText.value.trim();
 
+  const refNote = referenceImage.value
+    ? '【图2】是风格参考海报，请严格模仿图2的整体排版布局、背景风格、字体大小比例、色调氛围，但内容替换为【图1】中的图片和下方填写的文字。'
+    : '';
+
   // 文案严格性说明（所有类型通用）
   const textRule = `
 ⚠️ 文字规则（必须严格遵守）：
@@ -289,20 +301,22 @@ function buildPrompt(): string {
 - 禁止在海报上添加任何用户未填写的额外文字
 - 禁止对用户提供的文字进行任何形式的改写或联想替换`;
 
+  const refLine = refNote ? `\n${refNote}` : '';
+
   if (activeType.value === 'referral') {
-    return `请根据提供的微信聊天截图生成一张朋友圈营销海报。
+    return `【图1】是用户上传的微信聊天截图，请据此生成一张朋友圈营销海报。${refLine}
 
 【视觉风格】暗调艺术感背景（暗金/深棕/黑色渐变），聊天截图放在画面中部（加白框或手机边框装饰），文字大气醒目
 【排版】主标题放画面下方大字，副标题在其下方小字
-【整体感觉】温暖有力量感，适合朋友圈传播，参考小红书营销海报风格
+【整体感觉】温暖有力量感，适合朋友圈传播
 ${textRule}`;
   }
 
   if (activeType.value === 'team') {
-    return `请根据提供的图片生成一张团队展示营销海报。
+    return `【图1】是用户上传的图片，请据此生成一张团队展示营销海报。${refLine}
 
 【视觉风格】温暖大地色调（暖棕/深金/墨绿），聊天截图或团队照片作为主体，背景可用自然风光虚化，有行楷或手写感英文装饰字
-【整体感觉】充满团队凝聚力，励志氛围，适合吸引创业/副业人群
+【整体感觉】充满团队凝聚力，励志氛围
 ${textRule}`;
   }
 
@@ -311,11 +325,11 @@ ${textRule}`;
   const styleDesc = productStyle.value === 'hard'
     ? '硬广风格：大字标题、撞色背景（蓝/绿/红）、价格标签突出、促销感强烈'
     : '软广风格：干净浅色背景、产品精致陈列、文字优雅、生活质感';
-  return `请根据提供的产品图生成一张朋友圈营销海报。
+  return `【图1】是用户上传的产品图，请据此生成一张朋友圈营销海报。${refLine}
 
 【视觉风格】${styleDesc}
 【价格信息】${price ? `用色块/标签突出显示：「${price}」` : '无价格信息'}
-【整体感觉】产品图保持清晰完整，构图专业，适合朋友圈/社群分享
+【整体感觉】产品图保持清晰完整，构图专业
 ${textRule}`;
 }
 
@@ -333,7 +347,9 @@ async function generate() {
 
   try {
     const prompt = buildPrompt();
-    const res = await geminiService.generateImage(prompt, [inputImage.value], { aspectRatio: aspectRatio.value });
+    const images = [inputImage.value];
+    if (referenceImage.value) images.push(referenceImage.value);
+    const res = await geminiService.generateImage(prompt, images, { aspectRatio: aspectRatio.value });
     if (res.startsWith('data:image')) {
       resultImage.value = res;
       message.success('海报生成成功！');
@@ -456,6 +472,63 @@ async function generate() {
 
     &:hover:not(.active) { background: #f3f4f6; }
   }
+}
+
+.optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.ref-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ref-thumb {
+  position: relative;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+  aspect-ratio: 9/16;
+  transition: all 0.2s;
+
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  &.selected { border-color: #2563eb; }
+  &:hover:not(.selected) { border-color: #93c5fd; }
+
+  .ref-check {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: #fff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+.ref-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #2563eb;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 6px 10px;
 }
 
 .download-btn {
