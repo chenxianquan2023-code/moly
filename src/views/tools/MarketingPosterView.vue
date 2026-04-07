@@ -80,6 +80,7 @@
                 class="chip-del"
                 @click.stop="removeCustomRef(i - currentType.examples.length)"
               >×</span>
+              <span class="chip-zoom" @click.stop="previewUrl = url">🔍</span>
             </button>
             <button class="ref-add" @click="refFileRef?.click()">
               <PlusOutlined />
@@ -87,6 +88,14 @@
           </div>
           <input ref="refFileRef" type="file" class="hidden-input" accept="image/*" @change="onRefFileChange" />
         </div>
+
+        <!-- 图片预览 lightbox -->
+        <Teleport to="body">
+          <div v-if="previewUrl" class="lightbox" @click="previewUrl = null">
+            <img :src="previewUrl" @click.stop />
+            <button class="lightbox-close" @click="previewUrl = null">×</button>
+          </div>
+        </Teleport>
       </aside>
 
       <!-- 右侧：参数 + 预览 -->
@@ -190,6 +199,7 @@ const aspectRatio = ref('9:16');
 const referenceImage = ref<string | null>(null);
 const customRefs = ref<string[]>([]);
 const refFileRef = ref<HTMLInputElement | null>(null);
+const previewUrl = ref<string | null>(null);
 
 const types = [
   {
@@ -561,7 +571,19 @@ async function generate() {
     transition: opacity 0.15s;
     cursor: pointer;
   }
+  .chip-zoom {
+    position: absolute;
+    bottom: 1px;
+    right: 1px;
+    font-size: 10px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.15s;
+    cursor: pointer;
+    filter: drop-shadow(0 0 1px rgba(0,0,0,0.6));
+  }
   &:hover .chip-del { opacity: 1; }
+  &:hover .chip-zoom { opacity: 1; }
 }
 
 .ref-add {
@@ -579,6 +601,44 @@ async function generate() {
   flex-shrink: 0;
   transition: all 0.15s;
   &:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+
+  img {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    cursor: default;
+  }
+
+  .lightbox-close {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    &:hover { background: rgba(255,255,255,0.25); }
+  }
 }
 
 .download-btn {
