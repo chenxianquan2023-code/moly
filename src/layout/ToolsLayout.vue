@@ -30,6 +30,27 @@
           <span>历史记录</span>
         </router-link>
       </nav>
+
+      <!-- 底部用户信息 -->
+      <div class="sidebar-bottom">
+        <router-link v-if="auth.isLoggedIn" to="/tools/profile" class="user-card" :class="{ active: isProfile }">
+          <div class="user-avatar">{{ avatarChar }}</div>
+          <div class="user-info">
+            <div class="user-email">{{ auth.displayName }}</div>
+            <div class="user-points">
+              <span class="points-dot" />
+              {{ auth.points }} 积分
+            </div>
+          </div>
+        </router-link>
+        <router-link v-else to="/login" class="user-card">
+          <div class="user-avatar">?</div>
+          <div class="user-info">
+            <div class="user-email">未登录</div>
+            <div class="user-points">点击登录</div>
+          </div>
+        </router-link>
+      </div>
     </aside>
     
     <!-- 右侧内容区 -->
@@ -46,21 +67,29 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { HomeOutlined, AppstoreOutlined, FolderOutlined, HistoryOutlined } from '@ant-design/icons-vue';
+import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
+const auth = useAuthStore();
 
 const path = computed(() => route.path);
 
 const isToolsHome = computed(() => {
   const p = path.value;
   if (p === '/tools' || p === '/tools/') return true;
-  if (p.startsWith('/tools/') && !['/tools/templates', '/tools/assets', '/tools/history'].some(x => p === x || p.startsWith(x + '/'))) return true;
+  if (p.startsWith('/tools/') && !['/tools/templates', '/tools/assets', '/tools/history', '/tools/profile', '/tools/recharge'].some(x => p === x || p.startsWith(x + '/'))) return true;
   return false;
 });
 
 const isTemplates = computed(() => path.value.startsWith('/tools/templates'));
 const isAssets = computed(() => path.value.startsWith('/tools/assets'));
 const isHistory = computed(() => path.value.startsWith('/tools/history'));
+const isProfile = computed(() => path.value.startsWith('/tools/profile') || path.value.startsWith('/tools/recharge'));
+
+const avatarChar = computed(() => {
+  const name = auth.email || auth.displayName || '';
+  return name[0]?.toUpperCase() || 'U';
+});
 </script>
 
 <style scoped lang="scss">
@@ -154,6 +183,69 @@ const isHistory = computed(() => path.value.startsWith('/tools/history'));
 
       .nav-icon {
         font-size: 18px;
+      }
+    }
+  }
+}
+
+// 底部用户区
+.sidebar-bottom {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+
+  .user-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover, &.active {
+      background: var(--color-bg);
+    }
+
+    .user-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      min-width: 0;
+      .user-email {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--color-text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 130px;
+      }
+      .user-points {
+        font-size: 12px;
+        color: var(--color-text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        .points-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #22c55e;
+          flex-shrink: 0;
+        }
       }
     }
   }

@@ -176,6 +176,18 @@ const router = createRouter({
                     meta: { requiresAuth: true }
                 },
                 {
+                    path: 'profile',
+                    name: 'tools-profile',
+                    component: () => import('../views/tools/ProfileView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: 'recharge',
+                    name: 'tools-recharge',
+                    component: () => import('../views/RechargeView.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: ':toolId',
                     name: 'tools-tool',
                     component: () => import('../views/tools/ToolComingSoonView.vue'),

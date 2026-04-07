@@ -16,7 +16,7 @@
         </div>
       </div>
       <p class="hint">正式环境可接入微信/支付宝等支付方式</p>
-      <router-link to="/workflow/try-on" class="back-link">返回工作流</router-link>
+      <router-link to="/tools/profile" class="back-link">返回个人中心</router-link>
     </div>
   </div>
 </template>
