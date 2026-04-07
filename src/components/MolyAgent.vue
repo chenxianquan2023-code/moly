@@ -63,12 +63,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import { geminiService } from '@/services/gemini.service';
-import { useAuthStore } from '@/stores/auth';
-
-const router = useRouter();
-const auth = useAuthStore();
 
 const isOpen = ref(false);
 const isThinking = ref(false);
@@ -86,34 +81,50 @@ const messages = ref<Message[]>([
   {
     role: 'assistant',
     type: 'text',
-    content: '你好！我是 Moly AI 助手 ✨\n\n我可以帮你：\n• **生成营销海报**（晒转介绍、晒团队、晒产品）\n• **虚拟试穿**，把服装穿在模特身上\n• **回答关于 Moly 工具的任何问题**\n\n告诉我你想做什么吧！',
+    content: '你好！我是 Moly 助手 👋\n\n告诉我你想做什么，我来告诉你用哪个功能、怎么操作。',
   }
 ]);
 
-const SYSTEM_PROMPT = `你是 Moly AI 助手，内嵌在 Moly AI 视觉创作平台中。
+const SYSTEM_PROMPT = `你是 Moly AI 助手，负责帮用户找到最适合的工具，语言简洁友好。
 
-Moly 平台的核心功能包括：
-1. 营销海报生成（/tools/marketing-poster）：晒转介绍、晒团队、晒产品三种海报，上传图片+填写文字即可生成
-2. AI 模特试穿（/tools/virtual-try-on）：上传模特图+服装图，生成试穿效果
-3. AI 场景图（/tools/scene-generation）：商品图+场景描述，生成电商场景图
-4. 抠图换背景（/tools/background-replace）：自动抠图并替换背景
-5. AI 换脸（/tools/face-swap）：模特换脸，保持服装不变
-6. 图片超清放大（/tools/upscale）：2x/4x 超分辨率
-7. 首饰促销视频（/tools/jewelry-promo-video）：首饰图生成短视频
-8. Amazon Listing 文案（/tools/listing）：根据商品信息生成标题、五点、描述
-9. A+ 设计（/tools/aplus-wizard）：生成 Amazon A+ 内容
-10. 个人中心（/tools/profile）：查看积分余额、充值
-11. 充值积分（/tools/recharge）：获取更多积分
+Moly 平台工具清单：
+1. **营销海报**（路径：/tools/marketing-poster）
+   - 晒转介绍：上传微信聊天截图 → 生成朋友圈转介绍海报
+   - 晒团队：上传团队聊天/照片 → 生成团队展示海报
+   - 晒产品：上传产品图 → 生成促销/软广海报
 
-每个工具消耗积分：普通生图 3-10 积分，新用户注册送 100 积分。
+2. **AI 模特试穿**（路径：/tools/virtual-try-on）
+   - 上传模特图 + 服装图 → 生成穿搭效果图
 
-你的任务：
-- 理解用户的需求，推荐最合适的工具
-- 如果用户想生成图片，直接帮他生成（调用图像生成能力）
-- 回答关于 Moly 功能的问题
-- 语言：中文，简洁友好
-- 如果用户上传了图片，帮他分析图片内容再生成
-- 回复格式：简洁，用粗体/换行，不要太长`;
+3. **AI 商品场景图**（路径：/tools/scene-generation）
+   - 上传商品图 + 描述场景 → 生成电商场景主图
+
+4. **抠图换背景**（路径：/tools/background-replace）
+   - 上传图片 → 自动抠图，替换为新背景
+
+5. **AI 换脸**（路径：/tools/face-swap）
+   - 上传模特图 + 人脸图 → 保持服装换模特脸
+
+6. **图片超清放大**（路径：/tools/upscale）
+   - 上传模糊图片 → 2x/4x 超分辨率放大
+
+7. **首饰促销视频**（路径：/tools/jewelry-promo-video）
+   - 上传首饰图 + 模特图 → 生成短视频
+
+8. **Amazon Listing 文案**（路径：/tools/listing）
+   - 输入商品信息 → 生成标题、五点描述、Search Terms
+
+9. **A+ 设计**（路径：/tools/aplus-wizard）
+   - 输入商品信息 → 生成 Amazon A+ 模块内容
+
+积分规则：注册送 100 积分，生图消耗 3-10 积分，积分不足可在个人中心充值。
+
+回复规范：
+- 直接告诉用户该用哪个工具，给出工具名称
+- 简短说明操作步骤（1-3步）
+- 如果需求不明确，反问一个关键问题来确认
+- 不要尝试自己生成图片，只做引导
+- 回复控制在100字以内，简洁有力`;
 
 function toggleOpen() {
   isOpen.value = !isOpen.value;
@@ -161,51 +172,19 @@ async function sendMessage() {
   scrollToBottom();
 
   try {
-    // 检测是否是生图请求
-    const isImageRequest = /生成|生图|海报|图片|poster|image|画一张|帮我做/.test(text);
+    const conversationHistory = messages.value
+      .filter(m => m.type === 'text')
+      .slice(-6)
+      .map(m => `${m.role === 'user' ? '用户' : 'Moly助手'}: ${m.content}`)
+      .join('\n');
 
-    if (isImageRequest && auth.points >= 10) {
-      // 调用图像生成
-      const imagePrompt = `${SYSTEM_PROMPT}\n\n用户请求：${text}\n\n请生成一张符合要求的营销图片，要求精美、适合朋友圈传播。`;
+    const fullPrompt = `${SYSTEM_PROMPT}\n\n对话记录：\n${conversationHistory}\n\n请回复用户。`;
+    const reply = await geminiService.generateText(fullPrompt);
 
-      // 先回复文字
-      messages.value.splice(loadingIndex, 1, {
-        role: 'assistant', type: 'text',
-        content: '好的，正在为你生成图片，稍等约 30 秒... ⏳'
-      });
-      messages.value.push({ role: 'assistant', type: 'loading', content: '' });
-      scrollToBottom();
-
-      auth.deductPoints(10, 'Moly Agent 生图');
-      const result = await geminiService.generateImage(imagePrompt, [], { aspectRatio: '9:16' });
-
-      // 移除 loading
-      const lastIdx = messages.value.findLastIndex(m => m.type === 'loading');
-      if (lastIdx > -1) messages.value.splice(lastIdx, 1);
-
-      if (result.startsWith('data:image')) {
-        messages.value.push({ role: 'assistant', type: 'image', content: result });
-        messages.value.push({ role: 'assistant', type: 'text', content: '生成完成！你可以长按图片保存 📥\n\n想要更精准的效果，可以去 **营销海报** 工具上传自己的图片来生成。' });
-      } else {
-        auth.refundPoints(10, '生图失败退款', Date.now().toString());
-        messages.value.push({ role: 'assistant', type: 'text', content: '抱歉，图片生成失败，积分已退还。请稍后重试，或直接使用左侧工具栏中的对应工具。' });
-      }
-    } else {
-      // 纯文字对话
-      const conversationHistory = messages.value
-        .filter(m => m.type === 'text' && m.role !== 'assistant' || (m.role === 'assistant' && m.type === 'text'))
-        .slice(-8)
-        .map(m => `${m.role === 'user' ? '用户' : 'Moly助手'}: ${m.content}`)
-        .join('\n');
-
-      const fullPrompt = `${SYSTEM_PROMPT}\n\n对话记录：\n${conversationHistory}\n\n请回复用户最新的问题。`;
-      const reply = await geminiService.generateText(fullPrompt);
-
-      messages.value.splice(loadingIndex, 1, {
-        role: 'assistant', type: 'text',
-        content: reply || '抱歉，我没能理解你的意思，能换个方式描述吗？'
-      });
-    }
+    messages.value.splice(loadingIndex, 1, {
+      role: 'assistant', type: 'text',
+      content: reply || '能换个方式描述你的需求吗？'
+    });
   } catch (err) {
     messages.value.splice(loadingIndex, 1, {
       role: 'assistant', type: 'text',
