@@ -67,11 +67,27 @@ export const useAuthStore = defineStore('auth', () => {
 
   const canAfford = computed(() => (cost: number) => points.value >= cost);
 
+  // ── 服务器积分同步 ──────────────────────────────────────────
+  async function fetchPointsFromServer(userEmail: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/auth/points?email=${encodeURIComponent(userEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && typeof data.points === 'number') {
+          points.value = data.points;
+          localStorage.setItem(POINTS_KEY, String(data.points));
+        }
+      }
+    } catch (e) {
+      console.warn('[AuthStore] fetchPoints failed, using local cache');
+    }
+  }
+
   // Actions
-  function login(by: { email?: string; phone?: string; userId?: string; displayName?: string }) {
+  function login(by: { email?: string; phone?: string; userId?: string; displayName?: string; points?: number }) {
     isLoading.value = true;
     lastError.value = null;
-    
+
     try {
       if (by.email) {
         email.value = by.email;
@@ -80,15 +96,15 @@ export const useAuthStore = defineStore('auth', () => {
         phone.value = by.phone;
         email.value = null;
       }
-      
+
       if (by.userId) userId.value = by.userId;
       if (by.displayName) userDisplayName.value = by.displayName;
-      
-      const stored = loadStoredAuth();
-      if (stored?.points !== undefined) {
-        points.value = stored.points;
+
+      // 优先使用服务器返回的积分
+      if (typeof by.points === 'number') {
+        points.value = by.points;
       }
-      
+
       save();
     } catch (error) {
       lastError.value = error instanceof Error ? error.message : '登录失败';
@@ -126,16 +142,16 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** 扣除积分 */
+  /** 扣除积分（乐观更新 + 服务端同步） */
   function deductPoints(amount: number, description: string, taskId?: string): boolean {
     if (points.value < amount) {
       lastError.value = '积分不足';
       return false;
     }
-    
+
+    // 乐观更新本地
     points.value -= amount;
-    
-    // 记录交易
+
     const transaction: PointTransaction = {
       id: generateId(),
       type: 'spend',
@@ -144,22 +160,36 @@ export const useAuthStore = defineStore('auth', () => {
       timestamp: new Date().toISOString(),
       relatedTaskId: taskId
     };
-    
+
     transactions.value.unshift(transaction);
-    
-    // 限制历史记录数量
-    if (transactions.value.length > 100) {
-      transactions.value = transactions.value.slice(0, 100);
-    }
-    
+    if (transactions.value.length > 100) transactions.value = transactions.value.slice(0, 100);
     save();
+
+    // 异步同步到服务器
+    const userEmail = email.value;
+    if (userEmail) {
+      fetch('/api/auth/points/deduct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, amount, reason: description }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && typeof data.points === 'number') {
+            points.value = data.points;
+            localStorage.setItem(POINTS_KEY, String(data.points));
+          }
+        })
+        .catch(() => { /* 网络失败时保留乐观更新 */ });
+    }
+
     return true;
   }
 
   /** 充值积分 */
   function addPoints(amount: number, description: string = '充值') {
     points.value += amount;
-    
+
     const transaction: PointTransaction = {
       id: generateId(),
       type: 'earn',
@@ -167,15 +197,32 @@ export const useAuthStore = defineStore('auth', () => {
       description,
       timestamp: new Date().toISOString()
     };
-    
+
     transactions.value.unshift(transaction);
     save();
+
+    const userEmail = email.value;
+    if (userEmail) {
+      fetch('/api/auth/points/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, amount, reason: description }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && typeof data.points === 'number') {
+            points.value = data.points;
+            localStorage.setItem(POINTS_KEY, String(data.points));
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   /** 退款 */
   function refundPoints(amount: number, description: string, taskId: string) {
     points.value += amount;
-    
+
     const transaction: PointTransaction = {
       id: generateId(),
       type: 'refund',
@@ -184,9 +231,26 @@ export const useAuthStore = defineStore('auth', () => {
       timestamp: new Date().toISOString(),
       relatedTaskId: taskId
     };
-    
+
     transactions.value.unshift(transaction);
     save();
+
+    const userEmail = email.value;
+    if (userEmail) {
+      fetch('/api/auth/points/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, amount, reason: description }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && typeof data.points === 'number') {
+            points.value = data.points;
+            localStorage.setItem(POINTS_KEY, String(data.points));
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   /** 清除错误 */
@@ -199,13 +263,17 @@ export const useAuthStore = defineStore('auth', () => {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  // 初始化
+  // 初始化：从 localStorage 恢复登录状态，并异步刷新服务器积分
   const stored = loadStoredAuth();
   if (stored) {
     email.value = stored.email || null;
     phone.value = stored.phone || null;
     userId.value = stored.userId || null;
     userDisplayName.value = stored.displayName || null;
+    // 已登录则从服务器刷新积分（异步，不阻塞渲染）
+    if (stored.email) {
+      fetchPointsFromServer(stored.email);
+    }
   }
 
   return {
@@ -231,6 +299,7 @@ export const useAuthStore = defineStore('auth', () => {
     addPoints,
     refundPoints,
     clearError,
-    save
+    save,
+    fetchPointsFromServer
   };
 });

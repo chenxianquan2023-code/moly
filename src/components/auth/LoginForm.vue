@@ -287,7 +287,7 @@ async function handleSubmit() {
     const res = await api.login({ account: email.value.trim(), password: password.value });
     if (res.success && res.user) {
       const e = res.user.email ?? email.value;
-      if (e) auth.login({ email: e });
+      if (e) auth.login({ email: e, points: res.user.points });
       emit('success');
     } else {
       submitError.value = res.message || '登录失败';

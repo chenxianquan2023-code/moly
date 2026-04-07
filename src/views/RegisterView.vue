@@ -196,7 +196,7 @@ async function handleSubmit() {
       if (registerType.value === 'email') {
         const loginRes = await api.login({ account: email.value.trim(), password: password.value });
         if (loginRes.success && loginRes.user) {
-          auth.login({ email: loginRes.user.email ?? email.value });
+          auth.login({ email: loginRes.user.email ?? email.value, points: loginRes.user.points });
           router.push((route.query.redirect as string) || '/');
           message.success('注册成功');
         } else {

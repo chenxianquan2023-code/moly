@@ -7,7 +7,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { appendFileSync, mkdirSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { createHash } from 'crypto';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
@@ -77,18 +78,46 @@ app.post('/api/upload', uploadMw.single('file'), (req, res) => {
 // 静态文件：上传后的图片
 app.use('/api/upload/files', express.static(UPLOAD_DIR));
 
-// 内存存储：验证码 (key -> { code, expiresAt })  key 为 email 或 phone:countryCode+number
+// 内存存储：验证码 (key -> { code, expiresAt })
 const codes = new Map();
-// 内存存储：用户 (account 小写 -> { password, email?, phone?, countryCode? })
-const users = new Map();
 // 忘记密码：token -> { email, expiresAt }
 const resetTokens = new Map();
-const RESET_TTL_MS = 30 * 60 * 1000; // 30 分钟
-
-const CODE_TTL_MS = 5 * 60 * 1000; // 5 分钟
+const RESET_TTL_MS = 30 * 60 * 1000;
+const CODE_TTL_MS = 5 * 60 * 1000;
 
 function randomCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// ── Supabase ──────────────────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ycivzfqijxngognpoeil.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljaXZ6ZnFpanhuZ29nbnBvZWlsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTUxOTI1OSwiZXhwIjoyMDkxMDk1MjU5fQ.CU9PArm7Pz4YU87KBwfrEOWW6fwqq4DHJLtgU_55Hhg';
+
+async function sbFetch(method, path, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+    method,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(10000),
+  });
+  if (res.status === 204) return null;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.message || `Supabase error ${res.status}`);
+  return data;
+}
+
+async function findUserByEmail(email) {
+  const rows = await sbFetch('GET', `/moly_users?email=eq.${encodeURIComponent(email)}&select=*`);
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+
+function hashPw(pw) {
+  return createHash('sha256').update(String(pw) + 'moly2024').digest('hex');
 }
 
 // 可选：配置 SMTP 后真正发邮件。未配置时仅控制台输出并在响应中返回 devCode 便于开发
@@ -152,54 +181,13 @@ async function sendSms(phone, countryCode, code) {
   }
 }
 
-// POST /api/auth/send-code   body: { email } 或 { phone, countryCode }（同时存在时优先用 phone）
+// POST /api/auth/send-code
 app.post('/api/auth/send-code', async (req, res) => {
-  const rawBody = req.body || {};
-  console.log('[Auth] send-code req.body:', JSON.stringify(rawBody), 'keys:', Object.keys(rawBody));
-  try {
-    appendFileSync(
-      '/Users/aix/omni-gen/.cursor/debug-efb394.log',
-      JSON.stringify({ sessionId: 'efb394', hypothesisId: 'H5', location: 'server:send-code:entry', data: { body: rawBody, keys: Object.keys(rawBody) }, timestamp: Date.now() }) + '\n'
-    );
-  } catch (_) {}
-  fetch('http://127.0.0.1:7540/ingest/d97822f3-40b2-4c53-b46c-84dbb07e685e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'efb394' },
-    body: JSON.stringify({
-      sessionId: 'efb394',
-      runId: 'pre-fix-3',
-      hypothesisId: 'H5',
-      location: 'server/index.js:send-code:entry',
-      message: 'send-code raw req.body',
-      data: { body: rawBody, keys: Object.keys(rawBody) },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  const { email, phone, countryCode } = rawBody;
+  const { email, phone, countryCode } = req.body || {};
   let key;
   if (phone && countryCode) {
     const p = String(phone).replace(/\D/g, '');
-    // #region agent log
-    fetch('http://127.0.0.1:7540/ingest/d97822f3-40b2-4c53-b46c-84dbb07e685e', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'efb394',
-      },
-      body: JSON.stringify({
-        sessionId: 'efb394',
-        runId: 'pre-fix-2',
-        hypothesisId: 'H4',
-        location: 'server/index.js:send-code',
-        message: 'send-code body for phone',
-        data: { rawPhone: phone, normalized: p, countryCode },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion agent log
-    if (p.length < 10) {
-      return res.status(400).json({ success: false, message: '请输入正确的手机号' });
-    }
+    if (p.length < 10) return res.status(400).json({ success: false, message: '请输入正确的手机号' });
     key = `phone:${String(countryCode).replace(/\D/g, '')}${p}`;
   } else if (email) {
     const trimmed = String(email).trim().toLowerCase();
@@ -216,105 +204,92 @@ app.post('/api/auth/send-code', async (req, res) => {
     const text = `您的 Moly 验证码是：${code}，5 分钟内有效。如非本人操作请忽略。`;
     await sendEmail(key, 'Moly 验证码', text);
   } else {
-    const p = String(rawBody.phone || '').replace(/\D/g, '');
-    const cc = String(rawBody.countryCode || '86').replace(/\D/g, '') || '86';
-    const smsResult = await sendSms(p, cc, code);
-    if (!smsResult.sent) {
-      console.log('[Auth] 手机验证码（未配置短信或发送失败）:', { key, code });
-    }
+    const p = String(phone || '').replace(/\D/g, '');
+    const cc = String(countryCode || '86').replace(/\D/g, '') || '86';
+    await sendSms(p, cc, code);
   }
   const devCode = key.includes('@') ? (!SMTP_USER ? code : undefined) : (!SMS_WEBHOOK_URL ? code : undefined);
   return res.json({ success: true, message: '验证码已发送', devCode });
 });
 
-// POST /api/auth/register   body: { email, password, code } 或 { phone, countryCode, password, code }
-app.post('/api/auth/register', (req, res) => {
-  const { email, phone, countryCode, password, code } = req.body || {};
-  let key;
-  let userPayload;
-  if (email) {
-    const trimmed = String(email).trim().toLowerCase();
-    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      return res.status(400).json({ success: false, message: '请输入正确的邮箱' });
-    }
-    key = trimmed;
-    userPayload = { password: String(password), email: trimmed };
-  } else if (phone && countryCode) {
-    const p = String(phone).replace(/\D/g, '');
-    if (p.length < 10) return res.status(400).json({ success: false, message: '请输入正确的手机号' });
-    key = `phone:${String(countryCode).replace(/\D/g, '')}${p}`;
-    const pw = String(password || '').trim();
-    userPayload = { password: pw.length >= 6 ? pw : randomCode() + Date.now(), phone: key, countryCode: String(countryCode) };
-  } else {
-    return res.status(400).json({ success: false, message: '请提供邮箱或手机号' });
+// POST /api/auth/register   body: { email, password, code }
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, code } = req.body || {};
+  const trimmed = String(email || '').trim().toLowerCase();
+  if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return res.status(400).json({ success: false, message: '请输入正确的邮箱' });
   }
-  if (!key.includes('phone') && (!password || String(password).length < 6)) {
+  if (!password || String(password).length < 6) {
     return res.status(400).json({ success: false, message: '密码至少 6 位' });
   }
-  const stored = codes.get(key);
+  const stored = codes.get(trimmed);
   if (!stored || stored.expiresAt < Date.now()) {
     return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
   }
   if (stored.code !== String(code).trim()) {
     return res.status(400).json({ success: false, message: '验证码错误' });
   }
-  codes.delete(key);
-  if (users.has(key)) {
-    return res.status(400).json({ success: false, message: '该账号已注册，请直接登录' });
+  codes.delete(trimmed);
+  try {
+    const existing = await findUserByEmail(trimmed);
+    if (existing) return res.status(400).json({ success: false, message: '该账号已注册，请直接登录' });
+    await sbFetch('POST', '/moly_users', { email: trimmed, password: hashPw(password), points: 100 });
+    return res.json({ success: true, message: '注册成功' });
+  } catch (err) {
+    console.error('[register]', err.message);
+    return res.status(500).json({ success: false, message: '注册失败，请稍后重试' });
   }
-  users.set(key, userPayload);
-  return res.json({ success: true, message: '注册成功' });
 });
 
 // POST /api/auth/login   body: { account, password }
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { account, password } = req.body || {};
-  const acc = String(account || '').trim();
+  const acc = String(account || '').trim().toLowerCase();
   const pw = String(password || '');
   if (!acc || !pw) {
     return res.status(400).json({ success: false, message: '请输入账号和密码' });
   }
-  const key = acc.includes('@') ? acc.toLowerCase() : (acc.startsWith('+') ? `phone:${acc.replace(/\D/g, '')}` : acc);
-  const user = users.get(key) || users.get(acc);
-  if (!user || user.password !== pw) {
-    return res.status(401).json({ success: false, message: '账号或密码错误' });
+  try {
+    const user = await findUserByEmail(acc);
+    if (!user || user.password !== hashPw(pw)) {
+      return res.status(401).json({ success: false, message: '账号或密码错误' });
+    }
+    return res.json({
+      success: true,
+      user: { email: user.email, points: user.points ?? 0 },
+    });
+  } catch (err) {
+    console.error('[login]', err.message);
+    return res.status(500).json({ success: false, message: '登录失败，请稍后重试' });
   }
-  return res.json({
-    success: true,
-    user: { email: user.email || null, phone: user.phone || (key.startsWith('phone:') ? key : null) },
-  });
 });
 
-// POST /api/auth/login-by-code   body: { account, code }  account 为邮箱或 +国家码+手机号
-app.post('/api/auth/login-by-code', (req, res) => {
+// POST /api/auth/login-by-code   body: { account, code }  account 为邮箱
+app.post('/api/auth/login-by-code', async (req, res) => {
   const { account, code } = req.body || {};
-  const acc = String(account || '').trim();
+  const acc = String(account || '').trim().toLowerCase();
   const c = String(code || '').trim();
   if (!acc || !c || !/^\d{6}$/.test(c)) {
     return res.status(400).json({ success: false, message: '请输入账号和验证码' });
   }
-  const key = acc.includes('@') ? acc.toLowerCase() : `phone:${acc.replace(/\D/g, '')}`;
-  const stored = codes.get(key);
+  const stored = codes.get(acc);
   if (!stored || stored.expiresAt < Date.now()) {
     return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
   }
   if (stored.code !== c) {
     return res.status(401).json({ success: false, message: '验证码错误' });
   }
-  codes.delete(key);
-  let user = users.get(key);
-  if (!user) {
-    if (key.startsWith('phone:')) {
-      users.set(key, { password: randomCode() + Date.now(), email: null, phone: key });
-      user = users.get(key);
-    } else {
+  codes.delete(acc);
+  try {
+    let user = await findUserByEmail(acc);
+    if (!user) {
       return res.status(404).json({ success: false, message: '该账号未注册，请先注册' });
     }
+    return res.json({ success: true, user: { email: user.email, points: user.points ?? 0 } });
+  } catch (err) {
+    console.error('[login-by-code]', err.message);
+    return res.status(500).json({ success: false, message: '登录失败，请稍后重试' });
   }
-  return res.json({
-    success: true,
-    user: { email: user.email || null, phone: user.phone || (key.startsWith('phone:') ? key : null) },
-  });
 });
 
 // POST /api/auth/forgot-password   body: { email }
@@ -324,20 +299,24 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     return res.status(400).json({ success: false, message: '请输入正确的邮箱' });
   }
-  if (!users.has(trimmed)) {
-    return res.status(404).json({ success: false, message: '该邮箱未注册' });
+  try {
+    const user = await findUserByEmail(trimmed);
+    if (!user) return res.status(404).json({ success: false, message: '该邮箱未注册' });
+    const token = randomCode() + Date.now().toString(36);
+    resetTokens.set(token, { email: trimmed, expiresAt: Date.now() + RESET_TTL_MS });
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
+    const link = `${baseUrl}/reset-password?token=${token}`;
+    const text = `您正在重置 Moly 密码，请点击链接完成重置（30分钟内有效）：\n${link}\n如非本人操作请忽略。`;
+    await sendEmail(trimmed, 'Moly 重置密码', text);
+    return res.json({ success: true, message: '重置链接已发送至您的邮箱' });
+  } catch (err) {
+    console.error('[forgot-password]', err.message);
+    return res.status(500).json({ success: false, message: '操作失败，请稍后重试' });
   }
-  const token = randomCode() + Date.now().toString(36);
-  resetTokens.set(token, { email: trimmed, expiresAt: Date.now() + RESET_TTL_MS });
-  const baseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
-  const link = `${baseUrl}/reset-password?token=${token}`;
-  const text = `您正在重置 Moly 密码，请点击链接完成重置（30分钟内有效）：\n${link}\n如非本人操作请忽略。`;
-  await sendEmail(trimmed, 'Moly 重置密码', text);
-  return res.json({ success: true, message: '重置链接已发送至您的邮箱' });
 });
 
 // POST /api/auth/reset-password   body: { token, newPassword }
-app.post('/api/auth/reset-password', (req, res) => {
+app.post('/api/auth/reset-password', async (req, res) => {
   const { token, newPassword } = req.body || {};
   if (!token || !newPassword || String(newPassword).length < 6) {
     return res.status(400).json({ success: false, message: '参数无效或密码至少6位' });
@@ -347,10 +326,69 @@ app.post('/api/auth/reset-password', (req, res) => {
     return res.status(400).json({ success: false, message: '链接已过期，请重新申请' });
   }
   resetTokens.delete(token);
-  const user = users.get(stored.email);
-  if (!user) return res.status(400).json({ success: false, message: '用户不存在' });
-  user.password = String(newPassword);
-  return res.json({ success: true, message: '密码已重置' });
+  try {
+    const user = await findUserByEmail(stored.email);
+    if (!user) return res.status(400).json({ success: false, message: '用户不存在' });
+    await sbFetch('PATCH', `/moly_users?email=eq.${encodeURIComponent(stored.email)}`, { password: hashPw(newPassword) });
+    return res.json({ success: true, message: '密码已重置' });
+  } catch (err) {
+    console.error('[reset-password]', err.message);
+    return res.status(500).json({ success: false, message: '重置失败，请稍后重试' });
+  }
+});
+
+// GET /api/auth/points?email=xxx
+app.get('/api/auth/points', async (req, res) => {
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ success: false, message: '缺少 email 参数' });
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(404).json({ success: false, message: '用户不存在' });
+    return res.json({ success: true, points: user.points ?? 0 });
+  } catch (err) {
+    console.error('[points/get]', err.message);
+    return res.status(500).json({ success: false, message: '查询积分失败' });
+  }
+});
+
+// POST /api/auth/points/deduct   body: { email, amount, reason }
+app.post('/api/auth/points/deduct', async (req, res) => {
+  const { email, amount, reason } = req.body || {};
+  const em = String(email || '').trim().toLowerCase();
+  const amt = Number(amount);
+  if (!em || !amt || amt <= 0) return res.status(400).json({ success: false, message: '参数无效' });
+  try {
+    const user = await findUserByEmail(em);
+    if (!user) return res.status(404).json({ success: false, message: '用户不存在' });
+    const current = user.points ?? 0;
+    if (current < amt) return res.status(400).json({ success: false, message: '积分不足' });
+    const newPoints = current - amt;
+    await sbFetch('PATCH', `/moly_users?email=eq.${encodeURIComponent(em)}`, { points: newPoints });
+    console.log(`[points/deduct] ${em} -${amt} (${reason || ''}), remaining: ${newPoints}`);
+    return res.json({ success: true, points: newPoints });
+  } catch (err) {
+    console.error('[points/deduct]', err.message);
+    return res.status(500).json({ success: false, message: '积分扣除失败' });
+  }
+});
+
+// POST /api/auth/points/add   body: { email, amount, reason }
+app.post('/api/auth/points/add', async (req, res) => {
+  const { email, amount, reason } = req.body || {};
+  const em = String(email || '').trim().toLowerCase();
+  const amt = Number(amount);
+  if (!em || !amt || amt <= 0) return res.status(400).json({ success: false, message: '参数无效' });
+  try {
+    const user = await findUserByEmail(em);
+    if (!user) return res.status(404).json({ success: false, message: '用户不存在' });
+    const newPoints = (user.points ?? 0) + amt;
+    await sbFetch('PATCH', `/moly_users?email=eq.${encodeURIComponent(em)}`, { points: newPoints });
+    console.log(`[points/add] ${em} +${amt} (${reason || ''}), total: ${newPoints}`);
+    return res.json({ success: true, points: newPoints });
+  } catch (err) {
+    console.error('[points/add]', err.message);
+    return res.status(500).json({ success: false, message: '积分添加失败' });
+  }
 });
 
 // ============================================================
