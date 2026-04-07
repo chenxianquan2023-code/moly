@@ -62,43 +62,30 @@
           <input ref="fileRef" type="file" class="hidden-input" accept="image/*" @change="onFileChange" />
         </div>
 
-        <!-- 风格参考选择 -->
-        <div class="upload-section">
-          <div class="section-label">选择风格参考 <span class="optional-tag">让 AI 模仿此风格</span></div>
-          <div class="ref-grid">
-            <!-- 内置示例 -->
+        <!-- 风格参考 -->
+        <div class="ref-row-wrap">
+          <div class="section-label">风格参考 <span class="optional-tag">可选</span></div>
+          <div class="ref-row">
             <button
-              v-for="(url, i) in currentType.examples"
+              v-for="(url, i) in [...currentType.examples, ...customRefs]"
               :key="i"
-              class="ref-thumb"
+              class="ref-chip"
               :class="{ selected: referenceImage === url }"
               @click="referenceImage = referenceImage === url ? null : url"
-              :title="`风格参考 ${i+1}`"
             >
-              <img :src="url" :alt="`风格${i+1}`" />
-              <div class="ref-check" v-if="referenceImage === url">✓</div>
+              <img :src="url" />
+              <span v-if="referenceImage === url" class="chip-check">✓</span>
+              <span
+                v-if="i >= currentType.examples.length"
+                class="chip-del"
+                @click.stop="removeCustomRef(i - currentType.examples.length)"
+              >×</span>
             </button>
-            <!-- 用户上传的自定义参考 -->
-            <button
-              v-for="(url, i) in customRefs"
-              :key="'custom-'+i"
-              class="ref-thumb"
-              :class="{ selected: referenceImage === url }"
-              @click="referenceImage = referenceImage === url ? null : url"
-              title="自定义风格参考"
-            >
-              <img :src="url" :alt="`自定义${i+1}`" />
-              <div class="ref-check" v-if="referenceImage === url">✓</div>
-              <button class="ref-del" @click.stop="removeCustomRef(i)" title="删除">×</button>
-            </button>
-            <!-- 上传按钮 -->
-            <button class="ref-upload-btn" @click="refFileRef?.click()" title="上传自己的风格参考图">
-              <PlusOutlined style="font-size:20px;color:#9ca3af" />
-              <span>上传参考</span>
+            <button class="ref-add" @click="refFileRef?.click()">
+              <PlusOutlined />
             </button>
           </div>
           <input ref="refFileRef" type="file" class="hidden-input" accept="image/*" @change="onRefFileChange" />
-          <div v-if="referenceImage" class="ref-hint">已选择风格参考，AI 将模仿该海报的排版和视觉风格</div>
         </div>
       </aside>
 
@@ -514,97 +501,84 @@ async function generate() {
 .optional-tag {
   font-size: 11px;
   font-weight: 400;
-  color: #2563eb;
-  background: #eff6ff;
-  padding: 2px 7px;
-  border-radius: 10px;
-  margin-left: 6px;
+  color: #9ca3af;
+  margin-left: 4px;
 }
 
-.ref-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+.ref-row-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+.ref-row {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
-.ref-thumb {
+.ref-chip {
   position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
   border: 2px solid #e5e7eb;
-  border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
   padding: 0;
   background: none;
-  aspect-ratio: 9/16;
-  transition: all 0.2s;
+  flex-shrink: 0;
+  transition: border-color 0.15s;
 
   img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
   &.selected { border-color: #2563eb; }
   &:hover:not(.selected) { border-color: #93c5fd; }
 
-  .ref-del {
+  .chip-check {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(0,0,0,0.5);
+    inset: 0;
+    background: rgba(37,99,235,0.45);
     color: #fff;
-    font-size: 12px;
-    border: none;
-    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chip-del {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 11px;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.2s;
-    padding: 0;
-    line-height: 1;
+    transition: opacity 0.15s;
+    cursor: pointer;
   }
-  &:hover .ref-del { opacity: 1; }
-
-  .ref-check {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: #2563eb;
-    color: #fff;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+  &:hover .chip-del { opacity: 1; }
 }
 
-.ref-upload-btn {
+.ref-add {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
   border: 2px dashed #d1d5db;
-  border-radius: 10px;
   background: #fafafa;
+  color: #9ca3af;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  aspect-ratio: 9/16;
-  font-size: 11px;
-  color: #9ca3af;
-  transition: all 0.2s;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: all 0.15s;
   &:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
-}
-
-.ref-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #2563eb;
-  background: #eff6ff;
-  border-radius: 8px;
-  padding: 6px 10px;
 }
 
 .download-btn {
