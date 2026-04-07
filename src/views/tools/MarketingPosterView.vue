@@ -60,6 +60,19 @@
             </div>
           </div>
           <input ref="fileRef" type="file" class="hidden-input" accept="image/*" @change="onFileChange" />
+          <!-- 示例图 -->
+          <div class="example-row">
+            <span class="example-label">示例：</span>
+            <button
+              v-for="(url, i) in currentType.examples"
+              :key="i"
+              class="example-thumb"
+              @click="inputImage = url"
+              title="点击使用此示例"
+            >
+              <img :src="url" :alt="`示例${i+1}`" />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -113,7 +126,6 @@
 
         <!-- 预览区 -->
         <div class="preview-area">
-          <div class="preview-label">生成结果</div>
           <div v-if="!resultImage && !isGenerating" class="preview-empty">
             上传图片后点击生成
           </div>
@@ -164,7 +176,9 @@ const productStyle = ref<'hard' | 'soft'>('hard');
 const aspectRatio = ref('9:16');
 
 const types = [
-  { key: 'referral' as const, emoji: '🔁', label: '晒转介绍', uploadLabel: '微信聊天截图', uploadHint: '点击上传微信转介绍聊天记录截图',
+  {
+    key: 'referral' as const, emoji: '🔁', label: '晒转介绍',
+    uploadLabel: '微信聊天截图', uploadHint: '点击上传微信转介绍聊天记录截图',
     guide: {
       title: '晒转介绍海报怎么做？',
       tips: [
@@ -175,9 +189,16 @@ const types = [
       ]
     },
     titlePlaceholder: '转介绍 +2',
-    subtitlePlaceholder: '口碑裂变，靠的就是转介绍！'
+    subtitlePlaceholder: '口碑裂变，靠的就是转介绍！',
+    examples: [
+      '/examples/poster/referral-1.jpg',
+      '/examples/poster/referral-2.jpg',
+      '/examples/poster/referral-3.jpg',
+    ]
   },
-  { key: 'team' as const, emoji: '👥', label: '晒团队', uploadLabel: '团队聊天或人物照片', uploadHint: '点击上传团队聊天截图或团队合照',
+  {
+    key: 'team' as const, emoji: '👥', label: '晒团队',
+    uploadLabel: '团队聊天或人物照片', uploadHint: '点击上传团队聊天截图或团队合照',
     guide: {
       title: '晒团队海报怎么做？',
       tips: [
@@ -188,9 +209,16 @@ const types = [
       ]
     },
     titlePlaceholder: '团队帮扶带',
-    subtitlePlaceholder: '一对一针对性赋能，专业团队互帮互助'
+    subtitlePlaceholder: '一对一针对性赋能，专业团队互帮互助',
+    examples: [
+      '/examples/poster/team-1.jpg',
+      '/examples/poster/team-2.jpg',
+      '/examples/poster/team-3.jpg',
+    ]
   },
-  { key: 'product' as const, emoji: '🛍️', label: '晒产品', uploadLabel: '产品图片', uploadHint: '点击上传产品图（白底图效果最佳）',
+  {
+    key: 'product' as const, emoji: '🛍️', label: '晒产品',
+    uploadLabel: '产品图片', uploadHint: '点击上传产品图（白底图效果最佳）',
     guide: {
       title: '晒产品海报怎么做？',
       tips: [
@@ -201,7 +229,12 @@ const types = [
       ]
     },
     titlePlaceholder: '本季热销 限时直降',
-    subtitlePlaceholder: '助梦智能空调 月销10000+'
+    subtitlePlaceholder: '助梦智能空调 月销10000+',
+    examples: [
+      '/examples/poster/product-1.jpg',
+      '/examples/poster/product-2.jpg',
+      '/examples/poster/product-3.jpg',
+    ]
   },
 ];
 
@@ -248,36 +281,42 @@ function buildPrompt(): string {
   const title = titleText.value.trim() || currentType.value.titlePlaceholder;
   const subtitle = subtitleText.value.trim();
 
+  // 文案严格性说明（所有类型通用）
+  const textRule = `
+⚠️ 文字规则（必须严格遵守）：
+- 主标题必须一字不差显示为：「${title}」，绝对不能修改、不能翻译、不能替换任何字
+- 副标题必须一字不差显示为：「${subtitle || '（无副标题）'}」
+- 禁止在海报上添加任何用户未填写的额外文字
+- 禁止对用户提供的文字进行任何形式的改写或联想替换`;
+
   if (activeType.value === 'referral') {
-    return `请根据提供的微信聊天截图，生成一张朋友圈营销海报，风格参考：
-【海报类型】晒转介绍海报
-【视觉风格】暗调艺术感背景（暗金/深棕/黑色渐变），聊天截图作为主体展示区域（放置在画面中下部，适当白框或手机边框装饰），文字大气醒目
-【主标题】${title}（放在画面下方，粗体大字，红色或金色高亮数字）
-【副标题】${subtitle || '口碑裂变，靠的就是转介绍！'}（放在主标题下方，较小字体）
-【整体要求】海报风格参考小红书爆款营销图，聊天截图要清晰可读，整体氛围温暖有力量感，适合朋友圈传播`;
+    return `请根据提供的微信聊天截图生成一张朋友圈营销海报。
+
+【视觉风格】暗调艺术感背景（暗金/深棕/黑色渐变），聊天截图放在画面中部（加白框或手机边框装饰），文字大气醒目
+【排版】主标题放画面下方大字，副标题在其下方小字
+【整体感觉】温暖有力量感，适合朋友圈传播，参考小红书营销海报风格
+${textRule}`;
   }
 
   if (activeType.value === 'team') {
-    return `请根据提供的图片，生成一张团队展示营销海报：
-【海报类型】晒团队/帮扶带海报
-【视觉风格】温暖大地色调（暖棕/深金/墨绿），聊天截图或团队照片作为主体，背景可用自然风光（田野/山脉/花卉虚化），文字排版大气，有行楷或手写感英文装饰字
-【主标题】${title}（大字，放在聊天区域旁边或上方）
-【副标题】${subtitle || '定期和成员一对一复盘，一群人才能走得更远'}
-【整体要求】画面充满团队凝聚力，适合吸引创业/副业人群加入，参考风格：暖棕色调励志海报`;
+    return `请根据提供的图片生成一张团队展示营销海报。
+
+【视觉风格】温暖大地色调（暖棕/深金/墨绿），聊天截图或团队照片作为主体，背景可用自然风光虚化，有行楷或手写感英文装饰字
+【整体感觉】充满团队凝聚力，励志氛围，适合吸引创业/副业人群
+${textRule}`;
   }
 
   // product
   const price = priceText.value.trim();
   const styleDesc = productStyle.value === 'hard'
-    ? '硬广风格：大字标题、撞色背景（蓝/绿/红）、价格标签突出、促销感强烈，参考京东/拼多多爆款主图风格'
-    : '软广风格：干净浅色背景、产品精致陈列、文字优雅、有生活质感，参考小红书种草图风格';
-  return `请根据提供的产品图，生成一张朋友圈营销海报：
-【海报类型】产品营销海报
+    ? '硬广风格：大字标题、撞色背景（蓝/绿/红）、价格标签突出、促销感强烈'
+    : '软广风格：干净浅色背景、产品精致陈列、文字优雅、生活质感';
+  return `请根据提供的产品图生成一张朋友圈营销海报。
+
 【视觉风格】${styleDesc}
-【主标题】${title}（放在画面上方或产品旁边，粗体大字）
-【副标题】${subtitle || ''}
-【价格信息】${price || '详询客服'}（用标签/色块突出显示）
-【整体要求】产品图保持清晰完整，构图专业，适合朋友圈/社群分享`;
+【价格信息】${price ? `用色块/标签突出显示：「${price}」` : '无价格信息'}
+【整体感觉】产品图保持清晰完整，构图专业，适合朋友圈/社群分享
+${textRule}`;
 }
 
 async function generate() {
