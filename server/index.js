@@ -138,9 +138,10 @@ async function sendEmail(to, subject, text) {
     port,
     secure: port === 465,        // 465=SSL, 587=STARTTLS
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    connectionTimeout: 10000,    // 10s 连接超时
-    socketTimeout: 15000,        // 15s 读写超时
+    connectionTimeout: 10000,
+    socketTimeout: 15000,
     greetingTimeout: 8000,
+    family: 4,                   // 强制 IPv4，避免 Railway 上 IPv6 不可达
   });
   try {
     await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text });
