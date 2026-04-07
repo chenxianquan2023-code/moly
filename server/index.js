@@ -132,19 +132,24 @@ async function sendEmail(to, subject, text) {
     console.log('[Auth] 未配置 SMTP，跳过发送。邮件内容:', { to, subject, text });
     return { sent: false };
   }
+  const port = Number(SMTP_PORT);
   const transporter = createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT),
-    secure: SMTP_PORT === '465',
+    host: SMTP_HOST || 'smtp.qq.com',
+    port,
+    secure: port === 465,        // 465=SSL, 587=STARTTLS
     auth: { user: SMTP_USER, pass: SMTP_PASS },
+    connectionTimeout: 10000,    // 10s 连接超时
+    socketTimeout: 15000,        // 15s 读写超时
+    greetingTimeout: 8000,
   });
-  await transporter.sendMail({
-    from: SMTP_FROM,
-    to,
-    subject,
-    text,
-  });
-  return { sent: true };
+  try {
+    await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text });
+    console.log('[Auth] 邮件发送成功:', to);
+    return { sent: true };
+  } catch (err) {
+    console.error('[Auth] 邮件发送失败:', err.message);
+    throw err;
+  }
 }
 
 // 可选：配置短信通道。未配置时仅控制台输出，接口返回 devCode 便于开发
@@ -200,13 +205,22 @@ app.post('/api/auth/send-code', async (req, res) => {
   }
   const code = randomCode();
   codes.set(key, { code, expiresAt: Date.now() + CODE_TTL_MS });
-  if (key.includes('@')) {
-    const text = `您的 Moly 验证码是：${code}，5 分钟内有效。如非本人操作请忽略。`;
-    await sendEmail(key, 'Moly 验证码', text);
-  } else {
-    const p = String(phone || '').replace(/\D/g, '');
-    const cc = String(countryCode || '86').replace(/\D/g, '') || '86';
-    await sendSms(p, cc, code);
+  let sendError = null;
+  try {
+    if (key.includes('@')) {
+      const text = `您的 Moly 验证码是：${code}，5 分钟内有效。如非本人操作请忽略。`;
+      await sendEmail(key, 'Moly 验证码', text);
+    } else {
+      const p = String(phone || '').replace(/\D/g, '');
+      const cc = String(countryCode || '86').replace(/\D/g, '') || '86';
+      await sendSms(p, cc, code);
+    }
+  } catch (err) {
+    sendError = err.message;
+    console.error('[send-code] 发送失败:', err.message);
+  }
+  if (sendError) {
+    return res.status(500).json({ success: false, message: `验证码发送失败：${sendError}` });
   }
   const devCode = key.includes('@') ? (!SMTP_USER ? code : undefined) : (!SMS_WEBHOOK_URL ? code : undefined);
   return res.json({ success: true, message: '验证码已发送', devCode });
