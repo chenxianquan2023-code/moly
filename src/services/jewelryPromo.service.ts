@@ -12,7 +12,7 @@ import type {
   VideoGenerationTask,
 } from '@/types/jewelryPromo.types'
 
-const JEWELRY_IMAGE_MODEL = import.meta.env.VITE_NANOBANANA_MODEL || 'gemini-3.1-flash-image-preview'
+const JEWELRY_IMAGE_MODEL = import.meta.env.VITE_NANOBANANA_MODEL || 'gemini-2.0-flash-preview-image-generation'
 
 const STYLE_LABELS: Record<JewelryStyleTemplate, string> = {
   magazine: '高级杂志',

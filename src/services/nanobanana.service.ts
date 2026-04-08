@@ -41,7 +41,7 @@ function dataUrlToBase64Image(data: string) {
 class NanobananaService {
   private readonly apiKey = AI_CONFIG.apiKey
   private readonly baseUrl = AI_CONFIG.baseUrl
-  private readonly defaultModel = import.meta.env.VITE_NANOBANANA_MODEL || 'gemini-3.1-flash-image-preview'
+  private readonly defaultModel = import.meta.env.VITE_NANOBANANA_MODEL || 'gemini-2.0-flash-preview-image-generation'
 
   async generateImages(options: NanobananaGenerateOptions): Promise<NanobananaImage[]> {
     const {
