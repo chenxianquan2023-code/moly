@@ -12,10 +12,10 @@ export const AI_CONFIG: AIConfig = {
     apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'sk-2XnZFCYGdomWE3EOieoZZYcwSVEQJgybXjmxIh8PjE5nTVJh',
 
     // 分析模型 (Flash - 用于图片分析，速度快)
-    analysisModel: import.meta.env.VITE_GEMINI_ANALYSIS_MODEL || 'gemini-2.0-flash',
+    analysisModel: import.meta.env.VITE_GEMINI_ANALYSIS_MODEL || 'gemini-3.1-flash-image-preview',
 
     // 图片生成模型 (Pro - 用于生成成果图，质量高)
-    imageModel: import.meta.env.VITE_GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-preview-image-generation',
+    imageModel: import.meta.env.VITE_GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
 
     // 代理地址：优先用环境变量，生产环境走同源 /api/gemini/ 代理避免 CORS
     baseUrl: import.meta.env.VITE_GEMINI_BASE_URL ||
