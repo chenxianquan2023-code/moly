@@ -23,18 +23,29 @@ interface TextPart {
 type Part = ImagePart | TextPart
 
 class GeminiService {
-    private client: GoogleGenAI
+    private _client: GoogleGenAI | null = null
     private config: AIConfig
 
     constructor(config: AIConfig = AI_CONFIG) {
         this.config = config
-        this.client = new GoogleGenAI({
-            apiKey: config.apiKey,
-            httpOptions: {
-                baseUrl: config.baseUrl,
-                timeout: 600000, // 10分钟超时，降低大图生成超时概率
-            },
-        })
+        // 不在构造时创建 SDK 客户端：MVP 前端不直连 Gemini（全走后端 /api）。
+        // 生产环境 VITE_GEMINI_API_KEY 为空时，构造 GoogleGenAI 会抛 "API key must be set"，
+        // 而本 service 是模块顶层单例(export const geminiService = new GeminiService())，
+        // 一旦被 import 就会在应用启动时抛错并白屏。改为按需懒加载，真正调用时才创建。
+    }
+
+    /** 懒加载 SDK 客户端：仅在实际调用 Gemini 时创建（空 key 也只在那时才报错，不影响应用启动） */
+    private get client(): GoogleGenAI {
+        if (!this._client) {
+            this._client = new GoogleGenAI({
+                apiKey: this.config.apiKey,
+                httpOptions: {
+                    baseUrl: this.config.baseUrl,
+                    timeout: 600000, // 10分钟超时，降低大图生成超时概率
+                },
+            })
+        }
+        return this._client
     }
 
     /**
@@ -42,13 +53,7 @@ class GeminiService {
      */
     updateConfig(config: Partial<AIConfig>) {
         this.config = { ...this.config, ...config }
-        this.client = new GoogleGenAI({
-            apiKey: this.config.apiKey,
-            httpOptions: {
-                baseUrl: this.config.baseUrl,
-                timeout: 600000, // 10分钟超时，配置更新后保持一致
-            },
-        })
+        this._client = null // 置空，下次调用时按新配置重建
     }
 
     /**
