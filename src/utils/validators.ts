@@ -12,24 +12,6 @@ export function validatePhone(value: string): { valid: boolean; message?: string
   if (!cleaned) return { valid: false, message: '请输入手机号' };
   // 始终只取最后 11 位做校验，兼容误输 86 或其他前缀的情况
   const digits = cleaned.slice(-11);
-  // #region agent log
-  fetch('http://127.0.0.1:7540/ingest/d97822f3-40b2-4c53-b46c-84dbb07e685e', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Debug-Session-Id': 'efb394',
-    },
-    body: JSON.stringify({
-      sessionId: 'efb394',
-      runId: 'pre-fix-1',
-      hypothesisId: 'H1',
-      location: 'src/utils/validators.ts:validatePhone',
-      message: 'validatePhone input and normalized digits',
-      data: { raw: value, cleaned, digits },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion agent log
   if (!PHONE_REG.test(digits)) return { valid: false, message: '请输入正确的 11 位手机号' };
   return { valid: true };
 }

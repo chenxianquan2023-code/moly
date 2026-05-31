@@ -9,7 +9,7 @@ import type { AIConfig } from '@/types/ai.types'
 // 默认配置
 export const AI_CONFIG: AIConfig = {
     // API Key (生产环境应从环境变量读取)
-    apiKey: import.meta.env.VITE_GEMINI_API_KEY || 'sk-2XnZFCYGdomWE3EOieoZZYcwSVEQJgybXjmxIh8PjE5nTVJh',
+    apiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
 
     // 分析模型 (Flash - 用于图片分析，速度快)
     analysisModel: import.meta.env.VITE_GEMINI_ANALYSIS_MODEL || 'gemini-3.1-flash-image-preview',

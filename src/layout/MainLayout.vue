@@ -59,10 +59,10 @@ const isScrolled = ref(false);
 
 const goToWorkbench = () => {
   if (!auth.isLoggedIn) {
-    router.push({ path: '/login', query: { redirect: '/tools' } });
+    router.push({ path: '/login', query: { redirect: '/studio' } });
     return;
   }
-  router.push('/tools');
+  router.push('/studio');
 };
 
 const handleLogout = () => {

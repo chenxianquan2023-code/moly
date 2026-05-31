@@ -17,10 +17,15 @@ import multer from 'multer';
 import { createTransport } from 'nodemailer';
 import { WebSocketServer } from 'ws';
 import https from 'https';
+import { replicaRouter } from './replica/routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, 'uploads');
 try { mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (_) {}
+
+// 全局兜底：后台生成任务里的瞬时网络异常不应让整个服务进程崩溃
+process.on('unhandledRejection', (reason) => console.error('[Moly] unhandledRejection:', reason?.message || reason));
+process.on('uncaughtException', (err) => console.error('[Moly] uncaughtException:', err?.message || err));
 
 const app = express();
 const PORT = process.env.PORT || process.env.AUTH_PORT || 3001;
@@ -92,8 +97,11 @@ function randomCode() {
 }
 
 // ── Supabase ──────────────────────────────────────────────────
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ycivzfqijxngognpoeil.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InljaXZ6ZnFpanhuZ29nbnBvZWlsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTUxOTI1OSwiZXhwIjoyMDkxMDk1MjU5fQ.CU9PArm7Pz4YU87KBwfrEOWW6fwqq4DHJLtgU_55Hhg';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error('[Moly] ⚠️  未配置 SUPABASE_URL / SUPABASE_KEY，认证与积分接口将不可用。请在 .env(本地) 或 Railway 环境变量中设置。');
+}
 
 async function sbFetch(method, path, body) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
@@ -332,18 +340,26 @@ app.post('/api/auth/login-by-code', async (req, res) => {
   if (!acc || !c || !/^\d{6}$/.test(c)) {
     return res.status(400).json({ success: false, message: '请输入账号和验证码' });
   }
-  const stored = codes.get(acc);
+  // 手机号(纯数字)验证码存储 key 带 phone: 前缀（与 send-code 对齐）；邮箱用原值
+  const isPhone = /^\d{6,}$/.test(acc);
+  const codeKey = isPhone ? `phone:${acc}` : acc;
+  const stored = codes.get(codeKey);
   if (!stored || stored.expiresAt < Date.now()) {
     return res.status(400).json({ success: false, message: '验证码已过期，请重新获取' });
   }
   if (stored.code !== c) {
     return res.status(401).json({ success: false, message: '验证码错误' });
   }
-  codes.delete(acc);
+  codes.delete(codeKey);
   try {
     let user = await findUserByEmail(acc);
     if (!user) {
-      return res.status(404).json({ success: false, message: '该账号未注册，请先注册' });
+      // 邮箱仍要求先注册；手机号首次登录自动注册（无密码，凭验证码登录）
+      if (!isPhone) {
+        return res.status(404).json({ success: false, message: '该账号未注册，请先注册' });
+      }
+      const rows = await sbFetch('POST', '/moly_users', { email: acc, password: hashPw(`phone-${acc}-${Date.now()}`), points: 100 });
+      user = Array.isArray(rows) ? rows[0] : rows;
     }
     return res.json({ success: true, user: { email: user.email, points: user.points ?? 0 } });
   } catch (err) {
@@ -808,6 +824,9 @@ app.use('/api/kling', (req, res) => {
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+// 爆款视频复刻 MVP API
+app.use('/api', replicaRouter);
 
 // 生产环境：托管前端打包后的静态文件
 const distPath = join(__dirname, '..', 'dist');

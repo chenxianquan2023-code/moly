@@ -1,6 +1,6 @@
 <template>
   <section class="social-proof">
-    <h2 class="section-title">已被 10,000+ 商家信赖</h2>
+    <h2 class="section-title" v-reveal>成片一键适配主流电商与社媒平台</h2>
     <div class="scroll-wrap">
       <div class="scroll-track">
         <img v-for="(logo, i) in logos" :key="i" :src="logo.src" :alt="logo.name" class="logo-img" />

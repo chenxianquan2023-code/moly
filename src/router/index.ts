@@ -208,6 +208,11 @@ const router = createRouter({
             meta: { requiresAuth: true }
         },
         {
+            path: '/studio',
+            name: 'studio',
+            component: () => import('../views/StudioView.vue')
+        },
+        {
             path: '/workbench',
             component: WorkbenchLayout,
             children: [

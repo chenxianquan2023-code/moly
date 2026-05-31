@@ -28,3 +28,10 @@ dist-ssr
 
 # 手机扫码上传临时文件
 server/uploads/
+
+# Kling 本地冒烟测试脚本（含明文密钥，勿提交）
+kling-*.mjs
+# 本地调试/冒烟测试脚本（可能含明文密钥）+ Claude Code 本地工具配置，勿提交
+scripts/test-*.mjs
+scripts/*.log
+.claude/

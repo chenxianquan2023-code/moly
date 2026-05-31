@@ -4,15 +4,16 @@
       <div class="footer-top">
         <div class="brand">
           <router-link to="/" class="logo-link">
-            <img src="@/assets/logo.png" alt="Moly" class="logo-img" />
+            <span class="logo-mark">M</span>
+            <span class="logo-word">Moly</span>
           </router-link>
-          <p class="brand-desc">AI 驱动的一站式电商设计解决方案</p>
+          <p class="brand-desc">AI 爆款视频复刻 · 让带货短视频量产化</p>
         </div>
         <div class="links">
           <div class="link-group">
             <h4 class="link-title">产品</h4>
-            <router-link to="/tools/omni-model">虚拟试穿</router-link>
-            <router-link to="/tools">工具中心</router-link>
+            <router-link to="/studio">爆款视频复刻</router-link>
+            <router-link to="/studio">立即体验</router-link>
           </div>
           <div class="link-group">
             <h4 class="link-title">资源</h4>
@@ -65,13 +66,29 @@
 
 .brand {
   .logo-link {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
     margin-bottom: 12px;
+    text-decoration: none;
   }
-  .logo-img {
-    height: 28px;
-    width: auto;
-    filter: brightness(0) invert(1);
+  .logo-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #3B82F6, #6366F1);
+    color: #fff;
+    font-weight: 800;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-word {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
   }
   .brand-desc {
     font-size: 14px;

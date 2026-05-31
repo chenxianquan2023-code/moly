@@ -163,25 +163,6 @@ async function sendPhoneCode() {
   codeError.value = '';
   submitError.value = '';
 
-  // #region agent log
-  fetch('http://127.0.0.1:7540/ingest/d97822f3-40b2-4c53-b46c-84dbb07e685e', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Debug-Session-Id': 'efb394',
-    },
-    body: JSON.stringify({
-      sessionId: 'efb394',
-      runId: 'pre-fix-1',
-      hypothesisId: 'H2',
-      location: 'src/components/auth/LoginForm.vue:sendPhoneCode',
-      message: 'sendPhoneCode called with current phone',
-      data: { phone: phone.value },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion agent log
-
   const r = validatePhone(phone.value);
   if (!r.valid) {
     phoneError.value = r.message ?? '请输入正确的手机号';
@@ -194,25 +175,6 @@ async function sendPhoneCode() {
   };
   try {
     const res = await api.sendCode(body);
-    // 调试代码已注释
-    // #region agent log
-    // fetch('http://127.0.0.1:7540/ingest/d97822f3-40b2-4c53-b46c-84dbb07e685e', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'X-Debug-Session-Id': 'efb394',
-    //   },
-    //   body: JSON.stringify({
-    //     sessionId: 'efb394',
-    //     runId: 'pre-fix-2',
-    //     hypothesisId: 'H3',
-    //     location: 'src/components/auth/LoginForm.vue:sendPhoneCode:afterApi',
-    //     message: 'sendPhoneCode api.sendCode result',
-    //     data: { success: res.success, message: res.message },
-    //     timestamp: Date.now(),
-    //   }),
-    // }).catch(() => {});
-    // #endregion agent log
     console.log('[Login] API 响应:', res);
     if (res.success) {
       if (res.devCode) devCode.value = res.devCode;
@@ -255,8 +217,11 @@ async function handleSubmit() {
       const accountStr = `${DOMESTIC_COUNTRY_CODE}${phone.value.replace(/\D/g, '')}`;
       const res = await api.loginByCode({ account: accountStr, code: code.value });
       if (res.success && res.user) {
+        // res.user.email 是 moly_users 主键（手机号登录时后端用手机号本身建号/查号），
+        // 必须存进 auth.email，否则充值/上传/生成等以 userEmail 为标识的接口会报"缺少用户标识"
         const p = res.user.phone ?? phone.value;
-        if (p) auth.login({ phone: p });
+        if (res.user.email) auth.login({ email: res.user.email, displayName: p || res.user.email, points: res.user.points });
+        else if (p) auth.login({ phone: p });
         emit('success');
       } else {
         submitError.value = res.message || '登录失败';

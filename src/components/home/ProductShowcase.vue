@@ -1,414 +1,188 @@
 <template>
-  <section class="product-showcase">
-    <h2 class="section-title">AI 爆款商品设计</h2>
-    <p class="section-subtitle">使用 Moly AI，轻松打造爆款产品图片，实测可帮助您的点击率提升 54.7%</p>
-
-    <div class="showcase-layout">
-      <!-- 左侧：6个产品仅展示3个（上一个/当前/下一个），当前居中放大 -->
-      <div class="product-selector">
-        <div class="thumb-carousel">
-          <button
-            v-for="slot in visibleSlots"
-            :key="slot.product.id"
-            type="button"
-            class="thumb-slot"
-            :class="{ active: slot.role === 'current' }"
-            @click="selectProduct(slot.product.id)"
-          >
-            <img :src="slot.product.thumbnail" :alt="slot.product.name" class="thumb-img" />
-          </button>
-        </div>
-        <div class="arrow-hint">→ → →</div>
+  <section class="how">
+    <div class="how-inner">
+      <div class="section-head" v-reveal>
+        <span class="eyebrow">三步搞定</span>
+        <h2 class="section-title">从商品到爆款成片，<span class="grad">最快 3 分钟</span></h2>
+        <p class="section-subtitle">不用懂剪辑、不用写脚本，全程自动。</p>
       </div>
 
-      <!-- 右侧：产品展示结果区 -->
-      <div class="product-display">
-        <div class="result-grid">
-          <div
-            v-for="(img, i) in (selectedProduct?.resultImages ?? [])"
-            :key="i"
-            class="result-item"
-          >
-            <transition name="img-fade" mode="out-in">
-              <img
-                :key="`${selectedId}-${i}`"
-                :src="img"
-                :alt="`${selectedProduct?.name ?? ''} 搭配 ${i + 1}`"
-                class="result-img"
-              />
-            </transition>
+      <div class="steps">
+        <div class="step-line" aria-hidden="true"></div>
+        <div
+          v-for="(s, i) in steps"
+          :key="s.title"
+          class="step"
+          v-reveal="i * 120"
+        >
+          <div class="step-num">{{ i + 1 }}</div>
+          <div class="step-card">
+            <div class="step-emoji">{{ s.emoji }}</div>
+            <h3 class="step-title">{{ s.title }}</h3>
+            <p class="step-desc">{{ s.desc }}</p>
           </div>
         </div>
       </div>
-    </div>
 
-    <router-link to="/tools" class="cta-btn">开始免费创建</router-link>
+      <div class="how-cta" v-reveal>
+        <button class="btn-primary btn-glow" @click="$router.push('/studio')">
+          免费开始复刻 <span class="arrow">→</span>
+        </button>
+        <span class="cta-hint">新用户赠送体验积分，无需信用卡</span>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-
-interface Product {
-  id: string;
-  name: string;
-  thumbnail: string;
-  resultImages: string[];
-}
-
-const products: Product[] = [
-  {
-    id: '1',
-    name: '白色运动鞋',
-    thumbnail: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1518495973542-4542c06a5843?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1519710164239-da123dc03ef4?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
-  {
-    id: '2',
-    name: '深色西装外套',
-    thumbnail: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1617137968427-85924c800a22?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
-  {
-    id: '3',
-    name: '灰色针织衫',
-    thumbnail: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1618331835717-801e976710b2?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
-  {
-    id: '4',
-    name: '米色风衣',
-    thumbnail: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
-  {
-    id: '5',
-    name: '黑色牛仔夹克',
-    thumbnail: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1617137968427-85924c800a22?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
-  {
-    id: '6',
-    name: '棕色帆布包',
-    thumbnail: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=200&auto=format&fit=crop',
-    resultImages: [
-      'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=400&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?q=80&w=400&auto=format&fit=crop',
-    ],
-  },
+const steps = [
+  { emoji: '🛍️', title: '上传商品', desc: '一张商品图，或贴一个参考爆款链接，即可开始。' },
+  { emoji: '🤖', title: 'AI 自动复刻', desc: '拆脚本 → 配音 → 分镜 → 渲染，一条龙生成带货成片。' },
+  { emoji: '🚀', title: '导出发布', desc: '多比例成片一键导出，直接发抖音 / TikTok / 视频号。' },
 ];
-
-const AUTO_SWITCH_INTERVAL = 4000; // 4秒自动切换
-
-const selectedId = ref(products[0]!.id);
-let autoSwitchTimer: ReturnType<typeof setInterval> | null = null;
-
-const selectedProduct = computed(() =>
-  products.find((p) => p.id === selectedId.value) ?? products[0]!
-);
-
-const selectedIndex = computed(() =>
-  products.findIndex((p) => p.id === selectedId.value)
-);
-
-const visibleSlots = computed(() => {
-  const i = Math.max(0, selectedIndex.value);
-  const n = products.length;
-  const prev = products[(i - 1 + n) % n]!;
-  const curr = products[i]!;
-  const next = products[(i + 1) % n]!;
-  return [
-    { product: prev, role: 'prev' as const },
-    { product: curr, role: 'current' as const },
-    { product: next, role: 'next' as const },
-  ];
-});
-
-function selectProduct(id: string) {
-  selectedId.value = id;
-  resetAutoSwitch();
-}
-
-function goToNext() {
-  const idx = (selectedIndex.value + 1 + products.length) % products.length;
-  selectedId.value = products[idx]!.id;
-}
-
-function resetAutoSwitch() {
-  if (autoSwitchTimer) {
-    clearInterval(autoSwitchTimer);
-  }
-  autoSwitchTimer = setInterval(goToNext, AUTO_SWITCH_INTERVAL);
-}
-
-onMounted(() => {
-  autoSwitchTimer = setInterval(goToNext, AUTO_SWITCH_INTERVAL);
-});
-
-onUnmounted(() => {
-  if (autoSwitchTimer) clearInterval(autoSwitchTimer);
-});
 </script>
 
 <style scoped lang="scss">
-.product-showcase {
-  padding: 80px 24px;
-  max-width: 1100px;
+.how {
+  padding: 88px 24px;
+  position: relative;
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgba(37, 99, 235, 0.06), transparent 70%);
+}
+.how-inner {
+  max-width: 1080px;
   margin: 0 auto;
-  background: transparent;
 }
-
-.section-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
-  margin: 0 0 12px 0;
+.section-head {
   text-align: center;
-  letter-spacing: -0.02em;
+  margin-bottom: 60px;
 }
-
-.section-subtitle {
-  font-size: 16px;
-  color: #6b7280;
-  text-align: center;
-  margin: 0 0 32px 0;
-  line-height: 1.5;
-}
-
-.showcase-layout {
-  display: flex;
-  gap: 32px;
-  align-items: flex-start;
-  margin-bottom: 32px;
-
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-}
-
-/* 左侧产品选择区：3 个可见，当前居中放大突出，上下两个缩在后方 */
-.product-selector {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  @media (max-width: 768px) {
-    flex-direction: row;
-    justify-content: center;
-  }
-}
-
-.thumb-carousel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  height: 320px;
-  padding: 12px 0;
-
-  @media (max-width: 768px) {
-    flex-direction: row;
-    height: auto;
-    width: 320px;
-  }
-}
-
-.thumb-slot {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  overflow: visible;
-  cursor: pointer;
-  transition: all 0.35s ease;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  gap: 0;
-
-  /* 默认（上下两格）较小、偏透明、在后方 */
-  width: 72px;
-  height: 72px;
-  opacity: 0.6;
-  z-index: 1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  &:nth-child(1) {
-    top: 24px;
-  }
-  &:nth-child(2) {
-    top: 50%;
-    transform: translate(-50%, -50%);
-  }
-  &:nth-child(3) {
-    top: auto;
-    bottom: 24px;
-  }
-
-  &:hover {
-    opacity: 0.85;
-  }
-
-  &.active {
-    width: 110px;
-    height: 110px;
-    opacity: 1;
-    z-index: 3;
-    border-color: #1f2937;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-  }
-
-  &.active:nth-child(2) {
-    transform: translate(-50%, -50%);
-    top: 50%;
-    bottom: auto;
-  }
-
-  @media (max-width: 768px) {
-    top: 50%;
-    left: auto;
-    transform: translateY(-50%);
-
-    &:nth-child(1) {
-      left: 24px;
-      bottom: auto;
-    }
-    &:nth-child(2) {
-      left: 50%;
-      transform: translate(-50%, -50%);
-      bottom: auto;
-    }
-    &:nth-child(3) {
-      left: auto;
-      right: 24px;
-      bottom: auto;
-    }
-
-    &.active:nth-child(2) {
-      transform: translate(-50%, -50%);
-    }
-  }
-}
-
-.thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  border-radius: 10px;
-}
-
-.arrow-hint {
-  margin-top: 12px;
+.eyebrow {
+  display: inline-block;
   font-size: 13px;
-  color: #9ca3af;
-  letter-spacing: 4px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-size: clamp(26px, 3.4vw, 38px);
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 12px 0;
+  letter-spacing: -0.02em;
+  .grad {
+    background: linear-gradient(110deg, #2563eb, #6366f1 55%, #06b6d4);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+.section-subtitle {
+  font-size: 17px;
+  color: #64748b;
+  margin: 0;
+}
+
+.steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 28px;
+  @media (min-width: 860px) { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+.step-line {
+  display: none;
+  @media (min-width: 860px) {
+    display: block;
+    position: absolute;
+    top: 26px;
+    left: 16%;
+    right: 16%;
+    height: 2px;
+    background: linear-gradient(90deg, #3b82f6, #6366f1, #06b6d4);
+    opacity: 0.35;
+  }
+}
+.step {
+  position: relative;
   text-align: center;
 }
-
-/* 右侧产品展示区 */
-.product-display {
-  flex: 1;
-  min-width: 0;
-}
-
-.result-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-}
-
-.result-item {
-  position: relative;
-  aspect-ratio: 3/4;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.2s;
-
-  &:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-}
-
-.result-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* 图片淡入淡出，格子尺寸固定不跳动 */
-.img-fade-enter-active,
-.img-fade-leave-active {
-  transition: opacity 0.3s ease;
-  position: absolute;
-  inset: 0;
-}
-.img-fade-enter-from,
-.img-fade-leave-to {
-  opacity: 0;
-}
-
-.cta-btn {
+.step-num {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 10px 24px -8px rgba(37, 99, 235, 0.6);
+  position: relative;
+  z-index: 1;
+}
+.step-card {
+  padding: 26px 22px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #eef2f7;
+  border-radius: 18px;
+  box-shadow: 0 10px 34px -18px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(8px);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 22px 44px -20px rgba(37, 99, 235, 0.4);
+  }
+}
+.step-emoji { font-size: 30px; margin-bottom: 12px; }
+.step-title { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 8px; }
+.step-desc { font-size: 14px; line-height: 1.65; color: #64748b; margin: 0; }
+
+.how-cta {
+  margin-top: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  width: 100%;
-  max-width: 240px;
-  margin: 0 auto;
-  padding: 14px 28px;
-  background: #2563EB;
+  height: 52px;
+  padding: 0 32px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
   color: #fff;
   font-size: 16px;
   font-weight: 600;
+  border: none;
   border-radius: 12px;
-  text-decoration: none;
-  transition: all 0.2s;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.38);
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  .arrow { transition: transform 0.25s ease; }
   &:hover {
-    background: #1D4ED8;
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+    box-shadow: 0 12px 30px rgba(37, 99, 235, 0.46);
+    .arrow { transform: translateX(4px); }
   }
 }
+.btn-glow::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0%, transparent 60%);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.btn-glow:hover::after { opacity: 1; transform: scale(1); }
+.cta-hint { font-size: 13px; color: #94a3b8; }
 </style>
