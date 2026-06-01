@@ -232,8 +232,10 @@ export async function runReplicaPipeline(task, ctx) {
           const refs = (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
           const isZh = lang === 'zh-CN';
           const styleCue = isZh ? '电商带货竖版图(9:16)' : '电商带货竖版海报图(9:16)';
+          // 融入 ai-creative-ad-engine 的「品质 / 反AI感 / 氛围」关键词：提升高级感、降低 AI 廉价图痕迹
+          const qualityCue = '商业广告摄影质感、专业布光、浅景深、细节丰富；真实材质纹理、自然光线散射、真实的阴影层次、轻微胶片颗粒感、不完美但真实（避免蜡像感/塑料感/六指畸形）；构图高级克制、不廉价';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
-          const prompt = `${styleCue}：${s.visual}。商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。光线明亮、背景干净、电商质感。${textRule}`;
+          const prompt = `${styleCue}：${s.visual}。商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。光线明亮、背景干净、电商质感。${qualityCue}。${textRule}`;
           const c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
           animBase = await uploadBuffer(makePath(task.user_email, 'scene', `s${i}.png`), c.buffer, c.mimeType);
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }

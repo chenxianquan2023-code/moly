@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import MainLayout from '../layout/MainLayout.vue'
 import WorkbenchLayout from '../layout/WorkbenchLayout.vue'
 import ToolsLayout from '../layout/ToolsLayout.vue'
+import AppSidebar from '../layout/AppSidebar.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -209,8 +210,11 @@ const router = createRouter({
         },
         {
             path: '/studio',
-            name: 'studio',
-            component: () => import('../views/StudioView.vue')
+            component: AppSidebar,
+            children: [
+                { path: '', name: 'studio', component: () => import('../views/StudioView.vue') },
+                { path: '/discover', name: 'discover', component: () => import('../views/DiscoverView.vue') }
+            ]
         },
         {
             path: '/workbench',

@@ -18,6 +18,7 @@ import { createTransport } from 'nodemailer';
 import { WebSocketServer } from 'ws';
 import https from 'https';
 import { replicaRouter } from './replica/routes.js';
+import { discoverRouter } from './replica/discover.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, 'uploads');
@@ -827,6 +828,8 @@ app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // 爆款视频复刻 MVP API
 app.use('/api', replicaRouter);
+// 找爆款（Apify 抓取 + 付费下载）API
+app.use('/api', discoverRouter);
 
 // 生产环境：托管前端打包后的静态文件
 const distPath = join(__dirname, '..', 'dist');

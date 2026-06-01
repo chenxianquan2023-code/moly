@@ -5,6 +5,8 @@
  */
 
 export const BASE_COST = 20; // 基础流程（解析+导演分镜+配音+字幕+合成）
+export const DOWNLOAD_COST = 5; // 找爆款·下载原视频每条扣费（很低，覆盖 Apify 下载成本）
+export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+文案带入工作台的导入费（很低）
 
 // 视频引擎：真人镜的自然度/速度不同
 export const VIDEO_MODELS = {

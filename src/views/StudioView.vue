@@ -2,20 +2,8 @@
   <div class="studio">
     <div class="studio-aurora" aria-hidden="true"></div>
 
-    <!-- 顶栏 -->
-    <header class="topbar">
-      <router-link to="/" class="brand">
-        <span class="brand-mark">M</span>
-        <span class="brand-name">Moly</span>
-        <span class="brand-tag">复刻工作台</span>
-      </router-link>
-      <div class="topbar-right">
-        <button v-if="auth.isLoggedIn" type="button" class="credits" @click="openRecharge()">
-          <span class="credits-dot" />{{ auth.points }} 积分<span class="credits-plus">＋充值</span>
-        </button>
-        <router-link v-else to="/login" class="login-link">登录</router-link>
-      </div>
-    </header>
+    <!-- 顶栏已移至全局侧边栏（AppSidebar），此处不再重复 -->
+
 
     <main class="canvas">
       <section class="hero">
@@ -46,6 +34,7 @@
                   <span class="upload-plus">＋</span>
                   <span class="upload-label">商品图<em>必填</em></span>
                 </template>
+                <button v-if="productAsset" type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('product')">×</button>
                 <span v-if="uploading==='product'" class="upload-spin" />
               </label>
 
@@ -56,14 +45,22 @@
                   <span class="upload-plus">＋</span>
                   <span class="upload-label">模特图<em>选填</em></span>
                 </template>
+                <button v-if="modelAsset" type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('model')">×</button>
                 <span v-if="uploading==='model'" class="upload-spin" />
               </label>
 
-              <label class="upload" :class="{ filled: sourceVideoAsset, busy: uploading==='source' }">
+              <label class="upload" :class="{ filled: sourceVideoAsset || refInspiration, busy: uploading==='source' }">
                 <input type="file" accept="video/*" hidden @change="e => onFile(e, 'source_video', 'source')" />
-                <template v-if="sourceVideoAsset">
+                <template v-if="refInspiration">
+                  <img v-if="refInspiration.cover" :src="refInspiration.cover" class="upload-img" />
+                  <span v-else class="upload-plus">＋</span>
+                  <span class="upload-vtag">爆款参考</span>
+                  <button type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('inspiration')">×</button>
+                </template>
+                <template v-else-if="sourceVideoAsset">
                   <video :src="`${sourceVideoAsset.file_url}#t=0.5`" preload="metadata" muted playsinline class="upload-video"></video>
-                  <span class="upload-vtag">🎬 参考视频</span>
+                  <span class="upload-vtag">参考视频</span>
+                  <button type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('source')">×</button>
                 </template>
                 <template v-else>
                   <span class="upload-plus">＋</span>
@@ -73,7 +70,7 @@
               </label>
             </div>
             <div class="samples">
-              <span class="samples-label">没有素材？点一个示例商品直接用 👇</span>
+              <span class="samples-label">没有素材？点一个示例商品直接用</span>
               <div class="samples-row">
                 <button v-for="s in SAMPLES" :key="s.id" type="button" class="sample" @click="useSample(s)">
                   <img :src="s.url" alt="" /><span>{{ s.name }}</span>
@@ -144,7 +141,7 @@
 
         <!-- 右：进度 / 结果 -->
         <div class="preview">
-          <div v-if="!task && !result" class="preview-empty">
+          <div v-if="!generating && !task && !result" class="preview-empty">
             <div class="phone">
               <span>9:16</span>
             </div>
@@ -165,16 +162,22 @@
           </div>
 
           <div v-else class="preview-progress">
-            <div class="progress-ring" :class="{ running: task.status !== 'failed' }" :style="{ '--p': (task.progress || 0) + '%' }">
-              <span>{{ task.progress || 0 }}%</span>
+            <div class="gen-head">
+              <b>AI 正在为你复刻成片</b>
+              <span class="gen-eta">预计 2–5 分钟 · 已用时 {{ elapsedText }}</span>
             </div>
+            <div class="progress-ring" :class="{ running: task?.status !== 'failed' }" :style="{ '--p': (task?.progress || 0) + '%' }">
+              <span>{{ task?.progress || 0 }}%</span>
+            </div>
+            <p v-if="task?.status !== 'failed'" class="gen-tip"><span class="gen-tip-ic">💡</span>{{ currentTip }}</p>
             <ul class="steps">
-              <li v-for="s in task.steps" :key="s.capability" :class="s.status">
+              <li v-for="s in (task?.steps || [])" :key="s.capability" :class="s.status">
                 <span class="dot" />{{ s.label }}
                 <em v-if="s.note">{{ s.note }}</em>
               </li>
             </ul>
-            <p v-if="task.status === 'failed'" class="fail">生成失败：{{ task.error_message }}</p>
+            <p v-if="task?.status !== 'failed'" class="gen-hint">⏳ 生成期间可以放心去忙别的，完成后这里会自动出现成片，请不要关闭页面。</p>
+            <p v-if="task?.status === 'failed'" class="fail">生成失败：{{ task.error_message }}</p>
           </div>
         </div>
       </div>
@@ -259,7 +262,16 @@ const recharging = ref('');
 const productAsset = ref<any>(null);
 const modelAsset = ref<any>(null);
 const sourceVideoAsset = ref<any>(null);
+const refInspiration = ref<any>(null); // 找爆款「用它复刻」带入的封面+文案参考（不下载原视频）
 const uploading = ref('');
+
+// 删除/清空某个素材槽
+function clearAsset(slot: string) {
+  if (slot === 'product') productAsset.value = null;
+  else if (slot === 'model') modelAsset.value = null;
+  else if (slot === 'source') sourceVideoAsset.value = null;
+  else if (slot === 'inspiration') refInspiration.value = null;
+}
 
 const productName = ref('');
 const sellingPoints = ref('');
@@ -314,6 +326,37 @@ const result = ref<any>(null);
 const generating = ref(false);
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
+// —— 生成进度的友好提示：耗时预期 + 计时 + 轮播文案（生成较久，给用户心理预期）——
+const elapsed = ref(0); // 已用秒数
+let elapsedTimer: ReturnType<typeof setInterval> | null = null;
+const GEN_TIPS = [
+  '正在拆解爆款的脚本结构与分镜节奏…',
+  '正在逐个镜头生成画面，这一步最耗时，请耐心等待…',
+  '正在为每个镜头做图生视频运镜…',
+  '正在合成 AI 配音与字幕…',
+  '正在把镜头拼接、渲染成 9:16 成片…',
+  '快好了，正在做最后的打包与上传…',
+];
+const tipIndex = ref(0);
+let tipTimer: ReturnType<typeof setInterval> | null = null;
+const currentTip = computed(() => GEN_TIPS[tipIndex.value % GEN_TIPS.length]);
+const elapsedText = computed(() => {
+  const m = Math.floor(elapsed.value / 60);
+  const s = elapsed.value % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+});
+function startProgressUx() {
+  stopProgressUx();
+  elapsed.value = 0;
+  tipIndex.value = 0;
+  elapsedTimer = setInterval(() => { elapsed.value += 1; }, 1000);
+  tipTimer = setInterval(() => { tipIndex.value += 1; }, 5000);
+}
+function stopProgressUx() {
+  if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+  if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
+}
+
 const estimatedCredits = computed(() => {
   if (!pricing.value) return 50;
   const v = pricing.value.video.find((x: any) => x.id === videoModel.value)?.price || 0;
@@ -362,6 +405,7 @@ async function generate() {
   generating.value = true;
   result.value = null;
   task.value = null;
+  startProgressUx();
   try {
     let sourceVideoId = null;
     if (sourceVideoAsset.value) {
@@ -385,7 +429,7 @@ async function generate() {
     });
     const j = await r.json();
     if (!j.success) {
-      if (j.code === 'INSUFFICIENT') { generating.value = false; openRecharge(`积分不足：本次需 ${j.need}，当前 ${j.points}`); return; }
+      if (j.code === 'INSUFFICIENT') { generating.value = false; stopProgressUx(); openRecharge(`积分不足：本次需 ${j.need}，当前 ${j.points}`); return; }
       throw new Error(j.message || '生成失败');
     }
     if (auth.email) auth.fetchPointsFromServer(auth.email); // 扣费后刷新余额
@@ -393,6 +437,7 @@ async function generate() {
   } catch (err: any) {
     alert(err.message);
     generating.value = false;
+    stopProgressUx();
   }
 }
 
@@ -406,10 +451,11 @@ function pollTask(taskId: string) {
         if (j.task.status === 'succeeded') {
           result.value = j.task.output_json;
           generating.value = false;
+          stopProgressUx();
           if (auth.email) auth.fetchPointsFromServer(auth.email);
           return;
         }
-        if (j.task.status === 'failed') { generating.value = false; return; }
+        if (j.task.status === 'failed') { generating.value = false; stopProgressUx(); return; }
       }
     } catch { /* 网络抖动，继续轮询 */ }
     pollTimer = setTimeout(tick, 3000);
@@ -417,7 +463,7 @@ function pollTask(taskId: string) {
   tick();
 }
 
-function reset() { task.value = null; result.value = null; }
+function reset() { task.value = null; result.value = null; stopProgressUx(); }
 
 // 直接下载成片：浏览器拉 blob 触发下载，停留在当前页（不再整页跳到视频直链）
 const downloading = ref(false);
@@ -445,6 +491,23 @@ async function downloadVideo() {
 }
 
 onMounted(async () => {
+  // 找爆款「用它复刻」带入的素材（DiscoverView 写入 sessionStorage）
+  try {
+    const raw = sessionStorage.getItem('moly_prefill');
+    if (raw) {
+      sessionStorage.removeItem('moly_prefill');
+      const p = JSON.parse(raw);
+      if (p.kind === 'productImage' && p.asset) productAsset.value = p.asset;
+      else if (p.kind === 'sourceVideo' && p.asset) sourceVideoAsset.value = p.asset; // 兼容旧逻辑
+      else if (p.kind === 'inspiration') {
+        refInspiration.value = { cover: p.cover || '', desc: p.desc || '' };
+        // 把爆款文案作为卖点种子带入（去掉话题标签/多余空白），用户可再改
+        if (!sellingPoints.value && p.desc) {
+          sellingPoints.value = String(p.desc).replace(/#[^\s#]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        }
+      }
+    }
+  } catch { /* 忽略 */ }
   try {
     const j = await (await fetch('/api/replica/pricing')).json();
     if (j.success) { pricing.value = j.pricing; packages.value = j.packages; }
@@ -516,7 +579,7 @@ async function useSample(s: { id: string; name: string; points: string; url: str
   finally { uploading.value = ''; }
 }
 
-onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); });
+onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); });
 </script>
 
 <style scoped lang="scss">
@@ -573,6 +636,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); });
   .upload-plus { font-size:22px; color: var(--color-text-tertiary); }
   .upload-label { font-size:12px; color: var(--color-text-secondary); text-align:center; em { display:block; font-style:normal; font-size:11px; color: var(--color-text-tertiary); margin-top:2px; } }
   .upload-spin { position:absolute; inset:0; background:rgba(255,255,255,.7); &::after { content:''; position:absolute; top:50%; left:50%; width:20px; height:20px; margin:-10px; border:2px solid var(--color-border); border-top-color: var(--color-primary); border-radius:50%; animation: spin .8s linear infinite; } }
+  .upload-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .upload-del { position:absolute; top:5px; right:5px; z-index:3; width:22px; height:22px; padding:0; border:none; border-radius:50%; background:rgba(15,23,42,.6); color:#fff; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s, background .15s; &:hover { background:rgba(220,38,38,.92); } }
+  &:hover .upload-del { opacity:1; }
 }
 
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
@@ -609,7 +675,16 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); });
   .btn-again { flex:1; padding:12px; background:#fff; border:1px solid var(--color-border); border-radius: var(--radius-md); font-weight:600; font-size:14px; color: var(--color-text-primary); cursor:pointer; }
   .result-notes { font-size:12px; color: var(--color-text-tertiary); margin:0; line-height:1.5; }
 }
-.preview-progress { flex:1; display:flex; flex-direction:column; align-items:center; padding-top:24px; gap:26px;
+.preview-progress { flex:1; display:flex; flex-direction:column; align-items:center; padding-top:24px; gap:18px;
+  .gen-head { text-align:center; display:flex; flex-direction:column; gap:6px;
+    b { font-size:17px; font-weight:800; color:#0f172a; }
+    .gen-eta { font-size:12px; color: var(--color-text-tertiary); }
+  }
+  .gen-tip { display:flex; align-items:flex-start; gap:8px; max-width:330px; margin:0; font-size:13px; line-height:1.5; color: var(--color-text-secondary);
+    background: rgba(37,99,235,.06); border:1px solid rgba(37,99,235,.12); padding:10px 14px; border-radius:12px;
+    .gen-tip-ic { flex-shrink:0; }
+  }
+  .gen-hint { max-width:330px; margin:0; font-size:12px; line-height:1.5; color: var(--color-text-tertiary); text-align:center; }
   .progress-ring { width:104px; height:104px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px; color:#0f172a;
     background: conic-gradient(#2563eb var(--p), #e8edf5 0); position:relative;
     &::before { content:''; position:absolute; inset:9px; background:#fff; border-radius:50%; }
