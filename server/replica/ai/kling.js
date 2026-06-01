@@ -41,12 +41,15 @@ async function toBase64(src) {
  * @param {string} prompt 运动/画面描述
  */
 export async function imageToVideo(image, prompt = '', {
-  model = 'kling-v1-6', duration = '5', mode = 'std', cfgScale = 0.5,
+  model = 'kling-v1-6', duration = '5', mode = 'std', cfgScale = 0.7,
+  negativePrompt = '漂浮, 悬浮, 起飞, 失重, 变形, 扭曲, 抖动, 畸变, 物体无故移动或飞行, 凭空出现多余物体, 小虫飞舞',
   maxPollingMs = 480000, pollIntervalMs = 5000,
 } = {}) {
   const img = await toBase64(image);
+  // cfg_scale 越高=自由度越低、越贴合输入图(更少乱动)；配合 negative_prompt 压制漂浮/起飞/变形
   const body = { model_name: model, image: img, duration, mode, cfg_scale: cfgScale };
   if (prompt) body.prompt = prompt;
+  if (negativePrompt) body.negative_prompt = negativePrompt;
 
   const createRes = await fetchRetry(`${BASE_URL}/v1/videos/image2video`, {
     method: 'POST',

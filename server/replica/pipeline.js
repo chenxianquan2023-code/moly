@@ -236,8 +236,12 @@ export async function runReplicaPipeline(task, ctx) {
           const styleCue = isZh ? '电商带货竖版图(9:16)' : '电商带货竖版海报图(9:16)';
           // 融入 ai-creative-ad-engine 的「品质 / 反AI感 / 氛围」关键词：提升高级感、降低 AI 廉价图痕迹
           const qualityCue = '商业广告摄影质感、专业布光、浅景深、细节丰富；真实材质纹理、自然光线散射、真实的阴影层次、轻微胶片颗粒感、不完美但真实（避免蜡像感/塑料感/六指畸形）；构图高级克制、不廉价';
+          // 物理可信：商品必须落地或被握持，杜绝"悬浮在纯色背景"——这是图生视频"凭空起飞/漂浮"的根因
+          const groundRule = (s.withModel && modelUrl)
+            ? '模特自然手持或使用该商品，商品与手部接触真实、比例协调'
+            : '商品稳稳放在真实台面上（木桌/大理石台/桌面），带真实接触投影，或被手自然握持；绝不悬浮于纯色背景或半空中；商品尺寸与场景比例真实';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
-          const prompt = `${styleCue}：${s.visual}。商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。光线明亮、背景干净、电商质感。${qualityCue}。${textRule}`;
+          const prompt = `${styleCue}：${s.visual}。商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。光线明亮、背景干净有层次、电商质感。${qualityCue}。${textRule}`;
           const c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
           animBase = await uploadBuffer(makePath(task.user_email, 'scene', `s${i}.png`), c.buffer, c.mimeType);
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
@@ -246,7 +250,8 @@ export async function runReplicaPipeline(task, ctx) {
 
       // 4.2 animate（运动按 motion；级联 Seedance→Kling）
       if (animBase) {
-        const motionPrompt = `${s.motion || s.visual}`.slice(0, 180);
+        // 只动镜头、不动主体：根除"商品自己起飞/漂浮/变形"的图生视频幻觉
+        const motionPrompt = `镜头运动：${String(s.motion || '缓慢推近').slice(0, 80)}。主体保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。`.slice(0, 200);
         for (const prov of videoProviders) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
