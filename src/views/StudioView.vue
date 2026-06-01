@@ -805,4 +805,12 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .workspace { grid-template-columns: 1fr; }
   .preview { position:relative; top:0; }
 }
+/* 手机端：减小内边距、防溢出 */
+@media (max-width: 640px) {
+  .canvas { padding: 24px 16px 48px; }
+  .card { padding: 18px 16px; }
+  .uploads { gap:10px; }
+  .upload { min-width:0; }
+  .hero { margin-bottom: 24px; h1 { font-size: clamp(22px, 6vw, 30px); } p { font-size: 14px; } }
+}
 </style>

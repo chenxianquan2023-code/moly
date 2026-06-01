@@ -285,5 +285,19 @@ async function blobDownload(url: string, name: string) {
 }
 .vacts { display:flex; gap:10px; margin-top:6px; .use, .dl { padding:11px; font-size:13px; } }
 
+/* 手机端：减小内边距、按钮文字不换行、弹层适配 */
+@media (max-width: 640px) {
+  .discover { padding: 22px 14px 48px; }
+  .dh { margin-bottom:18px; h1 { font-size:24px; } p { font-size:14px; } }
+  .search { padding:12px; gap:10px; }
+  .cats { grid-template-columns: repeat(2,1fr); }
+  .acts { gap:6px; }
+  .dl, .use { padding:9px 4px; font-size:11px; white-space:nowrap; }
+  .vbox { flex-direction:column; max-height:90vh; }
+  .vstage { width:100%; min-height:0; aspect-ratio:9/16; max-height:62vh; }
+  .vframe { min-height:0; height:100%; }
+  .vmeta { width:100%; }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

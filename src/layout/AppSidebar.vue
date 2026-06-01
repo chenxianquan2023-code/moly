@@ -54,6 +54,7 @@
           </button>
         </div>
         <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 支付网关待接入，当前为体验充值</p>
+        <button v-if="auth.isLoggedIn" type="button" class="modal-logout" @click="logout">退出登录</button>
       </div>
     </div>
   </div>
@@ -144,8 +145,41 @@ async function recharge(pkg: any) {
 
 .content { flex: 1; min-width: 0; }
 
-@media (max-width: 760px) {
-  .sidebar { width: 64px; padding: 16px 8px; .brand-name, .lb, .me-info, .me-logout { display:none; } }
+/* 手机端：左侧栏 → 底部 Tab 栏，释放全宽（iPad/桌面保持侧栏） */
+@media (max-width: 640px) {
+  .shell { flex-direction: column; overflow-x: hidden; }
+  .sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%; height: auto; flex-direction: row; align-items: stretch; gap: 2px;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+    border-right: none; border-top: 1px solid rgba(37,99,235,.12);
+    box-shadow: 0 -6px 20px -10px rgba(15,23,42,.18); z-index: 60;
+  }
+  .brand { display: none; }
+  .nav { flex-direction: row; flex: 1; gap: 2px; }
+  .nav-item {
+    flex: 1; flex-direction: column; justify-content: center; gap: 3px;
+    padding: 7px 2px; border-radius: 12px; width: auto; font-size: 11px;
+    .ic { width: 22px; height: 22px; }
+    .lb { font-size: 11px; gap: 0; em { display: none; } }
+    &.active { background: transparent; color: var(--color-primary); box-shadow: none; }
+  }
+  .me {
+    margin-top: 0; padding-top: 0; border-top: none;
+    border-left: 1px solid var(--color-border-light);
+    display: flex; align-items: center; padding-left: 6px; margin-left: 2px;
+  }
+  .me-row { flex-direction: column; gap: 2px; padding: 4px 6px; align-items: center; }
+  .me-name, .me-logout { display: none; }
+  .avatar { width: 26px; height: 26px; font-size: 12px; }
+  .me-credits { font-size: 10px; white-space: nowrap; }
+  .me-login { padding: 8px 12px; font-size: 12px; }
+  .content { padding-bottom: 70px; }
+}
+
+.modal-logout { display: none; }
+@media (max-width: 640px) {
+  .modal-logout { display: block; width: 100%; margin-top: 12px; padding: 10px; border: 1px solid var(--color-border); border-radius: 10px; background:#fff; font-size: 13px; color: var(--color-text-secondary); cursor: pointer; }
 }
 
 /* 充值弹窗（与工作台同款） */
