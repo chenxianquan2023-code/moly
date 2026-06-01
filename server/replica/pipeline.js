@@ -146,6 +146,8 @@ export async function runReplicaPipeline(task, ctx) {
         const realityRule = `【非常重要】每个分镜是由一张静态图生成的约3-5秒短片，只能做缓慢推近/轻移/轻微旋转等"轻运镜"，演不出"拧开盖子/倒水/翻转/手部操作"等复杂动作。所以：(a) visual 要拍"一个有说服力的状态/瞬间"(例：盖子已拧开摆在旁、露出内胆与厚密封圈；产品细节微距；模特手持商品微笑)，不要写动作过程；(b) 文案只描述画面看得到的状态/卖点，绝不承诺画面演不出的动作——例如别写"拧开超顺滑"(演不出拧)，改成"密封圈厚实、倒提都不漏"这种描述状态/结果的说法。`;
         const lenHint = lang === 'en-US' ? '英文≤12词' : lang === 'ja-JP' ? '日文≤18字' : lang === 'es-ES' ? '西语≤14词' : '中文≤16字';
         const copyRule = `文案语气严格匹配${hasSrc ? `源视频基调【${tone}】` : '【活泼种草】'}：${formal ? '专业可信、干净利落、有说服力' : '口语化、有网感、像真人博主安利'}。每句口播极简短(${lenHint}，约3-5秒念完)，且必须与该镜 visual 强相关(说画面里看得到的东西)，绝不答非所问、绝不生硬广告腔。`;
+        // 融入 ai-creative-ad-engine 的爆款文案规律（用所选语言的地道表达，不堆砌、不失真）
+        const punchRule = `【爆款文案张力】(a) hook(第1句)必须强钩子——用好奇/反差/痛点共鸣抓住前3秒，让人停止划走，绝不平铺直叙介绍商品；(b) 适度用「${langName}」里地道的情绪/网感词(如英文 obsessed/game-changer/trust me，中文 绝了/真香/谁懂啊)，激发"想分享"，但每句最多1个、不堆砌、不浮夸失真；(c) proof 句给一个可信的"为什么"(数字/对比/真实使用感)；(d) cta 句给明确行动指令+轻微紧迫感(别太硬)；(e) 始终遵守上面的"只说画面演得出的状态"铁律。`;
         const fmt = `输出 JSON 数组，每项：{"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句，与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文，主角是本商品)","motion":"轻运镜描述(如缓慢推近/轻移/轻微旋转)","withModel":true或false}。只输出 JSON。`;
         let prompt;
         if (hasSrc) {
@@ -154,13 +156,13 @@ export async function runReplicaPipeline(task, ctx) {
             `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与大致时长占比，分镜数贴合源视频(最多6镜)。\n` +
             `2. 主体换成【用户的商品】：源镜纯产品/特写→拍本商品对应特写或细节；源镜"手+产品"的操作演示→改拍该操作的"结果状态"(如盖子已打开露出内胆)，withModel=false；源镜完整真人→模特出镜手持/使用本商品，withModel=true。\n` +
             `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 醒目大字口播"。\n` +
-            `4. ${realityRule}\n5. ${copyRule}\n6. ${fmt}`;
+            `4. ${realityRule}\n5. ${copyRule}\n6. ${punchRule}\n7. ${fmt}`;
         } else {
           prompt = `你是电商带货短视频导演。${common}` +
             `\n按"卖货逻辑"设计一条 ${lang} 带货短视频的3-4个分镜(hook/demo/proof/cta)。规则：` +
             `\n1. 结合品类：水杯/数码/家居→展示产品本身(英雄特写、细节微距、内部结构、卖点状态)；服装鞋包→模特展示版型。各镜画面不同、层层递进。` +
             `\n2. ${realityRule}\n3. ${copyRule}` +
-            `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${fmt}`;
+            `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${punchRule}\n6. ${fmt}`;
         }
         const txt = await llm.generateText(prompt);
         scenes = llm.parseJson(txt);
