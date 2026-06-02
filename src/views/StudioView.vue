@@ -529,8 +529,13 @@ function selectVoice(v: any) {
   voice.value = v.id; // 仅选用，不自动播放
 }
 function auditionVoice(v: any) {
-  // 仅试听：停掉上一段、播放该音色 demo（不改变当前选择）
-  try { if (voiceAudio) voiceAudio.pause(); voiceAudio = new Audio(v.sample); voiceAudio.play(); } catch { /* 忽略 */ }
+  // 仅试听（不改变选择）：所选语言==样本语言→用静态样本(秒开)；否则按所选语言实时合成，避免“选西语却放日语”
+  const lang = language.value;
+  const sampleLang = (v.langs && v.langs[0]) || 'zh-CN';
+  const src = (lang === sampleLang && v.sample)
+    ? v.sample
+    : `/api/replica/voice-sample?id=${encodeURIComponent(v.id)}&lang=${encodeURIComponent(lang)}`;
+  try { if (voiceAudio) voiceAudio.pause(); voiceAudio = new Audio(src); voiceAudio.play(); } catch { /* 忽略 */ }
 }
 
 function openRecharge(msg = '') { rechargeMsg.value = msg; showRecharge.value = true; }

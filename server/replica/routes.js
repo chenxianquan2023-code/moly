@@ -10,7 +10,8 @@ import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
 import { runReplicaPipeline } from './pipeline.js';
 import { estimateCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
-import { listVoices, DEFAULT_VOICE } from './voices.js';
+import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
+import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { getPoints, addPoints, deductPoints } from '../lib/points.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // PRD: ≤200MB
@@ -156,6 +157,33 @@ replicaRouter.get('/replica/pricing', (req, res) => {
 // GET /api/replica/voices —— 配音音色列表 + 试听样本
 replicaRouter.get('/replica/voices', (req, res) => {
   res.json({ success: true, voices: listVoices(), defaultVoice: DEFAULT_VOICE });
+});
+
+// GET /api/replica/voice-sample?id=&lang= —— 按所选语言现合成试听样本
+// （多语种音色的静态样本只录了主语言，选其它语言试听会语言不符，这里按语言实时合成，进程内缓存）
+const SAMPLE_TEXTS = {
+  'zh-CN': '你好呀，这款好物我真心推荐，一起来看看吧！',
+  'en-US': 'Hey there! I really love this product — let me show you why.',
+  'ja-JP': 'こんにちは！この商品、本当におすすめなんです。',
+  'es-ES': '¡Hola! Me encanta este producto, te lo enseño ahora mismo.',
+};
+const _sampleCache = new Map(); // key: `${id}|${lang}` → Buffer
+replicaRouter.get('/replica/voice-sample', async (req, res) => {
+  try {
+    const id = String(req.query?.id || '').trim();
+    const lang = String(req.query?.lang || 'zh-CN').trim();
+    if (!id) return res.status(400).json({ success: false, message: '缺少音色 id' });
+    const key = `${id}|${lang}`;
+    let buf = _sampleCache.get(key);
+    if (!buf) {
+      const text = SAMPLE_TEXTS[lang] || SAMPLE_TEXTS['zh-CN'];
+      buf = await ttsSynthesize(text, resolveVoice(id));
+      if (buf && buf.length) _sampleCache.set(key, buf);
+    }
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 // POST /api/replica/estimate  body: { models } —— 预估价（不扣费）
