@@ -153,13 +153,15 @@ onMounted(load);
 /* 播放弹层 */
 .vmask { position:fixed; inset:0; background:rgba(15,23,42,.62); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; z-index:200; padding:20px; }
 .vbox { position:relative; width:100%; max-width:760px; background:#fff; border-radius: var(--radius-2xl); overflow:hidden; box-shadow: var(--shadow-xl); display:flex; flex-direction:column; max-height:92vh;
-  @media (min-width:720px){ flex-direction:row; } }
+  @media (min-width:720px){ flex-direction:row; width:auto; align-items:stretch; } }
 .vx { position:absolute; top:10px; right:12px; z-index:3; width:32px; height:32px; border:none; border-radius:50%; background:rgba(15,23,42,.55); color:#fff; font-size:20px; line-height:1; cursor:pointer; }
-.vframe { flex:1; background:#000; width:100%; min-height:0; max-height:62vh; object-fit:contain; @media (min-width:720px){ width:auto; max-height:none; height:100%; } }
+/* 竖版 9:16 视频：按高度自适应、宽度随比例，object-fit 兜底，绝不超出弹层被裁切 */
+.vframe { display:block; flex:none; margin:0 auto; background:#000; object-fit:contain; width:auto; max-width:100%; max-height:56vh;
+  @media (min-width:720px){ max-height:86vh; max-width:50vh; margin:0; } }
 .vmeta { padding:18px; display:flex; flex-direction:column; gap:10px; @media (min-width:720px){ width:280px; flex-shrink:0; justify-content:center; } }
 .vtitle { margin:0; font-size:16px; font-weight:700; color: var(--color-text-primary); }
 .vsub { margin:0; font-size:12px; color: var(--color-text-tertiary); }
-.dl.big { padding:12px; font-size:14px; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; }
+.dl.big { flex:none; padding:12px; font-size:14px; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; }
 
 @media (max-width: 640px) {
   .history { padding: 22px 14px 48px; }
