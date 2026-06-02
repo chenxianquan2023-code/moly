@@ -156,7 +156,7 @@ onMounted(load);
   @media (min-width:720px){ flex-direction:row; width:auto; align-items:stretch; } }
 .vx { position:absolute; top:10px; right:12px; z-index:3; width:32px; height:32px; border:none; border-radius:50%; background:rgba(15,23,42,.55); color:#fff; font-size:20px; line-height:1; cursor:pointer; }
 /* 竖版 9:16 视频：按高度自适应、宽度随比例，object-fit 兜底，绝不超出弹层被裁切 */
-.vframe { display:block; flex:none; margin:0 auto; background:#000; object-fit:contain; width:auto; max-width:100%; max-height:56vh;
+.vframe { display:block; flex:none; margin:0 auto; background:#000; object-fit:contain; width:auto; max-width:100%; max-height:68vh;
   @media (min-width:720px){ max-height:86vh; max-width:50vh; margin:0; } }
 .vmeta { padding:18px; display:flex; flex-direction:column; gap:10px; @media (min-width:720px){ width:280px; flex-shrink:0; justify-content:center; } }
 .vtitle { margin:0; font-size:16px; font-weight:700; color: var(--color-text-primary); }
