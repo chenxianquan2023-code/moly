@@ -506,6 +506,12 @@ onMounted(async () => {
           sellingPoints.value = String(p.desc).replace(/#[^\s#]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 120);
         }
       }
+      else if (p.kind === 'redo') {
+        // 历史「再做一条」：带入商品名/卖点/语言（图片需重新选）
+        if (p.product?.name) productName.value = p.product.name;
+        if (Array.isArray(p.product?.sellingPoints) && p.product.sellingPoints.length) sellingPoints.value = p.product.sellingPoints.join('，');
+        if (p.language) language.value = p.language;
+      }
     }
   } catch { /* 忽略 */ }
   try {

@@ -14,9 +14,9 @@
         <router-link to="/discover" class="nav-item" :class="{ active: isActive('/discover') }">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-3.8-3.8"/></svg></span><span class="lb">找爆款</span>
         </router-link>
-        <button type="button" class="nav-item disabled" disabled>
-          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></span><span class="lb">历史<em>即将上线</em></span>
-        </button>
+        <router-link to="/history" class="nav-item" :class="{ active: isActive('/history') }">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></span><span class="lb">历史</span>
+        </router-link>
       </nav>
 
       <!-- 我的：钉在左下角 -->

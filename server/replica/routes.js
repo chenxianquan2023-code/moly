@@ -5,7 +5,7 @@
  */
 import { Router } from 'express';
 import multer from 'multer';
-import { insertRow, getById, selectOne, updateById } from '../lib/supabase.js';
+import { insertRow, getById, selectOne, selectRows, updateById } from '../lib/supabase.js';
 import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
 import { runReplicaPipeline } from './pipeline.js';
@@ -183,6 +183,18 @@ replicaRouter.post('/replica/recharge', async (req, res) => {
     const total = pkg.credits + (pkg.bonus || 0);
     const points = await addPoints(email, total, `充值:${pkg.label}`);
     res.json({ success: true, points, added: total, package: pkg, note: '体验充值已到账（真实支付网关待接入）' });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// GET /api/generation-tasks?userEmail=...  —— 当前用户的复刻历史（倒序、精简字段）
+replicaRouter.get('/generation-tasks', async (req, res) => {
+  try {
+    const email = String(req.query?.userEmail || req.headers['x-user-email'] || '').trim().toLowerCase();
+    if (!email) return res.status(401).json({ success: false, message: '缺少用户标识 userEmail' });
+    const rows = await selectRows('generation_tasks',
+      `user_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=60` +
+      `&select=id,status,progress,output_json,input_json,options_json,error_message,created_at`);
+    res.json({ success: true, tasks: Array.isArray(rows) ? rows : [] });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
