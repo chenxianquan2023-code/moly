@@ -126,7 +126,7 @@
                 <span class="vt-dot" :class="currentVoice?.gender === '男' ? 'm' : 'f'"></span>
                 <span class="vt-name">{{ currentVoice?.label || '选择音色' }}</span>
                 <span v-if="currentVoice?.desc" class="vt-desc">{{ currentVoice.desc }}</span>
-                <span class="vt-play" title="试听当前音色" @click.stop="currentVoice && pickVoice(currentVoice)">▶</span>
+                <span class="vt-play" title="试听当前音色" @click.stop="currentVoice && auditionVoice(currentVoice)">▶</span>
                 <span class="vt-more">换音色 ▾</span>
               </button>
             </div>
@@ -192,10 +192,10 @@
           <button v-for="t in voiceFilters" :key="t.key" type="button" :class="{ active: voiceFilter === t.key }" @click="voiceFilter = t.key">{{ t.label }}</button>
         </div>
         <div class="vp-grid">
-          <button v-for="v in filteredVoices" :key="v.id" type="button" class="vp-card" :class="{ active: voice === v.id }" @click="pickVoice(v)" :title="v.desc">
+          <button v-for="v in filteredVoices" :key="v.id" type="button" class="vp-card" :class="{ active: voice === v.id }" @click="selectVoice(v)" :title="v.desc">
             <span class="vp-card-top">
               <span class="vp-gender" :class="v.gender === '男' ? 'm' : 'f'">{{ v.gender || '·' }}</span>
-              <span class="vp-play">▶</span>
+              <span class="vp-play" title="试听" @click.stop="auditionVoice(v)">▶</span>
             </span>
             <span class="vp-card-name">{{ v.label }}</span>
             <span class="vp-card-desc">{{ v.desc }}</span>
@@ -203,7 +203,7 @@
           <p v-if="!filteredVoices.length" class="vp-empty">没找到匹配的音色，换个关键词试试</p>
         </div>
         <div class="vp-foot">
-          <span>{{ langLabel }} · 共 {{ filteredVoices.length }} 个 · 点卡片即试听并选用</span>
+          <span>{{ langLabel }} · 共 {{ filteredVoices.length }} 个 · 点卡片选用，点 ▶ 试听</span>
           <button type="button" class="vp-done" @click="showVoicePicker = false">完成</button>
         </div>
       </div>
@@ -525,8 +525,11 @@ onMounted(async () => {
   if (auth.isLoggedIn && auth.email) auth.fetchPointsFromServer(auth.email);
 });
 
-function pickVoice(v: any) {
-  voice.value = v.id;
+function selectVoice(v: any) {
+  voice.value = v.id; // 仅选用，不自动播放
+}
+function auditionVoice(v: any) {
+  // 仅试听：停掉上一段、播放该音色 demo（不改变当前选择）
   try { if (voiceAudio) voiceAudio.pause(); voiceAudio = new Audio(v.sample); voiceAudio.play(); } catch { /* 忽略 */ }
 }
 
@@ -772,7 +775,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .vt-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; &.f{ background:#db2777; } &.m{ background:#2563eb; } }
   .vt-name { font-size:14px; font-weight:700; color:var(--color-text-primary); flex-shrink:0; }
   .vt-desc { font-size:12px; color:var(--color-text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .vt-play { margin-left:auto; width:24px; height:24px; flex-shrink:0; border-radius:50%; background:var(--color-primary-light); color:var(--color-primary); font-size:9px; display:flex; align-items:center; justify-content:center; }
+  .vt-play { margin-left:auto; width:24px; height:24px; flex-shrink:0; border-radius:50%; background:var(--color-primary-light); color:var(--color-primary); font-size:9px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all var(--transition-fast); &:hover { background:var(--color-primary); color:#fff; } }
   .vt-more { font-size:12px; font-weight:600; color:var(--color-primary); flex-shrink:0; }
 }
 
@@ -795,7 +798,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
     .vp-card-name{ color:var(--color-primary); } }
   .vp-card-top { display:flex; align-items:center; justify-content:space-between; }
   .vp-gender { min-width:18px; text-align:center; font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; &.f{ color:#db2777; background:rgba(219,39,119,.1); } &.m{ color:#2563eb; background:rgba(37,99,235,.1); } }
-  .vp-play { width:22px; height:22px; border-radius:50%; background:var(--color-primary-light); color:var(--color-primary); font-size:9px; display:flex; align-items:center; justify-content:center; }
+  .vp-play { width:22px; height:22px; border-radius:50%; background:var(--color-primary-light); color:var(--color-primary); font-size:9px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all var(--transition-fast); &:hover { background:var(--color-primary); color:#fff; transform:scale(1.1); } }
   .vp-card-name { font-size:14px; font-weight:700; color:var(--color-text-primary); }
   .vp-card-desc { font-size:11px; color:var(--color-text-tertiary); line-height:1.4; }
 }
