@@ -112,7 +112,22 @@ discoverRouter.post('/discover/to-asset', async (req, res) => {
     }
 
     if (isTiktok) {
-      // 不下载原视频：固化封面图（避免 TikTok CDN 直链过期）+ 带入文案，作为创意/分镜参考
+      const mode = String(req.body?.mode || 'light');
+      if (mode === 'deep' && item.sourceUrl) {
+        // 深度复刻：下载原视频 → 转 source_video 资产，走分镜分析（较慢、个别视频可能抓不到）
+        try {
+          const dlUrl = await apify.fetchTikTokVideoUrl(item.sourceUrl);
+          const fileUrl = await uploadFromUrl(makePath(email, 'discover', 'ref.mp4'), dlUrl);
+          const asset = await insertRow('assets', { user_email: email, asset_type: 'source_video', file_url: fileUrl });
+          return res.json({ success: true, kind: 'sourceVideo', asset, desc: item.desc || '', charged: IMPORT_COST });
+        } catch (e) {
+          // 抓取失败 → 回退轻量（封面+文案），并明确告知
+          let cover = item.cover || '';
+          try { if (cover) cover = await uploadFromUrl(makePath(email, 'discover', 'cover.jpg'), cover); } catch { /* 用原直链 */ }
+          return res.json({ success: true, kind: 'inspiration', cover, desc: item.desc || '', charged: IMPORT_COST, deepFailed: true, note: '原视频没抓到，已自动用轻量模式（封面+文案）继续' });
+        }
+      }
+      // 轻量（默认）：固化封面图（避免 TikTok CDN 直链过期）+ 带入文案
       let cover = item.cover || '';
       try { if (cover) cover = await uploadFromUrl(makePath(email, 'discover', 'cover.jpg'), cover); } catch { /* 固化失败就用原直链 */ }
       return res.json({ success: true, kind: 'inspiration', cover, desc: item.desc || '', charged: IMPORT_COST });

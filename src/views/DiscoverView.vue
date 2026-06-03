@@ -116,7 +116,7 @@
               <button class="dl" :disabled="busy.has(v.sourceUrl)" @click="download(v)">
                 {{ busy.has(v.sourceUrl) ? '…' : '下载 5积分' }}
               </button>
-              <button class="use" :disabled="busy.has(v.sourceUrl)" @click="useForReplica(v)">{{ busy.has(v.sourceUrl) ? '处理中…' : '用它复刻 →' }}</button>
+              <button class="use" :disabled="busy.has(v.sourceUrl)" @click="openReplicaChoice(v)">{{ busy.has(v.sourceUrl) ? '处理中…' : '用它复刻 →' }}</button>
             </div>
           </div>
         </div>
@@ -156,10 +156,30 @@
             <span>@{{ playing.author }}</span>
           </p>
           <div class="vacts">
-            <button class="use" :disabled="busy.has(playing.sourceUrl)" @click="useForReplica(playing)">{{ busy.has(playing.sourceUrl) ? '处理中…' : '用它复刻 →' }}</button>
+            <button class="use" :disabled="busy.has(playing.sourceUrl)" @click="openReplicaChoice(playing)">{{ busy.has(playing.sourceUrl) ? '处理中…' : '用它复刻 →' }}</button>
             <button class="dl" :disabled="busy.has(playing.sourceUrl)" @click="download(playing)">{{ busy.has(playing.sourceUrl) ? '…' : '下载 5积分' }}</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 用它复刻：深度 / 轻量 选择 -->
+    <div v-if="replicaChoice" class="vmask" @click.self="choosing ? null : (replicaChoice = null)">
+      <div class="choice">
+        <h3 class="choice-h">怎么复刻这条爆款？</h3>
+        <button type="button" class="opt" :class="{ on: choosing === 'deep' }" :disabled="!!choosing" @click="useForReplica(replicaChoice, 'deep')">
+          <b>深度复刻 <i>最像原片</i></b>
+          <span>下载原视频 + AI 拆解它的拍法/分镜/节奏，照着拍</span>
+          <em v-if="choosing === 'deep'" class="opt-load"><span class="spin" />正在下载并拆解原视频，约 30–60 秒…</em>
+          <em v-else>约 30–60 秒 · 个别视频可能抓不到（会自动回退轻量）</em>
+        </button>
+        <button type="button" class="opt" :class="{ on: choosing === 'light' }" :disabled="!!choosing" @click="useForReplica(replicaChoice, 'light')">
+          <b>轻量参考</b>
+          <span>只带封面 + 文案找灵感，画面我们自己出</span>
+          <em v-if="choosing === 'light'" class="opt-load"><span class="spin" />带入中…</em>
+          <em v-else>秒级 · 稳定</em>
+        </button>
+        <button type="button" class="choice-cancel" :disabled="!!choosing" @click="replicaChoice = null">取消</button>
       </div>
     </div>
   </div>
@@ -307,23 +327,35 @@ async function download(v: any) {
   finally { busy.delete(v.sourceUrl); }
 }
 
-async function useForReplica(item: any) {
-  if (!requireLogin() || busy.has(item.sourceUrl)) return;
+// 用它复刻：TikTok 先弹「深度/轻量」选择；Amazon 直接走轻量
+const replicaChoice = ref<any>(null);
+const choosing = ref<'deep' | 'light' | ''>('');
+function openReplicaChoice(item: any) {
+  if (!requireLogin()) return;
+  playing.value = null;
+  choosing.value = '';
+  replicaChoice.value = item;
+}
+
+async function useForReplica(item: any, mode: 'deep' | 'light' = 'light') {
+  if (!item || !requireLogin() || busy.has(item.sourceUrl)) return;
+  choosing.value = mode;
   busy.add(item.sourceUrl);
   try {
-    const r = await fetch('/api/discover/to-asset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, item }) });
+    const r = await fetch('/api/discover/to-asset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, item, mode }) });
     const j = await r.json();
     if (j.code === 'INSUFFICIENT') { ui.openRecharge(`积分不足：导入需 ${j.need}，当前 ${j.points}`); return; }
     if (!j.success) { alert(j.message || '处理失败'); return; }
     if (auth.email) auth.fetchPointsFromServer(auth.email);
+    if (j.deepFailed) alert(j.note || '原视频没抓到，已用轻量模式继续');
     const payload = j.kind === 'inspiration'
       ? { kind: 'inspiration', cover: j.cover, desc: j.desc }
       : { kind: j.kind, asset: j.asset };
     sessionStorage.setItem('moly_prefill', JSON.stringify(payload));
-    playing.value = null;
+    replicaChoice.value = null; playing.value = null;
     router.push('/studio');
   } catch { alert('网络错误，请重试'); }
-  finally { busy.delete(item.sourceUrl); }
+  finally { busy.delete(item.sourceUrl); choosing.value = ''; }
 }
 
 async function blobDownload(url: string, name: string) {
@@ -468,6 +500,21 @@ async function blobDownload(url: string, name: string) {
   .vframe { min-height:0; height:100%; }
   .vmeta { width:100%; }
 }
+
+/* 用它复刻：深度/轻量 选择弹层 */
+.choice { width:100%; max-width:420px; background:#fff; border-radius: var(--radius-2xl); box-shadow: var(--shadow-xl); padding:22px; display:flex; flex-direction:column; gap:12px; }
+.choice-h { margin:0 0 4px; font-size:18px; font-weight:800; color:#0f172a; text-align:center; }
+.opt { text-align:left; display:flex; flex-direction:column; gap:4px; padding:14px 16px; border:1.5px solid var(--color-border); border-radius: var(--radius-lg); background:#fff; cursor:pointer; transition:all var(--transition-fast);
+  b { font-size:15px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:8px; i { font-style:normal; font-size:11px; font-weight:700; color:#fff; background:linear-gradient(135deg,#2563eb,#4f46e5); padding:2px 8px; border-radius:999px; } }
+  span { font-size:13px; color: var(--color-text-secondary); line-height:1.5; }
+  em { font-style:normal; font-size:12px; color: var(--color-text-tertiary); }
+  &:hover:not(:disabled) { border-color: var(--color-primary); background: rgba(37,99,235,.04); transform: translateY(-1px); }
+  &.on { border-color: var(--color-primary); background: rgba(37,99,235,.06); }
+  &:disabled { opacity:.7; cursor:default; }
+}
+.opt-load { display:inline-flex; align-items:center; gap:7px; color: var(--color-primary) !important; font-weight:600;
+  .spin { width:13px; height:13px; border:2px solid rgba(37,99,235,.3); border-top-color: var(--color-primary); border-radius:50%; animation: spin .8s linear infinite; } }
+.choice-cancel { margin-top:2px; padding:10px; border:none; background:none; font-size:13px; color: var(--color-text-tertiary); cursor:pointer; &:hover:not(:disabled){ color: var(--color-text-secondary); } &:disabled{ opacity:.5; } }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

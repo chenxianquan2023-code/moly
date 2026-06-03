@@ -22,7 +22,7 @@ async function fetchRetry(url, opts, retries = 3) {
  */
 export async function imageToVideo(imageUrl, prompt = '', {
   model, resolution = '720p', duration = 5, ratio = '9:16',
-  maxPollingMs = 600000, pollIntervalMs = 8000,
+  maxPollingMs = 150000, pollIntervalMs = 6000,
 } = {}) {
   if (!KEY) throw new Error('缺少 SEEDANCE_API_KEY');
   if (typeof imageUrl !== 'string' || !/^https?:\/\//.test(imageUrl)) {

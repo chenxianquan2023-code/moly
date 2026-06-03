@@ -43,7 +43,7 @@ async function toBase64(src) {
 export async function imageToVideo(image, prompt = '', {
   model = 'kling-v1-6', duration = '5', mode = 'std', cfgScale = 0.7,
   negativePrompt = '漂浮, 悬浮, 起飞, 失重, 变形, 扭曲, 抖动, 畸变, 物体无故移动或飞行, 凭空出现多余物体, 小虫飞舞',
-  maxPollingMs = 480000, pollIntervalMs = 5000,
+  maxPollingMs = 220000, pollIntervalMs = 5000,
 } = {}) {
   const img = await toBase64(image);
   // cfg_scale 越高=自由度越低、越贴合输入图(更少乱动)；配合 negative_prompt 压制漂浮/起飞/变形

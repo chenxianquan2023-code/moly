@@ -35,10 +35,17 @@ export async function generateText(prompt, opts = {}) {
   return chat([{ role: 'user', content: prompt }], opts);
 }
 
-/** 容错解析 LLM 返回的 JSON（去除 ```json 包裹） */
+/** 容错解析 LLM 返回的 JSON（去 ```json 围栏，兼容未闭合/截断/前后多余文字） */
 export function parseJson(text) {
-  const m = String(text).match(/```(?:json)?\s*([\s\S]*?)```/);
-  return JSON.parse((m ? m[1] : text).trim());
+  let s = String(text || '').trim();
+  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) s = fenced[1].trim();
+  else s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim(); // 只有开头围栏（被截断）
+  try { return JSON.parse(s); } catch { /* 继续兜底 */ }
+  // 兜底：抓第一个完整的 JSON 数组/对象
+  const m = s.match(/[\[{][\s\S]*[\]}]/);
+  if (m) { try { return JSON.parse(m[0]); } catch { /* fallthrough */ } }
+  throw new Error('LLM JSON 解析失败: ' + s.slice(0, 80));
 }
 
 export const isConfigured = () => !!KEY;

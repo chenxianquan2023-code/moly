@@ -315,7 +315,7 @@ export async function runReplicaPipeline(task, ctx) {
             `\n2. ${realityRule}\n3. ${copyRule}` +
             `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${punchRule}\n6. ${fmt}`;
         }
-        const txt = await llm.generateText(prompt);
+        const txt = await llm.generateText(prompt, { maxTokens: 3000 });
         scenes = llm.parseJson(txt);
       }
     } catch (e) { notes.push('导演降级: ' + String(e.message || e).split('\n')[0]); }
@@ -438,7 +438,18 @@ export async function runReplicaPipeline(task, ctx) {
             : '商品稳稳放在真实台面上（木桌/大理石台/桌面），带真实接触投影，或被手自然握持；绝不悬浮于纯色背景或半空中；商品尺寸与场景比例真实';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
           const prompt = `${styleCue}：${s.visual}。${referenceRule}商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。${styleRule}${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
-          const c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
+          let c;
+          try {
+            c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
+          } catch (e1) {
+            const m1 = String(e1.message || e1);
+            // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次
+            if (/safety|rejected|敏感|sensitive|policy|blocked/i.test(m1)) {
+              const safePrompt = `电商带货竖版产品静物图(9:16)：${s.visual}。仅展示商品本身，构图干净、背景明亮整洁、得体专业，不含任何人物裸露或敏感内容。商品与参考图一致、清晰、光线明亮、电商质感。${qualityCue}。`;
+              c = await image.generate(safePrompt, [productUrl].filter(Boolean), { aspectRatio: '9:16', provider: opts.models?.image });
+              notes.push(`场景${i + 1}安全重试成功`);
+            } else { throw e1; }
+          }
           animBase = await uploadBuffer(makePath(task.user_email, 'scene', `s${i}.png`), c.buffer, c.mimeType);
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
       }
