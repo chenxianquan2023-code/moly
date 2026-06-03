@@ -72,8 +72,12 @@ export const addAudio = (video, audio, output) =>
 export const thumbnail = (input, output, atSec = 0) =>
   ffmpeg(['-y', '-ss', String(atSec), '-i', input, '-frames:v', '1', '-q:v', '2', output]);
 
-/** 按 fps 抽帧给 AI 分析；pattern 形如 /tmp/x/frame_%03d.jpg */
-export const extractFrames = (input, pattern, fps = 0.5) =>
-  ffmpeg(['-y', '-i', input, '-vf', `fps=${fps}`, pattern]);
+/** 按 fps 抽帧给 AI 分析；pattern 形如 /tmp/x/frame_%03d.jpg；可限制只看前 N 秒 */
+export const extractFrames = (input, pattern, fps = 0.5, durationSec = 0) => {
+  const args = ['-y', '-i', input];
+  if (durationSec > 0) args.push('-t', String(durationSec));
+  args.push('-vf', `fps=${fps}`, pattern);
+  return ffmpeg(args);
+};
 
 export { FFMPEG, FFPROBE };

@@ -10,6 +10,10 @@
         <span class="hero-badge"><span class="badge-dot" /> 爆款视频复刻引擎</span>
         <h1>爆款视频，<span class="grad">一键复刻</span>成你的带货视频</h1>
         <p>上传商品素材，AI 自动写文案、配音、生成画面，产出 9:16 带货短视频。</p>
+        <div class="hero-limits">
+          <span>参考视频：建议 5–60 秒，只拆解前 60 秒</span>
+          <span>输出成片：通常 8–30 秒，最长约 45 秒</span>
+        </div>
       </section>
 
       <section v-if="!auth.isLoggedIn" class="login-panel">
@@ -64,11 +68,12 @@
                 </template>
                 <template v-else>
                   <span class="upload-plus">＋</span>
-                  <span class="upload-label">爆款参考视频<em>选填</em></span>
+                  <span class="upload-label">爆款参考视频<em>选填 · ≤60秒</em></span>
                 </template>
                 <span v-if="uploading==='source'" class="upload-spin" />
               </label>
             </div>
+            <p class="upload-note">爆款参考视频用于拆解拍法、分镜和节奏；本地上传最多 60 秒。从「找爆款」带入的视频也只参考前 60 秒。</p>
             <div class="samples">
               <span class="samples-label">没有素材？点一个示例商品直接用</span>
               <div class="samples-row">
@@ -138,6 +143,7 @@
             <span v-if="generating" class="gen-spin" />
             {{ generating ? '生成中…' : `一键生成 · 约 ${estimatedCredits} 积分` }}
           </button>
+          <p class="duration-note">成片按 9:16 输出，通常 8–30 秒；参考视频较长时会控制在 45 秒以内。</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
         </div>
 
@@ -238,6 +244,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
+const MAX_SOURCE_VIDEO_SECONDS = 60;
 
 // 默认定价兜底：拉不到 /pricing 时也能渲染选项（服务端生成时仍权威校验价格）
 const DEFAULT_PRICING = {
@@ -391,18 +398,49 @@ async function uploadAsset(file: File, assetType: string) {
   return j.asset;
 }
 
-function onFile(e: Event, assetType: string, slot: string) {
-  const file = (e.target as HTMLInputElement).files?.[0];
+function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const cleanup = () => URL.revokeObjectURL(url);
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration) || 0;
+      cleanup();
+      resolve(duration);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('无法读取视频时长，请换一个视频文件'));
+    };
+    video.src = url;
+  });
+}
+
+async function onFile(e: Event, assetType: string, slot: string) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
   if (!file) return;
-  uploading.value = slot;
-  uploadAsset(file, assetType)
-    .then(asset => {
+  try {
+    if (assetType === 'source_video') {
+      const duration = await readVideoDuration(file);
+      if (duration > MAX_SOURCE_VIDEO_SECONDS + 0.5) {
+        alert(`爆款参考视频最多支持 ${MAX_SOURCE_VIDEO_SECONDS} 秒。当前视频约 ${Math.round(duration)} 秒，请先裁剪后再上传。`);
+        input.value = '';
+        return;
+      }
+    }
+    uploading.value = slot;
+    const asset = await uploadAsset(file, assetType);
       if (slot === 'product') productAsset.value = asset;
       else if (slot === 'model') modelAsset.value = asset;
       else sourceVideoAsset.value = asset;
-    })
-    .catch(err => alert(err.message))
-    .finally(() => { uploading.value = ''; });
+  } catch (err: any) {
+    alert(err.message || '上传失败');
+  } finally {
+    uploading.value = '';
+    input.value = '';
+  }
 }
 
 async function generate() {
@@ -634,6 +672,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
     .grad { background: linear-gradient(110deg,#2563eb,#6366f1 55%,#06b6d4); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; } }
   p { color: var(--color-text-secondary); font-size: 15px; margin:0; }
 }
+.hero-limits { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin-top:14px;
+  span { padding:6px 11px; border-radius:999px; background:rgba(255,255,255,.74); border:1px solid rgba(148,163,184,.24); color:#64748b; font-size:12px; font-weight:600; }
+}
 
 .workspace { display:grid; grid-template-columns: 1fr 380px; gap: 24px; align-items:start; }
 
@@ -659,6 +700,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .upload-del { position:absolute; top:5px; right:5px; z-index:3; width:22px; height:22px; padding:0; border:none; border-radius:50%; background:rgba(15,23,42,.6); color:#fff; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s, background .15s; &:hover { background:rgba(220,38,38,.92); } }
   &:hover .upload-del { opacity:1; }
 }
+.upload-note { margin:12px 0 0; color:#64748b; font-size:12px; line-height:1.7; }
 
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
 
@@ -678,6 +720,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   &:disabled { opacity:.45; box-shadow:none; cursor:not-allowed; }
 }
 .gen-spin { width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation: spin .8s linear infinite; }
+.duration-note { text-align:center; font-size:12px; line-height:1.6; color:#64748b; margin:10px 0 0; }
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
 
 .preview { position:sticky; top:88px; background:rgba(255,255,255,.78); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding:20px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 540px; display:flex; flex-direction:column; }

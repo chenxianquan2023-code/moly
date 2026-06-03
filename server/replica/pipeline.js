@@ -20,6 +20,9 @@ import * as image from './ai/image.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { resolveVoice } from './voices.js';
 
+const SOURCE_VIDEO_REFERENCE_MAX_SEC = 60;
+const OUTPUT_VIDEO_MAX_SEC = 45;
+
 async function download(url, dest, retries = 4) {
   let lastErr;
   for (let i = 0; i < retries; i++) {
@@ -357,14 +360,15 @@ export async function runReplicaPipeline(task, ctx) {
         if (svAsset?.file_url) {
           const vpath = await download(svAsset.file_url, join(work, 'src.mp4'));
           const svMeta = await ff.probe(vpath);
-          const sdur = svMeta.duration || 30;
+          const originalDuration = svMeta.duration || 30;
+          const sdur = Math.min(SOURCE_VIDEO_REFERENCE_MAX_SEC, originalDuration);
           const fps = Math.min(1, Math.max(0.05, 14 / sdur)); // 自适应：跨整段均匀抽~14帧，覆盖全片而非只看开头
-          await ff.extractFrames(vpath, join(work, 'f_%03d.jpg'), fps);
+          await ff.extractFrames(vpath, join(work, 'f_%03d.jpg'), fps, sdur);
           const frameFiles = readdirSync(work).filter((f) => f.startsWith('f_')).sort().slice(0, 16);
           const frames = frameFiles.map((f) => readFileSync(join(work, f)));
           sourceStyleFrames = pickSpread(frameFiles, 4).map((f) => readFileSync(join(work, f)));
           const txt = await gemini.analyzeImages(
-            `这是一条电商带货短视频按时间顺序均匀抽取的帧(覆盖全片，约${Math.round(sdur)}秒)。请像短视频导演一样做"风格指纹"拆解。` +
+            `这是一条电商带货短视频按时间顺序均匀抽取的帧(只参考前${Math.round(sdur)}秒${originalDuration > SOURCE_VIDEO_REFERENCE_MAX_SEC ? `，原视频约${Math.round(originalDuration)}秒，后半段忽略` : ''})。请像短视频导演一样做"风格指纹"拆解。` +
             `必须只输出 JSON，schema 如下：` +
             `{"durationSec":总时长数字,"tone":"口播/情绪基调","pacing":"快/中/慢 + 镜头节奏说明","styleBrief":"整体视觉风格一句话","colorPalette":"主色调/饱和度/对比度","lighting":"光线类型与氛围","cameraLanguage":"常用景别与运镜规律","editingRhythm":"剪辑、卡点、停顿、转场规律","captionStyle":"字幕/贴纸/大字的位置、大小、颜色、描边、背景条风格","transitionStyle":"转场风格","hookPattern":"前3秒钩子方式","shots":[{"index":1,"startSec":0,"endSec":3.2,"durationSec":3.2,"durationRatio":0.2,"shotType":"特写/近景/中景/全景/文字图形","framing":"景别与画幅","camera":"推近/拉远/摇/移/手持晃/固定","composition":"主体位置、前景/背景、留白","lighting":"本镜光线","color":"本镜色彩","visualStyle":"本镜视觉风格","subject":"主体","hasPerson":"none/hand/full","action":"具体动作或状态","role":"hook/demo/proof/cta","purpose":"带货目的","captionStyle":"本镜字幕/贴纸样式","transition":"进入/退出转场"}]}。` +
             `请估算每个镜头时长和占比，重点描述可复刻的拍摄方式、构图、光线、色调、字幕样式，不要泛泛而谈。`, frames);
@@ -506,17 +510,26 @@ export async function runReplicaPipeline(task, ctx) {
       }
     }
 
-    const sourceTotal = clampNumber(analysis?.durationSec, 0, 90, 0);
+    const sourceTotal = clampNumber(analysis?.durationSec, 0, SOURCE_VIDEO_REFERENCE_MAX_SEC, 0);
     const ratioSum = scenes.reduce((sum, s) => sum + (Number(s.durationRatio) || 0), 0);
     const targetTotal = sourceTotal
-      ? Math.min(45, Math.max(scenes.length * 2.2, sourceTotal))
+      ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
       : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a.duration || 0), 0);
-    const sceneDurations = scenes.map((s, i) => {
+    let sceneDurations = scenes.map((s, i) => {
       const audioDur = Math.max(1.2, sceneAudios[i]?.duration || 4);
       const ratio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : 1 / Math.max(1, scenes.length);
       const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 1.8, 8, audioDur) : audioDur;
       return Math.max(audioDur, rhythmDur);
     });
+    const plannedTotal = sceneDurations.reduce((sum, d) => sum + d, 0);
+    if (plannedTotal > OUTPUT_VIDEO_MAX_SEC) {
+      const minSceneDur = 1.8;
+      const fixedTotal = minSceneDur * scenes.length;
+      const flexTotal = sceneDurations.reduce((sum, d) => sum + Math.max(0, d - minSceneDur), 0);
+      const flexBudget = Math.max(0, OUTPUT_VIDEO_MAX_SEC - fixedTotal);
+      sceneDurations = sceneDurations.map((d) => minSceneDur + (flexTotal ? Math.max(0, d - minSceneDur) * (flexBudget / flexTotal) : 0));
+      notes.push(`成片时长已压缩到约 ${OUTPUT_VIDEO_MAX_SEC} 秒以内`);
+    }
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
