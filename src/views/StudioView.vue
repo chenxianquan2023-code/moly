@@ -99,8 +99,8 @@
                   </button>
                 </div>
               </div>
-              <p v-if="videoModel === 'seedance'" class="model-hint">⚠️ Seedance 不支持真人出镜：模特图不会出现在画面里，以纯产品镜呈现。需要模特出镜请选「可灵」。</p>
-              <p v-else-if="modelAsset && videoModel === 'kling'" class="model-hint ok">✓ 已用「可灵」——你上传的模特会出镜演示（Seedance 不出真人，已自动切换）。</p>
+              <p v-if="videoModel === 'seedance'" class="model-hint">Seedance 会做匿名试用镜头：可出现手部、身材、背影、遮脸/裁脸画面，不露可识别真人脸。</p>
+              <p v-else-if="modelAsset && videoModel === 'kling'" class="model-hint ok">✓ 已用「可灵」——适合完整真人脸和更自然的人物动作。</p>
               <div class="model-row">
                 <span class="model-label">画面质量</span>
                 <div class="seg">
@@ -243,8 +243,8 @@ const auth = useAuthStore();
 const DEFAULT_PRICING = {
   base: 20,
   video: [
-    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '产品镜快而稳；不出真人（选它模特不出镜）' },
-    { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持真人出镜，模特动作更自然(略慢)' },
+    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用/手部/身材/遮脸镜头，不露可识别人脸' },
+    { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持完整真人脸，模特动作更自然(略慢)' },
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },
@@ -323,10 +323,6 @@ watch(language, () => {
   if (voice.value && !langVoices.value.some((v: any) => v.id === voice.value)) {
     voice.value = langVoices.value[0]?.id || '';
   }
-});
-// 上传了模特 → 自动改用「可灵」：Seedance 不出真人，传模特通常就是想让模特出镜
-watch(modelAsset, (m) => {
-  if (m && videoModel.value === 'seedance') videoModel.value = 'kling';
 });
 function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; showVoicePicker.value = true; }
 

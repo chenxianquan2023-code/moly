@@ -164,6 +164,71 @@ function assCaptionConfig(analysis = {}) {
   };
 }
 
+const ANONYMOUS_USE_RE = /面膜|facial\s*mask|face\s*mask|sheet\s*mask|skincare|护肤|美妆|乳贴|nipple|pasties|bra|抹胸|tube\s*top|服饰|穿搭|试穿|wear|try\s*on/i;
+const PERSON_RE = /模特|女生|女性|人物|真人|手|肩颈|身体|背影|侧身|佩戴|试用|敷|戴|穿|woman|girl|model|hand|body|wear|try/i;
+
+function sourceHasPerson(shot) {
+  const value = String(shot?.hasPerson || '').toLowerCase();
+  if (['hand', 'full', 'body', 'person', 'face'].includes(value)) return true;
+  return PERSON_RE.test(`${shot?.subject || ''} ${shot?.action || ''} ${shot?.composition || ''}`);
+}
+
+function shouldKeepAnonymousUsage(scene, sourceShot, productText) {
+  const text = `${productText || ''} ${scene?.visual || ''} ${scene?.text || ''} ${sourceShot?.action || ''} ${sourceShot?.subject || ''} ${sourceShot?.role || ''}`;
+  return ANONYMOUS_USE_RE.test(text) && (scene?.withModel || sourceHasPerson(sourceShot) || PERSON_RE.test(text));
+}
+
+function anonymousUsageVisual(scene, sourceShot, productText) {
+  const text = `${productText || ''} ${scene?.visual || ''} ${sourceShot?.action || ''}`;
+  const sourceCue = [
+    sourceShot?.shotType && `景别贴近源镜头${sourceShot.shotType}`,
+    sourceShot?.composition && `构图参考：${sourceShot.composition}`,
+    sourceShot?.lighting && `光线参考：${sourceShot.lighting}`,
+  ].filter(Boolean).join('；');
+  if (/面膜|facial\s*mask|face\s*mask|sheet\s*mask|skincare|护肤/i.test(text)) {
+    return `匿名女性模特正在试用该面膜：脸部被面膜完整覆盖或被镜头裁切到不可识别，手轻按面膜贴合脸颊，商品包装在手边或画面前景清晰可见；${sourceCue || '生活化浴室/卧室自然光，真实护肤使用场景'}；不能变成单纯包装盒陈列`;
+  }
+  if (/乳贴|nipple|pasties|bra|抹胸|tube\s*top/i.test(text)) {
+    return `匿名女性模特展示该贴身商品的穿搭效果：只拍肩颈以下、背影、侧身或手部整理衣物，绝不出现可识别正脸，商品使用状态清楚自然；${sourceCue || '生活化穿搭场景'}；不能变成单纯商品包装陈列`;
+  }
+  return `匿名模特正在使用该商品：只出现手部、身体局部、背影、侧身或被商品/道具遮挡的脸，绝不出现可识别正脸，商品与人体接触关系真实；${sourceCue || '生活化真实试用场景'}；不能变成单纯商品包装陈列`;
+}
+
+export function applySeedancePersonPolicy(scenes, {
+  videoModel = '',
+  hasModel = false,
+  productText = '',
+  sourceShots = [],
+  notes = [],
+} = {}) {
+  if (!Array.isArray(scenes)) return [];
+  let anonymized = false;
+  return scenes.map((scene, i) => {
+    const s = { ...scene };
+    const idx = Number.isFinite(Number(s.sourceShotIndex)) ? Number(s.sourceShotIndex) : i;
+    const sourceShot = sourceShots[Math.min(sourceShots.length - 1, Math.max(0, idx))] || sourceShots[i] || null;
+
+    if (videoModel === 'seedance') {
+      if (hasModel && shouldKeepAnonymousUsage(s, sourceShot, productText)) {
+        s.withModel = true;
+        s.personMode = 'anonymous';
+        s.visual = anonymousUsageVisual(s, sourceShot, productText);
+        anonymized = true;
+      } else {
+        s.withModel = false;
+        s.personMode = 'none';
+      }
+      return s;
+    }
+
+    s.personMode = s.withModel ? (s.personMode || 'identifiable') : 'none';
+    return s;
+  }).map((scene, i, arr) => {
+    if (i === arr.length - 1 && anonymized) notes.push('Seedance 匿名试用：保留人物试用意图，但隐藏/裁切可识别真人脸');
+    return scene;
+  });
+}
+
 /** 生成带样式的 ASS 字幕（大字号、描边、底部居中、长句自动换行） */
 function buildAss(scenes, durations, analysis) {
   const caption = assCaptionConfig(analysis);
@@ -298,7 +363,10 @@ export async function runReplicaPipeline(task, ctx) {
         const copyRule = `文案语气严格匹配${hasSrc ? `源视频基调【${tone}】` : '【活泼种草】'}：${formal ? '专业可信、干净利落、有说服力' : '口语化、有网感、像真人博主安利'}。每句口播极简短(${lenHint}，约3-5秒念完)，且必须与该镜 visual 强相关(说画面里看得到的东西)，绝不答非所问、绝不生硬广告腔。`;
         // 融入 ai-creative-ad-engine 的爆款文案规律（用所选语言的地道表达，不堆砌、不失真）
         const punchRule = `【爆款文案张力】(a) hook(第1句)必须强钩子——用好奇/反差/痛点共鸣抓住前3秒，让人停止划走，绝不平铺直叙介绍商品；(b) 适度用「${langName}」里地道的情绪/网感词(如英文 obsessed/game-changer/trust me，中文 绝了/真香/谁懂啊)，激发"想分享"，但每句最多1个、不堆砌、不浮夸失真；(c) proof 句给一个可信的"为什么"(数字/对比/真实使用感)；(d) cta 句给明确行动指令+轻微紧迫感(别太硬)；(e) 始终遵守上面的"只说画面演得出的状态"铁律。`;
-        const fmt = `输出 JSON 数组，每项：{"sourceShotIndex":源分镜index数字(从1开始，无源视频可省略),"durationRatio":沿用源镜头时长占比0-1,"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句，与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文，主角是本商品)","motion":"继承源镜头的轻运镜描述","withModel":true或false,"framing":"继承源镜头的景别/画幅","composition":"继承源镜头的构图","lighting":"继承源镜头的光线","color":"继承源镜头的色调","captionStyle":"继承源镜头字幕/贴纸样式","transition":"继承源镜头转场"}。只输出 JSON。`;
+        const seedanceFaceRule = opts.models?.video === 'seedance'
+          ? `\n【Seedance 人物限制】当前视频引擎不能出现可识别真人脸，但可以出现匿名模特：手部、身体局部、肩颈、背影、侧身、被面膜/商品遮挡的脸、被裁切到不可识别的脸。若源视频是人物试用，且用户上传了模特/商品，请保留"人在试用商品"这个核心，不要改成纯包装图；personMode 用 "anonymous"，visual 明确写清"脸被遮挡/裁切/背影/手部局部，不可识别"。`
+          : `\n【人物模式】若模特完整出镜且可识别，personMode 用 "identifiable"；纯商品用 "none"；只拍手部/身体局部/背影/遮脸试用用 "anonymous"。`;
+        const fmt = `输出 JSON 数组，每项：{"sourceShotIndex":源分镜index数字(从1开始，无源视频可省略),"durationRatio":沿用源镜头时长占比0-1,"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句，与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文，主角是本商品)","motion":"继承源镜头的轻运镜描述","withModel":true或false,"personMode":"none|anonymous|identifiable","framing":"继承源镜头的景别/画幅","composition":"继承源镜头的构图","lighting":"继承源镜头的光线","color":"继承源镜头的色调","captionStyle":"继承源镜头字幕/贴纸样式","transition":"继承源镜头转场"}。只输出 JSON。`;
         let prompt;
         if (hasSrc) {
           prompt = `你是电商带货短视频导演。任务：【复刻】下面这条爆款视频的拍法与节奏，把主角换成用户的商品，做一条"同款风格"的带货片。\n${common}\n` +
@@ -307,13 +375,13 @@ export async function runReplicaPipeline(task, ctx) {
             `2. 主体换成【用户的商品】：源镜纯产品/特写→拍本商品对应特写或细节；源镜"手+产品"的操作演示→改拍该操作的"结果状态"(如盖子已打开露出内胆)，withModel=false；源镜完整真人→模特出镜手持/使用本商品，withModel=true。\n` +
             `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 同款字幕/贴纸/大字节奏"，不要改成普通棚拍海报。\n` +
             `4. 每一项必须填写 sourceShotIndex、durationRatio、framing、composition、lighting、color、captionStyle、transition，让后续出图/合成能按源视频风格执行。\n` +
-            `5. ${realityRule}\n6. ${copyRule}\n7. ${punchRule}\n8. ${fmt}`;
+            `5. ${realityRule}\n6. ${seedanceFaceRule}\n7. ${copyRule}\n8. ${punchRule}\n9. ${fmt}`;
         } else {
           prompt = `你是电商带货短视频导演。${common}` +
             `\n按"卖货逻辑"设计一条 ${lang} 带货短视频的3-4个分镜(hook/demo/proof/cta)。规则：` +
             `\n1. 结合品类：水杯/数码/家居→展示产品本身(英雄特写、细节微距、内部结构、卖点状态)；服装鞋包→模特展示版型。各镜画面不同、层层递进。` +
             `\n2. ${realityRule}\n3. ${copyRule}` +
-            `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${punchRule}\n6. ${fmt}`;
+            `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${seedanceFaceRule}\n6. ${punchRule}\n7. ${fmt}`;
         }
         const txt = await llm.generateText(prompt, { maxTokens: 3000 });
         scenes = llm.parseJson(txt);
@@ -332,6 +400,7 @@ export async function runReplicaPipeline(task, ctx) {
           visual: String(s.visual || s.text || sourceShot?.action || ''),
           motion: String(s.motion || sourceShot?.camera || ''),
           withModel: !!s.withModel,
+          personMode: compactText(s.personMode, 40),
           sourceShotIndex,
           durationRatio: clampNumber(s.durationRatio ?? sourceShot?.durationRatio, 0, 1, sourceShot?.durationRatio || 0),
           framing: compactText(s.framing || sourceShot?.framing || sourceShot?.shotType, 120),
@@ -343,21 +412,18 @@ export async function runReplicaPipeline(task, ctx) {
           sourceStyle: styleFingerprint(analysis, sourceShot),
         };
       });
-      // Seedance 引擎不支持真人出镜：选 Seedance 时把模特镜改成纯产品镜，保证能成功生成
-      if (opts.models?.video === 'seedance') {
-        let changed = false;
-        scenes.forEach((s) => {
-          if (s.withModel) {
-            s.withModel = false;
-            s.visual = '商品英雄特写：突出外观质感与核心卖点，干净明亮背景，产品稳放台面，画面只有商品本身、不出现任何人物';
-            changed = true;
-          }
-        });
-        if (changed || modelUrl) notes.push('Seedance 不出真人：已改为纯产品镜，模特未出镜');
-      } else if (modelUrl && !scenes.some((s) => s.withModel)) {
+      scenes = applySeedancePersonPolicy(scenes, {
+        videoModel: opts.models?.video,
+        hasModel: !!modelUrl,
+        productText: [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' '),
+        sourceShots: analysis?.shots || [],
+        notes,
+      });
+      if (opts.models?.video !== 'seedance' && modelUrl && !scenes.some((s) => s.withModel)) {
         // 非 Seedance：上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
         const last = scenes[scenes.length - 1];
         last.withModel = true;
+        last.personMode = 'identifiable';
         if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
       }
       await setStep(1, { status: 'succeeded' });
@@ -424,7 +490,12 @@ export async function runReplicaPipeline(task, ctx) {
       let animBase = null;
       if ((productUrl || modelUrl) && image) {
         try {
-          const assetRefs = (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
+          const personMode = s.personMode || (s.withModel ? 'identifiable' : 'none');
+          const isAnonymous = personMode === 'anonymous';
+          const isIdentifiable = personMode === 'identifiable';
+          const assetRefs = isAnonymous
+            ? [productUrl, modelUrl].filter(Boolean)
+            : (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
           const styleRefs = analysis?.shots?.length ? sourceStyleFrames.slice(0, 3) : [];
           const refs = [...assetRefs, ...styleRefs];
           const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
@@ -440,15 +511,23 @@ export async function runReplicaPipeline(task, ctx) {
           const styleRule = sceneStyle
             ? `【源视频风格硬性继承】${sceneStyle}。这一镜必须继承源镜头的景别、构图、光线、色调、字幕/贴纸位置和短视频质感；不要自动改成通用明亮棚拍、白底商品图或普通电商海报，除非源视频本身就是这种风格。`
             : '光线明亮、背景干净有层次、电商质感。';
+          const assetRule = isAnonymous
+            ? '参考图说明：用户商品必须保持一致；用户模特图只能作为肤色、身形、气质和穿搭氛围的弱参考，绝对不要还原或暴露可识别脸。'
+            : `参考图说明：前${assetRefs.length}张是必须保持一致的用户商品/模特；`;
           const referenceRule = styleRefs.length
-            ? `参考图说明：前${assetRefs.length}张是必须保持一致的用户商品/模特；后${styleRefs.length}张来自源爆款视频，只能参考构图、灯光、色调、字幕位置、运镜氛围，不得复制源视频人物、原商品、品牌标识或具体文字。`
-            : '';
+            ? `${assetRule}后${styleRefs.length}张来自源爆款视频，只能参考构图、灯光、色调、字幕位置、运镜氛围，不得复制源视频人物、原商品、品牌标识或具体文字。`
+            : assetRule;
           // 物理可信：商品必须落地或被握持，杜绝"悬浮在纯色背景"——这是图生视频"凭空起飞/漂浮"的根因
           const groundRule = (s.withModel && modelUrl)
             ? '模特自然手持或使用该商品，商品与手部接触真实、比例协调'
             : '商品稳稳放在真实台面上（木桌/大理石台/桌面），带真实接触投影，或被手自然握持；绝不悬浮于纯色背景或半空中；商品尺寸与场景比例真实';
+          const subjectRule = isAnonymous
+            ? '人物呈现必须匿名：只出现手部、身体局部、肩颈、背影、侧身，或脸被面膜/商品完整遮挡、被镜头裁切到不可识别；绝不出现清晰可识别正脸、五官肖像或与参考模特一致的脸。画面核心是"正在试用商品"，不是单纯商品包装陈列'
+            : isIdentifiable && modelUrl
+              ? '模特外貌保持一致，正在自然展示或使用该商品'
+              : '以商品为主角，外观保持一致、清晰可见';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
-          const prompt = `${styleCue}：${s.visual}。${referenceRule}商品外观必须与参考图保持一致、清晰可见${s.withModel && modelUrl ? '；模特外貌保持一致' : '；以商品为主角'}。${styleRule}${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          const prompt = `${styleCue}：${s.visual}。${referenceRule}${subjectRule}。${styleRule}${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
             c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
@@ -456,7 +535,9 @@ export async function runReplicaPipeline(task, ctx) {
             const m1 = String(e1.message || e1);
             // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次
             if (/safety|rejected|敏感|sensitive|policy|blocked/i.test(m1)) {
-              const safePrompt = `电商带货竖版产品静物图(9:16)：${s.visual}。仅展示商品本身，构图干净、背景明亮整洁、得体专业，不含任何人物裸露或敏感内容。商品与参考图一致、清晰、光线明亮、电商质感。${qualityCue}。`;
+              const safePrompt = isAnonymous
+                ? `电商带货竖版匿名试用图(9:16)：${s.visual}。仅展示手部/身体局部/背影/被商品遮挡的脸，不出现可识别正脸，不含裸露或敏感内容；商品与参考图一致、清晰，真实生活化试用场景。${qualityCue}。`
+                : `电商带货竖版产品静物图(9:16)：${s.visual}。仅展示商品本身，构图干净、背景明亮整洁、得体专业，不含任何人物裸露或敏感内容。商品与参考图一致、清晰、光线明亮、电商质感。${qualityCue}。`;
               c = await image.generate(safePrompt, [productUrl].filter(Boolean), { aspectRatio: '9:16', provider: opts.models?.image });
               notes.push(`场景${i + 1}安全重试成功`);
             } else { throw e1; }
@@ -464,7 +545,7 @@ export async function runReplicaPipeline(task, ctx) {
           animBase = await uploadBuffer(makePath(task.user_email, 'scene', `s${i}.png`), c.buffer, c.mimeType);
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
       }
-      if (!animBase) animBase = (s.withModel ? (modelUrl || productUrl) : (productUrl || modelUrl)) || baseImageUrl;
+      if (!animBase) animBase = (s.personMode === 'anonymous' ? (productUrl || modelUrl) : (s.withModel ? (modelUrl || productUrl) : (productUrl || modelUrl))) || baseImageUrl;
 
       // 4.2 animate（运动按 motion；级联 Seedance→Kling）
       if (animBase) {
@@ -474,7 +555,10 @@ export async function runReplicaPipeline(task, ctx) {
         const rhythmCue = sceneStyle
           ? `按源爆款第${(s.sourceShotIndex ?? i) + 1}镜的节奏做轻运镜：${s.motion || sourceShot?.camera || '保持源镜头运动感'}；剪辑节奏：${analysis?.editingRhythm || analysis?.pacing || '贴近源视频'}；转场倾向：${s.transition || analysis?.transitionStyle || '贴近源视频'}。`
           : `镜头运动：${String(s.motion || '缓慢推近').slice(0, 80)}。`;
-        const motionPrompt = `${rhythmCue}主体保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。`.slice(0, 360);
+        const anonymityMotionRule = s.personMode === 'anonymous'
+          ? '全程保持脸部遮挡/裁切/背影/局部，不出现清晰可识别正脸；'
+          : '';
+        const motionPrompt = `${rhythmCue}${anonymityMotionRule}主体保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。`.slice(0, 420);
         for (const prov of videoProviders) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
