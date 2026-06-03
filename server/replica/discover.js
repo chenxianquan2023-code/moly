@@ -5,7 +5,7 @@
  */
 import { Router } from 'express';
 import * as apify from '../lib/apify.js';
-import { deductPoints } from '../lib/points.js';
+import { deductPoints, addPoints } from '../lib/points.js';
 import { uploadFromUrl, makePath } from '../lib/storage.js';
 import { insertRow, selectOne } from '../lib/supabase.js';
 import { DOWNLOAD_COST, IMPORT_COST } from './pricing.js';
@@ -86,8 +86,15 @@ discoverRouter.post('/discover/download', async (req, res) => {
       throw e;
     }
 
-    const dlUrl = await apify.fetchTikTokVideoUrl(sourceUrl);
-    const stored = await uploadFromUrl(makePath(email, 'discover', 'video.mp4'), dlUrl);
+    let stored;
+    try {
+      const dlUrl = await apify.fetchTikTokVideoUrl(sourceUrl);
+      stored = await uploadFromUrl(makePath(email, 'discover', 'video.mp4'), dlUrl);
+    } catch (e) {
+      // 下载/转存失败 → 退回已扣积分，避免"扣了钱没拿到视频"
+      try { await addPoints(email, DOWNLOAD_COST, '下载失败退款'); } catch { /* 退款失败也不抛 */ }
+      return res.status(502).json({ success: false, message: '原视频抓取失败，已退回积分：' + String(e.message || e).split('\n')[0].slice(0, 80) });
+    }
     try { await insertRow('discover_downloads', { user_email: email, source_url: sourceUrl, video_url: stored, credits: DOWNLOAD_COST }); } catch { /* 没表不记录 */ }
     res.json({ success: true, videoUrl: stored, charged: DOWNLOAD_COST });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }

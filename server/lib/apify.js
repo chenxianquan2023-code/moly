@@ -81,7 +81,11 @@ export async function fetchTikTokVideoUrl(sourceUrl) {
     240000,
   );
   const x = items[0] || {};
-  const url = x.mediaUrls?.[0] || '';
+  let url = x.mediaUrls?.[0] || '';
   if (!url) throw new Error('未取到可下载的视频地址（可能该视频受限）');
+  // Apify 下载到的是私有 KVS 记录，直取会 403，需带 token；token 仅服务端转存用、不外泄
+  if (/api\.apify\.com/.test(url) && !/[?&]token=/.test(url)) {
+    url += (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(process.env.APIFY_TOKEN || '');
+  }
   return url;
 }
