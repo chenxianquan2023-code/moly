@@ -471,8 +471,9 @@ export const useAPlusStore = defineStore('aplus', () => {
   }
 
   function ensureActiveDraft() {
-    if (!activeDraftId.value && drafts.value.length) {
-      activeDraftId.value = drafts.value[0].draftId
+    const firstDraft = drafts.value[0]
+    if (!activeDraftId.value && firstDraft) {
+      activeDraftId.value = firstDraft.draftId
     }
   }
 
@@ -603,6 +604,7 @@ export const useAPlusStore = defineStore('aplus', () => {
     if (!d) return
     const arr = d.modules.slice()
     const [m] = arr.splice(fromIndex, 1)
+    if (!m) return
     arr.splice(toIndex, 0, m)
     upsertDraft({ ...d, modules: arr })
   }
@@ -624,7 +626,9 @@ export const useAPlusStore = defineStore('aplus', () => {
     const d = activeDraft.value
     if (!d || !d.modules[index]) return
     const next = d.modules.slice()
-    next[index] = { ...next[index], imageUrl }
+    const module = next[index]
+    if (!module) return
+    next[index] = { ...module, imageUrl }
     upsertDraft({ ...d, modules: next })
     bumpVersion(d.draftId)
   }
@@ -676,4 +680,3 @@ export const useAPlusStore = defineStore('aplus', () => {
     prefillWizardInput,
   }
 })
-

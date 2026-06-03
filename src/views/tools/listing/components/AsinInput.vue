@@ -16,7 +16,7 @@
         </button>
       </div>
       <button
-        v-if="modelValue.length < maxCount"
+        v-if="modelValue.length < safeMaxCount"
         class="add-asin-btn"
         @click="$emit('add')"
       >
@@ -44,9 +44,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { SearchOutlined, PlusOutlined, DeleteOutlined, CheckCircleFilled } from '@ant-design/icons-vue'
 
-defineProps<{
+const props = defineProps<{
   title: string
   description: string
   modelValue: string | string[]
@@ -54,6 +55,8 @@ defineProps<{
   maxCount?: number
   extractedAsin?: string
 }>()
+
+const safeMaxCount = computed(() => props.maxCount ?? 5)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | string[]]

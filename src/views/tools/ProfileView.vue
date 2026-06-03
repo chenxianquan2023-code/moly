@@ -50,7 +50,7 @@ import { useAuthStore } from '@/stores/auth';
 const auth = useAuthStore();
 const router = useRouter();
 
-const avatarChar = computed(() => (auth.email || auth.displayName || 'U')[0].toUpperCase());
+const avatarChar = computed(() => (auth.email || auth.displayName || 'U').charAt(0).toUpperCase());
 
 const totalUsed = computed(() =>
   auth.transactions.filter(t => t.type === 'spend').reduce((s, t) => s + t.amount, 0)

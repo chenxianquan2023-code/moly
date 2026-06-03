@@ -149,7 +149,7 @@ export async function uploadFile<T>(
   url: string,
   file: File,
   onProgress?: (progress: number) => void,
-  config?: RequestConfig
+  _config?: RequestConfig
 ): Promise<T> {
   const formData = new FormData()
   formData.append('file', file)

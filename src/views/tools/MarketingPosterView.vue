@@ -267,7 +267,7 @@ const types = [
 const productStyles = [
   { key: 'hard', label: '硬广（促销风）' },
   { key: 'soft', label: '软广（生活风）' },
-];
+] as const;
 
 const ratios = [
   { value: '9:16', label: '9:16 竖版' },

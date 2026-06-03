@@ -158,7 +158,7 @@ function handleModelAgent() {
   router.push('/tools/omni-model')
 }
 
-function handleVideoEntry(type: string) {
+function handleVideoEntry(_type: string) {
   router.push('/workflow/jewelry')
 }
 </script>

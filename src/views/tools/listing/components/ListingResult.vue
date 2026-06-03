@@ -38,7 +38,7 @@
         <div v-if="editingField === 'bullets'" class="edit-area bullets-edit">
           <div v-for="(bp, idx) in editBullets" :key="idx" class="bullet-edit-row">
             <span class="bullet-num">{{ idx + 1 }}.</span>
-            <textarea v-model="editBullets[idx]" :rows="2" class="edit-textarea bullet-textarea"></textarea>
+            <textarea v-model="editBullets[idx]" :placeholder="bp" :rows="2" class="edit-textarea bullet-textarea"></textarea>
           </div>
         </div>
         <div v-else class="bullet-list-wrap" @dblclick="startEdit('bullets')">

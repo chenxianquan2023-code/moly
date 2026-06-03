@@ -39,15 +39,8 @@ export class TryOnWorkflowService extends WorkflowService {
         try {
             const analysisResult = await tryOnService.analyzeBothImages(modelImage, garmentImage);
 
-            // Parse result (format: "图1...；图2...")
-            const parts = analysisResult.split('；');
-            if (parts.length >= 2) {
-                this.modelDesc = parts[0]?.trim() || '';
-                this.garmentDesc = parts[1]?.trim() || '';
-            } else {
-                this.modelDesc = analysisResult.trim();
-                this.garmentDesc = '';
-            }
+            this.modelDesc = analysisResult.modelDescription.trim();
+            this.garmentDesc = analysisResult.garmentDescription.trim();
 
             return {
                 modelDesc: this.modelDesc,

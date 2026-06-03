@@ -22,21 +22,75 @@
 
     <!-- 初始态：热门词 + 分类 + 玩法引导（搜索前展示，不再空荡荡） -->
     <div v-if="!searched && !searching" class="intro">
-      <div class="hot">
-        <span class="hot-label">热门搜索</span>
+      <div class="market-strip">
+        <div v-for="m in MARKET_METRICS" :key="m.label" class="market-metric">
+          <strong>{{ m.value }}</strong>
+          <span>{{ m.label }}</span>
+        </div>
+      </div>
+
+      <section class="hot-row">
+        <div class="section-title">
+          <span class="title-mark" />
+          <h2>热门搜索</h2>
+        </div>
         <div class="hot-chips">
           <button v-for="k in HOT" :key="k" type="button" class="chip" @click="quick(k)">{{ k }}</button>
         </div>
-      </div>
-      <div class="cats">
-        <button v-for="c in CATS" :key="c.kw" type="button" class="cat" @click="quick(c.kw)">
-          <span class="cat-ic" v-html="c.icon" /><span class="cat-name">{{ c.name }}</span>
-        </button>
-      </div>
+      </section>
+
+      <section class="trend-section">
+        <div class="section-title">
+          <span class="title-mark hot-mark" />
+          <h2>今日趋势商品</h2>
+          <em>按热度、平台和复刻价值预选</em>
+        </div>
+        <div class="trend-grid">
+          <button v-for="item in TREND_ITEMS" :key="item.rank" type="button" class="trend-card" @click="quick(item.kw)">
+            <span class="trend-cover">
+              <img :src="item.image" :alt="item.title" loading="lazy" />
+              <b>趋势 #{{ item.rank }}</b>
+              <i>{{ item.market }}</i>
+            </span>
+            <span class="trend-body">
+              <span class="trend-cat">{{ item.category }}</span>
+              <strong>{{ item.title }}</strong>
+              <span class="trend-stats">
+                <span v-for="metric in item.metrics" :key="metric.label" class="trend-stat">
+                  <b>{{ metric.value }}</b>
+                  <small>{{ metric.label }}</small>
+                </span>
+              </span>
+              <span class="trend-foot">
+                <em>{{ item.signal }}</em>
+                <span>搜同款</span>
+              </span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="category-section">
+        <div class="section-title">
+          <span class="title-mark" />
+          <h2>按类目逛趋势</h2>
+        </div>
+        <div class="cats">
+          <button v-for="c in CATS" :key="c.kw" type="button" class="cat" @click="quick(c.kw)">
+            <img :src="c.image" :alt="c.name" loading="lazy" />
+            <span class="cat-content">
+              <strong>{{ c.name }}</strong>
+              <small>{{ c.desc }}</small>
+            </span>
+          </button>
+        </div>
+      </section>
+
       <div class="how">
-        <div class="how-step"><b>1</b><span>搜索爆款，在线预览点赞 / 浏览数据</span></div>
-        <div class="how-step"><b>2</b><span>「用它复刻」秒级带入封面 + 文案做参考</span></div>
-        <div class="how-step"><b>3</b><span>回工作台一键生成你的同款带货视频</span></div>
+        <div v-for="step in HOW_STEPS" :key="step.no" class="how-step">
+          <b>{{ step.no }}</b>
+          <span>{{ step.text }}</span>
+        </div>
       </div>
     </div>
 
@@ -116,6 +170,11 @@ import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
+import thermosImg from '@/assets/img/thermos-temp-display.jpg';
+import earbudsImg from '@/assets/img/erji.png';
+import phoneImg from '@/assets/img/iphone.png';
+import phoneAltImg from '@/assets/img/iphone-2.png';
+import beautyImg from '@/assets/showcase-meizhuang.png';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -132,15 +191,81 @@ const busy = reactive(new Set<string>());
 const playing = ref<any>(null);
 
 const HOT = ['保温杯', 'wireless earbuds', '化妆刷', 'yoga mat', '猫咪用品', 'led 灯带', '便携风扇', 'skincare'];
-// 用极简线性图标替代 emoji，去掉「AI 模板感」
-const SVG = (inner: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const MARKET_METRICS = [
+  { value: '1.8k+', label: '今日趋势素材' },
+  { value: '24h', label: '热度变化追踪' },
+  { value: '2 平台', label: 'TikTok / Amazon' },
+];
+const TREND_ITEMS = [
+  {
+    rank: 1,
+    category: '家居好物',
+    title: '带温显的便携保温杯，办公室和车载场景高频出现',
+    kw: '保温杯',
+    image: thermosImg,
+    market: 'Amazon',
+    signal: '可复刻',
+    metrics: [
+      { value: '4.7', label: '评分' },
+      { value: '12k', label: '浏览' },
+      { value: '+36%', label: '热度' },
+    ],
+  },
+  {
+    rank: 2,
+    category: '数码 3C',
+    title: '透明仓无线耳机，开箱镜头和降噪对比视频转化高',
+    kw: 'wireless earbuds',
+    image: earbudsImg,
+    market: 'TikTok',
+    signal: '高互动',
+    metrics: [
+      { value: '8.3万', label: '点赞' },
+      { value: '42万', label: '播放' },
+      { value: '+21%', label: '热度' },
+    ],
+  },
+  {
+    rank: 3,
+    category: '美妆个护',
+    title: '通勤妆前急救套装，前后对比和手部试色容易出片',
+    kw: 'skincare',
+    image: beautyImg,
+    market: 'TikTok',
+    signal: '适合短视频',
+    metrics: [
+      { value: '6.1万', label: '点赞' },
+      { value: '18万', label: '播放' },
+      { value: '+18%', label: '热度' },
+    ],
+  },
+  {
+    rank: 4,
+    category: '手机配件',
+    title: '磁吸支架和桌搭配件，适合做场景化卖点拆解',
+    kw: 'phone accessories',
+    image: phoneImg,
+    market: 'Amazon',
+    signal: '货架友好',
+    metrics: [
+      { value: '4.6', label: '评分' },
+      { value: '9k', label: '浏览' },
+      { value: '+14%', label: '热度' },
+    ],
+  },
+];
 const CATS = [
-  { name: '家居好物', kw: 'home gadget', icon: SVG('<path d="M4 11 12 4l8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>') },
-  { name: '美妆个护', kw: 'beauty', icon: SVG('<path d="M12 3.5c2.8 3.2 5.5 6.3 5.5 9.5a5.5 5.5 0 0 1-11 0c0-3.2 2.7-6.3 5.5-9.5Z"/>') },
-  { name: '数码 3C', kw: 'cool gadget', icon: SVG('<path d="M5 13v-1a7 7 0 0 1 14 0v1"/><rect x="3.5" y="13" width="4" height="7" rx="1.6"/><rect x="16.5" y="13" width="4" height="7" rx="1.6"/>') },
-  { name: '宠物用品', kw: 'pet supplies', icon: SVG('<circle cx="6.5" cy="12" r="1.5"/><circle cx="9.8" cy="8" r="1.5"/><circle cx="14.2" cy="8" r="1.5"/><circle cx="17.5" cy="12" r="1.5"/><path d="M8.5 16.5c0-2 1.6-3.3 3.5-3.3s3.5 1.3 3.5 3.3-1.6 3-3.5 3-3.5-1-3.5-3Z"/>') },
-  { name: '运动健身', kw: 'fitness gear', icon: SVG('<path d="M7 9v6M17 9v6M4.5 10.5v3M19.5 10.5v3M7 12h10"/>') },
-  { name: '厨房神器', kw: 'kitchen gadget', icon: SVG('<path d="M6.5 13.2a3.5 3.5 0 0 1-.3-6.7 3.7 3.7 0 0 1 6.3-1.6 3.7 3.7 0 0 1 6.3 1.6 3.5 3.5 0 0 1-.3 6.7Z"/><path d="M8 13.2V19h8v-5.8"/>') },
+  { name: '家居好物', kw: 'home gadget', image: thermosImg, desc: '收纳、杯壶、氛围灯' },
+  { name: '美妆个护', kw: 'beauty', image: beautyImg, desc: '试色、妆前、护肤套装' },
+  { name: '数码 3C', kw: 'cool gadget', image: earbudsImg, desc: '耳机、支架、桌搭设备' },
+  { name: '手机配件', kw: 'phone accessories', image: phoneAltImg, desc: '磁吸、保护壳、快充' },
+  { name: '服饰穿搭', kw: 'fashion outfit', image: '/omni-model-assets/female_outfits/female_outfit_1.png', desc: '试穿、搭配、同款复刻' },
+  { name: '厨房神器', kw: 'kitchen gadget', image: '/examples/poster/product-1.jpg', desc: '小家电、清洁、备餐工具' },
+];
+const HOW_STEPS = [
+  { no: 1, text: '搜索爆款，先看平台热度和卖点' },
+  { no: 2, text: '用它复刻，带入封面和文案参考' },
+  { no: 3, text: '回工作台生成你的同款带货视频' },
 ];
 
 function fmt(n: number) { return n >= 10000 ? (n / 10000).toFixed(1) + '万' : String(n || 0); }
@@ -231,21 +356,62 @@ async function blobDownload(url: string, name: string) {
 .empty { margin: 48px 0; text-align:center; color: var(--color-text-tertiary); }
 
 /* 初始态 */
-.intro { margin-top: 26px; display:flex; flex-direction:column; gap:24px; }
-.hot { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.hot-label { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:#0f172a; flex-shrink:0; &::before { content:''; width:3px; height:14px; border-radius:2px; background: linear-gradient(180deg,#2563eb,#4f46e5); } }
-.hot-chips { display:flex; gap:9px; flex-wrap:wrap; }
-.chip { padding:7px 15px; border-radius:999px; border:1px solid var(--color-border); background:rgba(255,255,255,.8); font-size:13px; font-weight:600; color: var(--color-text-secondary); cursor:pointer; transition:all var(--transition-fast);
-  &:hover { border-color: var(--color-primary); color: var(--color-primary); background:#fff; transform:translateY(-1px); } }
-.cats { display:grid; grid-template-columns: repeat(2,1fr); gap:12px; @media (min-width:680px){ grid-template-columns: repeat(3,1fr); } @media (min-width:1000px){ grid-template-columns: repeat(6,1fr); } }
-.cat { display:flex; flex-direction:column; align-items:center; gap:10px; padding:20px 10px; border-radius: var(--radius-lg); border:1px solid #eef2f7; background: rgba(255,255,255,.8); cursor:pointer; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
-  &:hover { transform: translateY(-3px); border-color:#c7d2fe; box-shadow:0 14px 28px -18px rgba(37,99,235,.4); .cat-ic { color: var(--color-primary); } }
-  .cat-ic { width:28px; height:28px; color:#64748b; transition: color .2s ease; :deep(svg) { width:100%; height:100%; display:block; } }
-  .cat-name { font-size:13px; font-weight:600; color: var(--color-text-primary); }
+.intro { margin-top: 22px; display:flex; flex-direction:column; gap:22px; }
+.market-strip { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:10px; }
+.market-metric { padding:14px 16px; border:1px solid #e5e8ef; border-radius:12px; background:rgba(255,255,255,.82);
+  strong { display:block; margin-bottom:3px; font-size:18px; color:#111827; }
+  span { font-size:12px; font-weight:700; color:#697386; }
 }
-.how { display:flex; flex-wrap:wrap; gap:12px; padding:18px; border-radius: var(--radius-lg); background: linear-gradient(135deg, rgba(37,99,235,.05), rgba(79,70,229,.05)); border:1px solid rgba(37,99,235,.1); }
-.how-step { display:flex; align-items:center; gap:10px; flex:1; min-width:220px; font-size:13px; color: var(--color-text-secondary);
-  b { width:24px; height:24px; flex-shrink:0; border-radius:50%; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; }
+.hot-row { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.section-title { display:flex; align-items:center; gap:9px; min-width:0;
+  h2 { margin:0; font-size:17px; font-weight:800; color:#111827; }
+  em { font-style:normal; font-size:12px; font-weight:700; color:#7a8495; }
+}
+.title-mark { width:3px; height:15px; border-radius:999px; background:#3158e8; flex:none; }
+.hot-mark { background:#d9487f; }
+.hot-chips { display:flex; gap:9px; flex-wrap:wrap; }
+.chip { padding:7px 15px; border-radius:999px; border:1px solid #dde3ee; background:#fff; font-size:13px; font-weight:700; color:#596273; cursor:pointer; transition:all var(--transition-fast);
+  &:hover { border-color:#3158e8; color:#3158e8; transform:translateY(-1px); box-shadow:0 8px 18px -14px rgba(49,88,232,.75); } }
+.trend-section, .category-section { display:flex; flex-direction:column; gap:14px; }
+.trend-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:14px;
+  @media (min-width:1080px){ grid-template-columns: repeat(4,minmax(0,1fr)); } }
+.trend-card { min-width:0; overflow:hidden; padding:0; border:1px solid #e8edf5; border-radius:16px; background:#fff; text-align:left; cursor:pointer; box-shadow:0 10px 30px -24px rgba(15,23,42,.45); transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  &:hover { transform:translateY(-3px); border-color:#cbd7ff; box-shadow:0 18px 36px -24px rgba(49,88,232,.55); }
+}
+.trend-cover { position:relative; display:block; height:146px; overflow:hidden; background:#eef2f7;
+  img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .28s ease; }
+  b, i { position:absolute; z-index:1; font-style:normal; font-size:12px; font-weight:800; }
+  b { top:10px; left:10px; padding:5px 9px; border-radius:999px; background:rgba(17,24,39,.82); color:#fff; }
+  i { right:10px; bottom:10px; padding:6px 9px; border-radius:9px; background:rgba(255,255,255,.92); color:#111827; }
+}
+.trend-card:hover .trend-cover img { transform:scale(1.04); }
+.trend-body { display:flex; flex-direction:column; gap:10px; padding:14px; }
+.trend-cat { font-size:12px; font-weight:800; color:#697386; }
+.trend-body > strong { min-height:42px; font-size:14px; line-height:1.45; color:#111827; }
+.trend-stats { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:7px; }
+.trend-stat { padding:8px 6px; border-radius:10px; background:#f7f8fb; text-align:center;
+  b { display:block; margin-bottom:2px; font-size:13px; color:#111827; }
+  small { display:block; font-size:11px; font-weight:700; color:#7a8495; }
+}
+.trend-foot { display:flex; align-items:center; justify-content:space-between; gap:8px;
+  em { padding:6px 9px; border-radius:999px; background:#eefbf5; color:#10a56b; font-size:12px; font-style:normal; font-weight:800; }
+  span { padding:7px 10px; border:1px solid #dfe4ee; border-radius:10px; color:#25324a; font-size:12px; font-weight:800; }
+}
+.cats { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:12px;
+  @media (min-width:760px){ grid-template-columns: repeat(3,minmax(0,1fr)); }
+  @media (min-width:1080px){ grid-template-columns: repeat(6,minmax(0,1fr)); } }
+.cat { position:relative; min-height:132px; overflow:hidden; border:1px solid #e7ebf3; border-radius:14px; background:#fff; padding:12px; cursor:pointer; text-align:left; transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.3; }
+  &::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.96)); }
+  &:hover { transform:translateY(-3px); border-color:#cbd7ff; box-shadow:0 14px 28px -20px rgba(49,88,232,.45); }
+}
+.cat-content { position:relative; z-index:1; min-height:108px; display:flex; flex-direction:column; justify-content:flex-end;
+  strong { margin-bottom:7px; font-size:15px; font-weight:850; color:#111827; }
+  small { color:#657084; font-size:12px; line-height:1.4; font-weight:700; }
+}
+.how { display:flex; flex-wrap:wrap; gap:10px; padding:14px; border-radius:14px; background:#fff; border:1px solid #e6ebf4; }
+.how-step { display:flex; align-items:center; gap:9px; flex:1; min-width:210px; font-size:13px; color:#697386; font-weight:700;
+  b { width:24px; height:24px; flex:none; border-radius:50%; background:#3158e8; color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; }
 }
 
 .block { margin-top: 30px; }
@@ -290,6 +456,10 @@ async function blobDownload(url: string, name: string) {
   .discover { padding: 22px 14px 48px; }
   .dh { margin-bottom:18px; h1 { font-size:24px; } p { font-size:14px; } }
   .search { padding:12px; gap:10px; }
+  .market-strip { grid-template-columns: 1fr; }
+  .hot-row { align-items:flex-start; }
+  .section-title { flex-wrap:wrap; em { width:100%; padding-left:12px; } }
+  .trend-grid { grid-template-columns: 1fr; }
   .cats { grid-template-columns: repeat(2,1fr); }
   .acts { gap:6px; }
   .dl, .use { padding:9px 4px; font-size:11px; white-space:nowrap; }

@@ -7,9 +7,9 @@ import type {
   WorkflowNodeType, 
   WorkflowNodeStatus,
   GenerationMode,
-  AnalysisType,
-  AIErrorCode
+  AnalysisType
 } from '@/types/ai.types'
+import type { AIErrorCode } from '@/utils/errorHandler'
 
 /**
  * 检查是否为有效的节点类型

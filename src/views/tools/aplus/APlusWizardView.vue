@@ -281,7 +281,7 @@
                 <LeftOutlined />
               </button>
               <div class="lightbox-content" @click.self="closeLightbox">
-                <img v-if="aplus.activeDraft?.modules?.[lightboxIndex]?.imageUrl" :src="aplus.activeDraft.modules[lightboxIndex].imageUrl" alt="" />
+                <img v-if="lightboxImageUrl" :src="lightboxImageUrl" alt="" />
               </div>
               <button v-if="(aplus.activeDraft?.modules?.length ?? 0) > 1" class="lightbox-nav lightbox-next" @click="lightboxNext">
                 <RightOutlined />
@@ -362,8 +362,9 @@ const completedModuleCount = computed(() =>
   aplus.activeDraft?.modules?.filter((m) => m.imageUrl).length ?? 0
 )
 
-type TaskPhase = 'analyze' | `module-${number}` | 'done'
-function taskStatus(phase: string): string {
+const lightboxImageUrl = computed(() => aplus.activeDraft?.modules?.[lightboxIndex.value]?.imageUrl ?? '')
+
+function taskStatus(phase: 'analyze' | `module-${number}` | 'done'): string {
   if (!isGenerating.value && aplus.activeDraft?.modules?.length) return 'completed'
   if (phase === 'analyze') {
     if (completedModuleCount.value > 0) return 'completed'
@@ -733,7 +734,12 @@ async function runGenerate() {
         userEditablePrompt: defaultPrompt,
         strategyPrompts: store.strategyPrompts,
         analysisReport: store.analysisReport,
-        generatedListing: store.generatedListing ?? undefined,
+        generatedListing: store.generatedListing
+          ? {
+              ...store.generatedListing,
+              targetAudience: store.generatedListing.targetAudience ?? '',
+            }
+          : undefined,
         productInfo: buildUserProductForPipeline(),
         userListingData: store.userListingData,
         mainImageUrl: store.mainImageUrl,
@@ -1698,4 +1704,3 @@ onMounted(() => {
   }
 }
 </style>
-

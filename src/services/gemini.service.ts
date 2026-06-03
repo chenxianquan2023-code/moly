@@ -22,7 +22,7 @@ interface TextPart {
 
 type Part = ImagePart | TextPart
 
-class GeminiService {
+export class GeminiService {
     private _client: GoogleGenAI | null = null
     private config: AIConfig
 

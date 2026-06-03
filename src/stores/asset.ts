@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { ImageInfo, ImageProcessingOptions } from '@/types/ai.types';
 
 const STORAGE_KEY = 'omni_gen_assets';
 

@@ -99,7 +99,7 @@ function onDrop(e: DragEvent) {
 async function generate() {
   if (!inputImage.value) return;
   if (auth.points < 3) { message.warning(`积分不足`); return; }
-  if (!auth.deductPoints(3)) return;
+  if (!auth.deductPoints(3, '鞋履试穿生成')) return;
   isGenerating.value = true; resultImage.value = null;
   const prompt = `请生成一张AI试鞋效果图：
 

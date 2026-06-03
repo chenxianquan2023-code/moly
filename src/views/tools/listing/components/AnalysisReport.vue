@@ -49,12 +49,12 @@
       </div>
     </div>
 
-    <div v-if="missingKeywords.length" class="report-section">
+    <div v-if="safeMissingKeywords.length" class="report-section">
       <h4 class="section-label missing-label">
         <WarningOutlined class="label-icon" /> 缺失关键词
       </h4>
       <div class="keyword-cloud">
-        <span v-for="(kw, i) in missingKeywords" :key="i" class="keyword-tag missing">{{ kw }}</span>
+        <span v-for="(kw, i) in safeMissingKeywords" :key="i" class="keyword-tag missing">{{ kw }}</span>
       </div>
     </div>
   </div>
@@ -86,6 +86,8 @@ const scoreClass = computed(() => {
   if (props.score >= 60) return 'score-mid'
   return 'score-low'
 })
+
+const safeMissingKeywords = computed(() => props.missingKeywords ?? [])
 </script>
 
 <style scoped lang="scss">

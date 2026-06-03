@@ -106,7 +106,7 @@ function onDrop(e: DragEvent) {
 async function generate() {
   if (!inputImage.value) return;
   if (auth.points < 3) { message.warning(`积分不足`); return; }
-  if (!auth.deductPoints(3)) return;
+  if (!auth.deductPoints(3, '图片放大生成')) return;
   isGenerating.value = true; resultImage.value = null;
   const prompt = `请生成一张高清放大效果图：
 

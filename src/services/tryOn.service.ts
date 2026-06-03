@@ -173,13 +173,6 @@ export class TryOnService {
       onProgress?.(20, '正在处理图片...')
 
       const actionDesc = this.getActionDescription(action)
-      const prompt = promptBuilderService.buildTryOnPrompt(
-        '保持原模特特征',
-        '穿着图2中的服装',
-        actionDesc,
-        true,
-        false
-      )
 
       onProgress?.(50, '正在生成虚拟试穿图...')
 

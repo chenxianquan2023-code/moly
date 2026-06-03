@@ -708,7 +708,7 @@ const currentStageLabel = computed(() => {
 
 const currentShot = computed<JewelryShotTemplate | null>(() => {
   if (!shots.value.length) return null
-  return shots.value.find((shot) => shot.id === activeShotId.value) || shots.value[0]
+  return shots.value.find((shot) => shot.id === activeShotId.value) || shots.value[0] || null
 })
 
 const currentShotCandidates = computed(() => {
@@ -799,7 +799,7 @@ watch(
     }
 
     if (!nextShots.some((shot) => shot.id === activeShotId.value)) {
-      activeShotId.value = nextShots[0].id
+      activeShotId.value = nextShots[0]?.id ?? ''
     }
   },
   { immediate: true }

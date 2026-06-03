@@ -89,8 +89,10 @@ export function fileToBase64(file: File): Promise<string> {
  */
 export function base64ToFile(base64: string, filename: string): File {
   const arr = base64.split(',')
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
-  const bstr = atob(arr[1])
+  const header = arr[0] || ''
+  const data = arr[1] || ''
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const bstr = atob(data)
   let n = bstr.length
   const u8arr = new Uint8Array(n)
   

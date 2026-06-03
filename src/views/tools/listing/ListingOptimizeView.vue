@@ -317,7 +317,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import {
-  RightOutlined, ThunderboltFilled, ArrowLeftOutlined, ArrowRightOutlined,
+  ThunderboltFilled, ArrowLeftOutlined, ArrowRightOutlined,
   SearchOutlined, CheckCircleFilled, ExperimentOutlined, LoadingOutlined,
   RobotOutlined,
 } from '@ant-design/icons-vue'

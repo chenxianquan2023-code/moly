@@ -111,7 +111,8 @@ class ListingService {
     ]
     for (const re of urlPatterns) {
       const match = trimmed.match(re)
-      if (match) return match[1].toUpperCase()
+      const asin = match?.[1]
+      if (asin) return asin.toUpperCase()
     }
     return null
   }
@@ -427,7 +428,7 @@ class ListingService {
     try {
       let cleaned = raw.trim()
       const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/)
-      if (fenceMatch) cleaned = fenceMatch[1].trim()
+      if (fenceMatch?.[1]) cleaned = fenceMatch[1].trim()
       return JSON.parse(cleaned) as T
     } catch {
       console.warn('[ListingService] JSON parse failed, using fallback. Raw:', raw.substring(0, 200))

@@ -112,7 +112,7 @@ function onDrop(e: DragEvent) {
 async function generate() {
   if (!inputImage.value) return;
   if (auth.points < 3) { message.warning(`积分不足`); return; }
-  if (!auth.deductPoints(3)) return;
+  if (!auth.deductPoints(3, 'AI 阴影生成')) return;
   isGenerating.value = true; resultImage.value = null;
   const shadow = shadowLabels[shadowType.value] || shadowLabels.soft;
   const prompt = `请生成一张带自然阴影的商品图：

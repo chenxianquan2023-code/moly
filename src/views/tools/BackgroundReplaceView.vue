@@ -168,7 +168,7 @@ async function generate() {
     message.warning(`积分不足，当前剩余 ${auth.points} 积分`);
     return;
   }
-  if (!auth.deductPoints(3)) return;
+  if (!auth.deductPoints(3, '背景替换生成')) return;
   isGenerating.value = true;
   resultImage.value = null;
   const desc = bgDescription.value;

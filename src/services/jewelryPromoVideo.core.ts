@@ -23,7 +23,10 @@ function pickSelectionImage(selection?: JewelryShotSelection) {
 }
 
 export function buildJewelryVideoReferenceImages(selections: JewelryShotSelection[], fallbackImage?: string) {
-  const selectionImages = selections.map((selection) => pickSelectionImage(selection)).filter(Boolean).slice(0, 4)
+  const selectionImages = selections
+    .map((selection) => pickSelectionImage(selection))
+    .filter((image): image is string => Boolean(image))
+    .slice(0, 4)
 
   if (selectionImages.length) {
     return selectionImages

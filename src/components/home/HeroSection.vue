@@ -25,7 +25,7 @@
           <button class="btn-primary btn-glow" @click="startReplica">
             免费开始复刻 <span class="arrow">→</span>
           </button>
-          <a href="#showcase" class="btn-ghost"><span class="tri-sm"></span> 看演示</a>
+          <button type="button" class="btn-ghost" @click="openDemo"><span class="tri-sm"></span> 看演示</button>
         </div>
         <ul class="hero-stats">
           <li><strong>~3 分钟</strong><span>复刻一条成片</span></li>
@@ -40,11 +40,11 @@
           <div class="phone-notch"></div>
           <div class="phone-screen">
             <transition name="fade-frame" mode="out-in">
-              <img :key="frame" :src="frames[frame]" alt="复刻成片预览" class="phone-video" />
+              <img :key="currentFrame.src" :src="currentFrame.src" :alt="currentFrame.product" class="phone-video" />
             </transition>
             <div class="phone-shade"></div>
-            <div class="play"><span class="tri"></span></div>
-            <div class="phone-caption">🔥 这款真的绝了，手慢就没～</div>
+            <button type="button" class="play" aria-label="播放商品短视频演示" @click="openDemo"><span class="tri"></span></button>
+            <div class="phone-caption">{{ currentFrame.caption }}</div>
             <div class="phone-progress"><span></span></div>
           </div>
         </div>
@@ -55,24 +55,111 @@
       </div>
     </div>
   </section>
+
+  <Teleport to="body">
+    <div v-if="demoOpen" class="demo-mask" @click.self="closeDemo">
+      <div class="demo-dialog" role="dialog" aria-modal="true" aria-label="商品短视频演示预览">
+        <button type="button" class="demo-close" aria-label="关闭演示" @click="closeDemo">×</button>
+        <div class="demo-phone">
+          <img :src="currentFrame.src" :alt="currentFrame.product" />
+          <div class="demo-shade"></div>
+          <div class="demo-play"><span class="tri"></span></div>
+          <p>{{ currentFrame.caption }}</p>
+        </div>
+        <div class="demo-copy">
+          <span class="demo-kicker">{{ currentFrame.category }}</span>
+          <h3>{{ currentFrame.product }}</h3>
+          <p>{{ currentFrame.hook }}</p>
+          <ul>
+            <li>自动拆解参考视频的钩子、分镜和口播节奏</li>
+            <li>把商品卖点带入脚本，生成可发布的带货短视频</li>
+            <li>支持 9:16 / 16:9 多比例导出</li>
+          </ul>
+          <div class="demo-actions">
+            <button type="button" class="btn-primary" @click="useDemoForReplica">
+              用它复刻 <span class="arrow">→</span>
+            </button>
+            <button type="button" class="demo-secondary" @click="closeDemo">继续看页面</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import thermosImg from '@/assets/img/thermos-temp-display.jpg';
+import earbudsImg from '@/assets/img/erji.png';
+import phoneImg from '@/assets/img/iphone.png';
+import beautyImg from '@/assets/showcase-meizhuang.png';
 
 const router = useRouter();
 
-// 复用既有图片资源，循环切换以模拟"成片在播"
-const frames = [
-  'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1519457431-44ccd64a579b?q=80&w=800&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=800&auto=format&fit=crop',
+type DemoFrame = {
+  src: string;
+  product: string;
+  category: string;
+  caption: string;
+  hook: string;
+};
+
+const frames: [DemoFrame, ...DemoFrame[]] = [
+  {
+    src: thermosImg,
+    product: '智能温显保温杯',
+    category: '家居好物',
+    caption: '通勤保温杯，早八人的热水自由',
+    hook: '用办公室、车载和户外三个场景拆卖点，突出温显、防漏和便携。',
+  },
+  {
+    src: earbudsImg,
+    product: '透明仓无线耳机',
+    category: '数码 3C',
+    caption: '开盖这一秒，桌搭氛围直接拉满',
+    hook: '围绕开箱、降噪对比和通勤佩戴做快节奏短视频。',
+  },
+  {
+    src: beautyImg,
+    product: '通勤妆前急救套装',
+    category: '美妆个护',
+    caption: '底妆服帖，镜头前也不怕卡粉',
+    hook: '前后对比、手部试色和通勤补妆镜头都适合快速复刻。',
+  },
+  {
+    src: phoneImg,
+    product: '磁吸手机支架',
+    category: '手机配件',
+    caption: '桌面少一根线，拍摄角度多三档',
+    hook: '用桌搭、直播补光和随手拍三个场景讲清支架价值。',
+  },
 ];
 const frame = ref(0);
+const demoOpen = ref(false);
+const currentFrame = computed<DemoFrame>(() => frames[frame.value] ?? frames[0]);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function startReplica() {
+  router.push('/studio');
+}
+
+function openDemo() {
+  demoOpen.value = true;
+}
+
+function closeDemo() {
+  demoOpen.value = false;
+}
+
+function useDemoForReplica() {
+  const item = currentFrame.value;
+  sessionStorage.setItem('moly_prefill', JSON.stringify({
+    kind: 'inspiration',
+    cover: item.src,
+    desc: `${item.product}：${item.caption}。${item.hook}`,
+  }));
+  closeDemo();
   router.push('/studio');
 }
 
@@ -293,6 +380,8 @@ onUnmounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   text-decoration: none;
+  font-family: inherit;
+  cursor: pointer;
   backdrop-filter: blur(6px);
   transition: all 0.25s ease;
   &:hover { border-color: #c7d2fe; background: #fff; transform: translateY(-2px); }
@@ -394,14 +483,25 @@ onUnmounted(() => {
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   width: 60px; height: 60px;
+  padding: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(8px);
   border: 1.5px solid rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
   animation: pulsePlay 2.4s ease-in-out infinite;
+  transition: transform 0.25s ease, background 0.25s ease;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(255, 255, 255, 0.34);
+    transform: translate(-50%, -50%) scale(1.08);
+    outline: none;
+  }
 
   .tri {
     width: 0; height: 0;
@@ -445,6 +545,189 @@ onUnmounted(() => {
 @keyframes progress {
   0% { width: 8%; }
   100% { width: 96%; }
+}
+
+.demo-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.demo-dialog {
+  position: relative;
+  width: min(880px, 100%);
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) 1fr;
+  gap: 28px;
+  padding: 24px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 30px 80px -30px rgba(15, 23, 42, 0.55);
+}
+
+.demo-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  background: #fff;
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+
+  &:hover { color: #0f172a; border-color: #cbd5e1; }
+}
+
+.demo-phone {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 26px;
+  background: #0f172a;
+  box-shadow: 0 18px 48px -22px rgba(15, 23, 42, 0.8);
+
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  p {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 20px;
+    margin: 0;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    z-index: 2;
+  }
+}
+
+.demo-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0.68), transparent 50%),
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.14), transparent 34%);
+}
+
+.demo-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+
+  .tri {
+    width: 0;
+    height: 0;
+    margin-left: 4px;
+    border-left: 18px solid #fff;
+    border-top: 11px solid transparent;
+    border-bottom: 11px solid transparent;
+  }
+}
+
+.demo-copy {
+  align-self: center;
+  padding-right: 16px;
+
+  h3 {
+    margin: 10px 0 12px;
+    color: #0f172a;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.15;
+  }
+
+  p {
+    margin: 0 0 18px;
+    color: #475569;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  ul {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 24px;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    position: relative;
+    padding-left: 18px;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.55;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.7em;
+      width: 6px;
+      height: 6px;
+      border-radius: 9999px;
+      background: #2563eb;
+    }
+  }
+}
+
+.demo-kicker {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.demo-secondary {
+  height: 52px;
+  padding: 0 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #475569;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover { border-color: #cbd5e1; color: #0f172a; }
 }
 
 /* 浮动玻璃步骤卡 */
@@ -497,5 +780,24 @@ onUnmounted(() => {
   .hero { padding-top: 116px; min-height: auto; }
   .hero-preview { min-height: 480px; margin-top: 8px; }
   .chip-voice { right: 0; }
+}
+
+@media (max-width: 720px) {
+  .demo-dialog {
+    grid-template-columns: 1fr;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .demo-phone {
+    width: min(260px, 100%);
+    margin: 0 auto;
+  }
+
+  .demo-copy {
+    padding: 0;
+  }
 }
 </style>

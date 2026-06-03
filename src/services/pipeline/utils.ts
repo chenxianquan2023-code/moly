@@ -6,7 +6,7 @@ export function safeParseJson<T>(raw: string, fallback: T): T {
   try {
     let cleaned = raw.trim()
     const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/)
-    if (fenceMatch) cleaned = fenceMatch[1].trim()
+    if (fenceMatch?.[1]) cleaned = fenceMatch[1].trim()
     return JSON.parse(cleaned) as T
   } catch {
     console.warn('[Pipeline] JSON 解析失败，使用 fallback。原始内容前200字符:', raw.substring(0, 200))

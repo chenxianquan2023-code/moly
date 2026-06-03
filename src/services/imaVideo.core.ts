@@ -11,7 +11,7 @@ const MAX_PROMPT_LENGTH = 2000
 const MAX_IMAGE_REFERENCE_COUNT = 9
 const SUPPORTED_ASPECT_RATIOS = new Set(['1:1', '16:9', '9:16', '4:3', '3:4', '21:9', '9:21'])
 const SUPPORTED_RESOLUTIONS = new Set(['480p', '720p', '1080p', '2k'])
-const STABLE_DURATIONS = [4, 8, 12]
+const STABLE_DURATIONS = [4, 8, 12] as const
 
 export interface ImaVideoCreateOptions {
   prompt?: string
@@ -67,15 +67,17 @@ function normalizeRequestDuration(value: unknown) {
     return DEFAULT_DURATION
   }
 
-  if (duration <= STABLE_DURATIONS[0]) {
-    return STABLE_DURATIONS[0]
+  const [shortDuration, mediumDuration, longDuration] = STABLE_DURATIONS
+
+  if (duration <= shortDuration) {
+    return shortDuration
   }
 
-  if (duration <= STABLE_DURATIONS[1]) {
-    return STABLE_DURATIONS[1]
+  if (duration <= mediumDuration) {
+    return mediumDuration
   }
 
-  return STABLE_DURATIONS[2]
+  return longDuration
 }
 
 function normalizeAspectRatio(value: unknown) {

@@ -158,7 +158,7 @@
       <div class="form-grid">
         <div class="form-section">
           <label class="field-label">尺寸比例</label>
-          <select :value="aspectRatio" class="field-input" @change="$emit('update:aspectRatio', ($event.target as HTMLSelectElement).value)">
+          <select :value="aspectRatio" class="field-input" @change="emitAspectRatio(($event.target as HTMLSelectElement).value)">
             <option value="1:1">1:1</option>
             <option value="4:5">4:5</option>
             <option value="16:9">16:9</option>
@@ -168,7 +168,7 @@
         </div>
         <div class="form-section">
           <label class="field-label">清晰度</label>
-          <select :value="qualityTier" class="field-input" @change="$emit('update:qualityTier', ($event.target as HTMLSelectElement).value)">
+          <select :value="qualityTier" class="field-input" @change="emitQualityTier(($event.target as HTMLSelectElement).value)">
             <option value="1K">1K</option>
             <option value="2K">2K</option>
             <option value="4K">4K</option>
@@ -196,7 +196,7 @@ const props = withDefaults(
   { showValidation: false }
 )
 
-defineEmits<{
+const emit = defineEmits<{
   'update:aspectRatio': [value: '1:1' | '4:5' | '16:9' | '3:4']
   'update:qualityTier': [value: '1K' | '2K' | '4K']
 }>()
@@ -261,7 +261,7 @@ function removeImage(index: number) {
   validationBlurred.value.images = true
   const current = aplus.wizardInput.images
   const url = current[index]
-  revokeBlobUrl(url)
+  if (url) revokeBlobUrl(url)
   const next = current.slice()
   next.splice(index, 1)
   aplus.touchWizardField('images')
@@ -274,6 +274,7 @@ async function processFilesToDataUrls(files: FileList | File[]): Promise<string[
   for (let i = 0; i < arr.length; i++) {
     if (aplus.wizardInput.images.length + urls.length >= 5) break
     const file = arr[i]
+    if (!file) continue
     if (!file.type.startsWith('image/')) continue
     try {
       const base64 = await fileToBase64(file)
@@ -289,6 +290,18 @@ async function processFilesToDataUrls(files: FileList | File[]): Promise<string[
     }
   }
   return urls
+}
+
+function emitAspectRatio(value: string) {
+  if (value === '1:1' || value === '4:5' || value === '16:9' || value === '3:4') {
+    emit('update:aspectRatio', value)
+  }
+}
+
+function emitQualityTier(value: string) {
+  if (value === '1K' || value === '2K' || value === '4K') {
+    emit('update:qualityTier', value)
+  }
 }
 
 async function onFileChange(e: Event) {

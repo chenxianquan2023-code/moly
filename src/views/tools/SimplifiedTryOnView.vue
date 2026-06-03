@@ -258,14 +258,8 @@ const triggerAnalysisIfReady = async () => {
   isGeneratedReady.value = false;
   try {
     const res = await tryOnService.analyzeBothImages(inputs.model, inputs.garment);
-    const parts = res.split('；');
-    if (parts.length >= 2) {
-      modelDesc.value = parts[0]?.trim() || '';
-      garmentDesc.value = parts[1]?.trim() || '';
-    } else {
-      modelDesc.value = res.trim();
-      garmentDesc.value = '';
-    }
+    modelDesc.value = res.modelDescription.trim();
+    garmentDesc.value = res.garmentDescription.trim();
     isGeneratedReady.value = true;
   } catch (err) {
     modelDesc.value = '图1人物';
@@ -310,7 +304,7 @@ const startGeneration = async () => {
     message.warning(`积分不足，当前剩余 ${auth.points} 积分`);
     return;
   }
-  if (!auth.deductPoints(GENERATION_COST)) return;
+  if (!auth.deductPoints(GENERATION_COST, '虚拟试穿生成')) return;
   isGenerating.value = true;
   resultImage.value = null;
   const prompt = getGeneratedPrompt();
@@ -320,8 +314,8 @@ const startGeneration = async () => {
       inputs.model,
       inputs.garment,
       {
-        aspectRatio: configAspectRatio.value,
-        imageSize: configImageSize.value,
+        aspectRatio: configAspectRatio.value as '1:1' | '3:4' | '4:3' | '16:9',
+        imageSize: configImageSize.value as '1K' | '2K' | '4K',
         temperature: configTemperature.value,
       }
     );

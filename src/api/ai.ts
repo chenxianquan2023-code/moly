@@ -5,7 +5,7 @@
  */
 
 import { post, uploadFile } from './client'
-import type { GenerationResult, TryOnRequest, TryOnResponse } from '@/types/ai.types'
+import type { GenerationResult, TryOnResponse } from '@/types/ai.types'
 
 export interface GenerateTryOnParams {
   modelImage: string
@@ -88,7 +88,10 @@ export async function upscaleImage(
   params: UpscaleParams,
   onProgress?: (progress: number) => void
 ): Promise<GenerationResult> {
-  return post<GenerationResult>('/api/ai/upscale', params)
+  onProgress?.(20)
+  const result = await post<GenerationResult>('/api/ai/upscale', params)
+  onProgress?.(100)
+  return result
 }
 
 /**
@@ -129,7 +132,9 @@ export async function uploadImages(
   const urls: string[] = []
   
   for (let i = 0; i < files.length; i++) {
-    const url = await uploadImage(files[i], (progress) => {
+    const file = files[i]
+    if (!file) continue
+    const url = await uploadImage(file, (progress) => {
       onProgress?.(i, progress)
     })
     urls.push(url)
@@ -143,7 +148,7 @@ export async function uploadImages(
  */
 export async function analyzeImage(
   image: string,
-  type: 'model' | 'garment' | 'product' = 'generic'
+  type: 'model' | 'garment' | 'product' | 'generic' = 'generic'
 ): Promise<{ description: string; tags: string[] }> {
   return post('/api/ai/analyze', { image, type })
 }

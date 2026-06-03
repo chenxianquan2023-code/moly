@@ -622,17 +622,9 @@ const triggerAnalysisIfReady = async () => {
   try {
     // 单次 API 调用同时分析两张图片
     const analysisResult = await tryOnService.analyzeBothImages(inputs.model, inputs.garment);
-    
-    // 解析结果（格式："图1...；图2..."）
-    const parts = analysisResult.split('；');
-    if (parts.length >= 2) {
-      modelDesc.value = parts[0]?.trim() || '';
-      garmentDesc.value = parts[1]?.trim() || '';
-    } else {
-      // 如果格式不符合预期，直接使用整个结果
-      modelDesc.value = analysisResult.trim();
-      garmentDesc.value = '';
-    }
+
+    modelDesc.value = analysisResult.modelDescription.trim();
+    garmentDesc.value = analysisResult.garmentDescription.trim();
   } catch (err) {
     console.error('Analysis failed:', err);
     modelDesc.value = '图1人物';
@@ -666,7 +658,7 @@ const startGeneration = async () => {
     message.warning(`积分不足，当前剩余 ${auth.points} 积分，生成需消耗 ${GENERATION_COST} 积分`);
     return;
   }
-  if (!auth.deductPoints(GENERATION_COST)) {
+  if (!auth.deductPoints(GENERATION_COST, '虚拟试穿生成')) {
     message.warning('积分不足，请先充值');
     return;
   }
@@ -687,8 +679,8 @@ const startGeneration = async () => {
       inputs.model,
       inputs.garment,
       {
-        aspectRatio: configAspectRatio.value,
-        imageSize: configImageSize.value,
+        aspectRatio: configAspectRatio.value as '1:1' | '3:4' | '4:3' | '16:9',
+        imageSize: configImageSize.value as '1K' | '2K' | '4K',
         temperature: configTemperature.value,
       }
     );

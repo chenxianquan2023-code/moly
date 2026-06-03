@@ -38,7 +38,7 @@ export interface APlusPromptGenResult {
 }
 
 function buildMinimalAnalysisReport(
-  aPlusGuidancePrompt: string,
+  _aPlusGuidancePrompt: string,
   narrativeStrategy: string
 ): AnalysisReport {
   return {

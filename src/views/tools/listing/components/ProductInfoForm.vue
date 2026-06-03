@@ -229,7 +229,9 @@ function onFileChange(e: Event) {
   if (!files) return
   for (let i = 0; i < files.length; i++) {
     if (store.productInfo.images.length >= 5) break
-    store.addProductImage(URL.createObjectURL(files[i]))
+    const file = files[i]
+    if (!file) continue
+    store.addProductImage(URL.createObjectURL(file))
   }
   target.value = ''
 }
@@ -238,9 +240,10 @@ function onDrop(e: DragEvent) {
   const files = e.dataTransfer?.files
   if (!files) return
   for (let i = 0; i < files.length; i++) {
-    if (!files[i].type.startsWith('image/')) continue
+    const file = files[i]
+    if (!file || !file.type.startsWith('image/')) continue
     if (store.productInfo.images.length >= 5) break
-    store.addProductImage(URL.createObjectURL(files[i]))
+    store.addProductImage(URL.createObjectURL(file))
   }
 }
 </script>

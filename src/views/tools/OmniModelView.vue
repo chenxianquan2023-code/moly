@@ -289,6 +289,7 @@ const modes: Array<{
     referenceHint: '上传目标姿势参考图',
   },
 ]
+const defaultMode = modes[0]!
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -300,7 +301,7 @@ const parseMode = (value: unknown): ModeKey => {
 }
 
 const activeMode = ref<ModeKey>(parseMode(route.query.mode))
-const currentMode = computed(() => modes.find((item) => item.key === activeMode.value) || modes[0])
+const currentMode = computed(() => modes.find((item) => item.key === activeMode.value) || defaultMode)
 
 watch(
   () => route.query.mode,
@@ -567,7 +568,11 @@ function buildReferenceImages(mode: ModeKey): string[] {
   const refs: string[] = []
   if (inputs.base) refs.push(inputs.base)
 
-  const modeRef = getModeReferenceImage()
+  const modeRef =
+    mode === 'outfit' ? inputs.outfitRef :
+    mode === 'model' ? inputs.modelRef :
+    mode === 'background' ? inputs.backgroundRef :
+    inputs.poseRef
   if (modeRef) refs.push(modeRef)
   if (inputs.extraRef) refs.push(inputs.extraRef)
   return refs

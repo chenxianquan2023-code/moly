@@ -12,7 +12,7 @@ interface SoraVideoResponse {
     status: string;
 }
 
-class SoraService {
+export class SoraService {
     private apiKey: string;
     private baseUrl: string;
 

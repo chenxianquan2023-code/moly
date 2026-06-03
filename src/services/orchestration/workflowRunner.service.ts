@@ -6,7 +6,6 @@
 
 import { imageAnalysisService } from '../atomic/imageAnalysis.service'
 import { imageGenerationService } from '../atomic/imageGeneration.service'
-import { promptBuilderService } from '../atomic/promptBuilder.service'
 
 export type NodeType = 
   | 'input'
@@ -184,6 +183,7 @@ export class WorkflowRunner {
       // 2. 按顺序执行节点
       for (let i = 0; i < sortedNodes.length; i++) {
         const node = sortedNodes[i]
+        if (!node) continue
         const progress = Math.round((i / totalNodes) * 100)
         
         node.status = 'running'

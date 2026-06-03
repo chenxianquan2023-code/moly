@@ -294,6 +294,7 @@ async function generateFrameWithRetry(
   for (let i = 0; i < attempts.length; i++) {
     const group = rawRefGroups[Math.min(i, rawRefGroups.length - 1)] || [];
     const attempt = attempts[i];
+    if (!attempt) continue;
     try {
       statusText.value = `${statusLabel}${attempt.suffix}`;
       const refs: string[] = [];
@@ -363,6 +364,7 @@ function removeJewelry(i: number) {
 
 function toggleJewelry(i: number) {
   const item = jewelryImages.value[i];
+  if (!item) return;
   // 最多选2件
   if (!item.selected && selectedJewelry.value.length >= 2) return;
   item.selected = !item.selected;
@@ -384,15 +386,23 @@ async function generate() {
 
   try {
     // ── Gemini 双帧路径 ──────────────────────────────────────────────────────
+    const fallbackJewelry = jewelryImages.value[0];
+    if (!fallbackJewelry) {
+      throw new Error('请先上传至少 1 件首饰');
+    }
     const selected = selectedJewelry.value.length > 0
       ? selectedJewelry.value
-      : [jewelryImages.value[0]];
+      : [fallbackJewelry];
+    const primaryJewelry = selected[0];
+    if (!primaryJewelry) {
+      throw new Error('请先上传至少 1 件首饰');
+    }
     const rawRefAll: string[] = [modelImage.value];
     for (const item of selected) rawRefAll.push(item.url);
     if (sceneImage.value) rawRefAll.push(sceneImage.value);
     const rawRefNoScene: string[] = [modelImage.value];
     for (const item of selected) rawRefNoScene.push(item.url);
-    const rawRefCore: string[] = [modelImage.value, selected[0]?.url].filter(Boolean) as string[];
+    const rawRefCore: string[] = [modelImage.value, primaryJewelry.url];
     const rawRefGroups = [rawRefAll, rawRefNoScene, rawRefCore];
 
     const jewelryCount = selected.length;
