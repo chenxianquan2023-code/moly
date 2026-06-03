@@ -35,7 +35,7 @@ async function openaiImage(prompt, refs = [], { model = 'gpt-image-2', size = '1
       method: 'POST',
       headers: { Authorization: `Bearer ${EZ_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model, prompt, size }),
-      signal: AbortSignal.timeout(240000),
+      signal: AbortSignal.timeout(150000),
     });
   } else {
     const fd = new FormData();
@@ -48,7 +48,7 @@ async function openaiImage(prompt, refs = [], { model = 'gpt-image-2', size = '1
     }
     res = await fetch(`${EZ_BASE}/v1/images/edits`, {
       method: 'POST', headers: { Authorization: `Bearer ${EZ_KEY}` }, body: fd,
-      signal: AbortSignal.timeout(240000),
+      signal: AbortSignal.timeout(150000),
     });
   }
   const out = extractOpenAI(await res.json());
@@ -72,9 +72,13 @@ export async function generate(prompt, refs = [], opts = {}) {
   const fn = PROVIDERS[provider];
   if (!fn) throw new Error(`未知图像 provider: ${provider}（可选: ${Object.keys(PROVIDERS).join(', ')}）`);
   let lastErr;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     try { return await fn(prompt, refs, opts); }
-    catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 800 * (i + 1))); }
+    catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 700 * (i + 1))); }
+  }
+  // 所选模型失败（如 GPT Image 超时）→ 退回 Gemini 再试，别整镜降级成原图
+  if (provider !== 'gemini') {
+    try { return await geminiImage(prompt, refs, opts); } catch (e2) { lastErr = e2; }
   }
   throw lastErr;
 }

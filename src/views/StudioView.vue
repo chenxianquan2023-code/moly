@@ -100,6 +100,7 @@
                 </div>
               </div>
               <p v-if="videoModel === 'seedance'" class="model-hint">⚠️ Seedance 不支持真人出镜：模特图不会出现在画面里，以纯产品镜呈现。需要模特出镜请选「可灵」。</p>
+              <p v-else-if="modelAsset && videoModel === 'kling'" class="model-hint ok">✓ 已用「可灵」——你上传的模特会出镜演示（Seedance 不出真人，已自动切换）。</p>
               <div class="model-row">
                 <span class="model-label">画面质量</span>
                 <div class="seg">
@@ -322,6 +323,10 @@ watch(language, () => {
   if (voice.value && !langVoices.value.some((v: any) => v.id === voice.value)) {
     voice.value = langVoices.value[0]?.id || '';
   }
+});
+// 上传了模特 → 自动改用「可灵」：Seedance 不出真人，传模特通常就是想让模特出镜
+watch(modelAsset, (m) => {
+  if (m && videoModel.value === 'seedance') videoModel.value = 'kling';
 });
 function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; showVoicePicker.value = true; }
 
@@ -742,7 +747,8 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .model-opts { display:flex; flex-direction:column; gap:14px; margin-bottom:16px; }
 .model-row { display:flex; flex-direction:column; gap:8px; }
 .model-label { font-size:13px; font-weight:600; color:var(--color-text-secondary); }
-.model-hint { margin:-2px 0 0; font-size:12px; line-height:1.5; color:#b45309; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.25); padding:7px 10px; border-radius:8px; }
+.model-hint { margin:-2px 0 0; font-size:12px; line-height:1.5; color:#b45309; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.25); padding:7px 10px; border-radius:8px;
+  &.ok { color:#047857; background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.25); } }
 .ml-note { font-style:normal; font-weight:400; font-size:11px; color:var(--color-text-tertiary); margin-left:6px; }
 .lang-row { margin-bottom:20px; }
 .switches { margin-bottom:4px; }
