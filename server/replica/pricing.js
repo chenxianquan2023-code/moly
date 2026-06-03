@@ -10,8 +10,8 @@ export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+�
 
 // 视频引擎：真人镜的自然度/速度不同
 export const VIDEO_MODELS = {
-  seedance: { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '产品镜快而稳，真人镜走可灵兜底' },
-  kling: { id: 'kling', label: '高级 · 可灵', price: 50, desc: '真人镜优先用可灵，动作更自然(略慢)' },
+  seedance: { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '产品镜快而稳；不出真人（选它模特不出镜）' },
+  kling: { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持真人出镜，模特动作更自然(略慢)' },
 };
 
 // 画面生成模型：配图精细度不同

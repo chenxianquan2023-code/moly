@@ -99,6 +99,7 @@
                   </button>
                 </div>
               </div>
+              <p v-if="videoModel === 'seedance'" class="model-hint">⚠️ Seedance 不支持真人出镜：模特图不会出现在画面里，以纯产品镜呈现。需要模特出镜请选「可灵」。</p>
               <div class="model-row">
                 <span class="model-label">画面质量</span>
                 <div class="seg">
@@ -241,8 +242,8 @@ const auth = useAuthStore();
 const DEFAULT_PRICING = {
   base: 20,
   video: [
-    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '产品镜快而稳，真人镜走可灵兜底' },
-    { id: 'kling', label: '高级 · 可灵', price: 50, desc: '真人镜优先用可灵，动作更自然(略慢)' },
+    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '产品镜快而稳；不出真人（选它模特不出镜）' },
+    { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持真人出镜，模特动作更自然(略慢)' },
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },
@@ -741,6 +742,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .model-opts { display:flex; flex-direction:column; gap:14px; margin-bottom:16px; }
 .model-row { display:flex; flex-direction:column; gap:8px; }
 .model-label { font-size:13px; font-weight:600; color:var(--color-text-secondary); }
+.model-hint { margin:-2px 0 0; font-size:12px; line-height:1.5; color:#b45309; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.25); padding:7px 10px; border-radius:8px; }
 .ml-note { font-style:normal; font-weight:400; font-size:11px; color:var(--color-text-tertiary); margin-left:6px; }
 .lang-row { margin-bottom:20px; }
 .switches { margin-bottom:4px; }

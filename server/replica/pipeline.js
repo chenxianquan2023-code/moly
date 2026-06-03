@@ -343,8 +343,19 @@ export async function runReplicaPipeline(task, ctx) {
           sourceStyle: styleFingerprint(analysis, sourceShot),
         };
       });
-      // 上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特，保证模特出镜
-      if (modelUrl && !scenes.some((s) => s.withModel)) {
+      // Seedance 引擎不支持真人出镜：选 Seedance 时把模特镜改成纯产品镜，保证能成功生成
+      if (opts.models?.video === 'seedance') {
+        let changed = false;
+        scenes.forEach((s) => {
+          if (s.withModel) {
+            s.withModel = false;
+            s.visual = '商品英雄特写：突出外观质感与核心卖点，干净明亮背景，产品稳放台面，画面只有商品本身、不出现任何人物';
+            changed = true;
+          }
+        });
+        if (changed || modelUrl) notes.push('Seedance 不出真人：已改为纯产品镜，模特未出镜');
+      } else if (modelUrl && !scenes.some((s) => s.withModel)) {
+        // 非 Seedance：上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
         const last = scenes[scenes.length - 1];
         last.withModel = true;
         if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
