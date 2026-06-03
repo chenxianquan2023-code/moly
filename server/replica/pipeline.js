@@ -229,6 +229,13 @@ export function applySeedancePersonPolicy(scenes, {
   });
 }
 
+export function sourceStyleRefsForScene(sourceStyleFrames = [], analysis = {}) {
+  const frames = Array.isArray(sourceStyleFrames) ? sourceStyleFrames : [];
+  const shots = Array.isArray(analysis?.shots) ? analysis.shots : [];
+  if (shots.some(sourceHasPerson)) return [];
+  return frames.slice(0, 3);
+}
+
 /** 生成带样式的 ASS 字幕（大字号、描边、底部居中、长句自动换行） */
 function buildAss(scenes, durations, analysis) {
   const caption = assCaptionConfig(analysis);
@@ -254,11 +261,50 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return head + lines.join('\n') + '\n';
 }
 
-const TEMPLATE = (name) => ([
-  { type: 'hook', text: `Stop scrolling — you need to see ${name}!`, visual: '商品吸睛特写，突出外观质感', motion: '镜头缓慢推近商品', withModel: false },
-  { type: 'demo', text: `Here's why everyone's obsessed with it.`, visual: '展示商品核心使用场景与卖点细节', motion: '演示商品功能、细节特写', withModel: false },
-  { type: 'cta', text: `Tap the link and grab yours today!`, visual: '模特手持商品微笑推荐', motion: '模特竖起大拇指', withModel: true },
+function fallbackText(type, name, lang) {
+  if (lang === 'zh-CN') {
+    if (type === 'hook') return '熬夜脸也能急救';
+    if (type === 'demo') return `敷上${name}试试`;
+    if (type === 'proof') return '揭下来水润感在线';
+    return '这片补水感真香';
+  }
+  if (type === 'hook') return `Stop scrolling for ${name}`;
+  if (type === 'demo') return `Trying ${name} now`;
+  if (type === 'proof') return 'Look at that glow';
+  return 'Tap to try it today';
+}
+
+const TEMPLATE = (name, lang = 'en-US') => ([
+  { type: 'hook', text: fallbackText('hook', name, lang), visual: '商品吸睛特写，突出外观质感', motion: '镜头缓慢推近商品', withModel: false },
+  { type: 'demo', text: fallbackText('demo', name, lang), visual: '展示商品核心使用场景与卖点细节', motion: '演示商品功能、细节特写', withModel: false },
+  { type: 'cta', text: fallbackText('cta', name, lang), visual: '模特手持商品微笑推荐', motion: '模特轻微展示商品', withModel: true },
 ]);
+
+export function fallbackScenesForSource(name, lang = 'zh-CN', analysis = {}) {
+  const shots = Array.isArray(analysis?.shots) ? analysis.shots : [];
+  if (!shots.length) return TEMPLATE(name, lang);
+  return shots.slice(0, 6).map((shot, i) => {
+    const type = shot.role || (i === 0 ? 'hook' : i === shots.length - 1 ? 'cta' : 'demo');
+    const hasPerson = sourceHasPerson(shot);
+    return {
+      sourceShotIndex: shot.index || i + 1,
+      durationRatio: shot.durationRatio,
+      type,
+      text: fallbackText(type, name, lang),
+      visual: hasPerson
+        ? `模特在源视频同款生活化场景中使用/试用${name}，动作参考：${shot.action || '自然展示商品'}`
+        : `${name}商品特写或包装细节，风格参考源镜头：${shot.action || shot.visualStyle || '商品展示'}`,
+      motion: shot.camera || '轻微手持感',
+      withModel: hasPerson,
+      framing: shot.framing,
+      composition: shot.composition,
+      lighting: shot.lighting,
+      color: shot.color,
+      captionStyle: shot.captionStyle,
+      transition: shot.transition,
+    };
+  });
+}
 
 export async function runReplicaPipeline(task, ctx) {
   const work = mkdtempSync(join(tmpdir(), 'moly-gen-'));
@@ -387,45 +433,48 @@ export async function runReplicaPipeline(task, ctx) {
         scenes = llm.parseJson(txt);
       }
     } catch (e) { notes.push('导演降级: ' + String(e.message || e).split('\n')[0]); }
+    let usedTemplateScenes = false;
     if (!Array.isArray(scenes) || !scenes.length) {
-      scenes = TEMPLATE(product.name || productDesc || 'this product');
+      scenes = fallbackScenesForSource(product.name || productDesc || 'this product', lang, analysis);
+      usedTemplateScenes = true;
       await setStep(1, { status: llm.isConfigured() ? 'failed' : 'skipped', note: '降级:模板分镜' });
-    } else {
-      scenes = scenes.slice(0, 6).map((s, i) => {
-        const sourceShotIndex = normalizeSourceIndex(s.sourceShotIndex ?? s.sourceIndex, i, analysis);
-        const sourceShot = sourceShotFor(analysis, sourceShotIndex ?? i);
-        return {
-          type: s.type || sourceShot?.role || 'demo',
-          text: String(s.text || ''),
-          visual: String(s.visual || s.text || sourceShot?.action || ''),
-          motion: String(s.motion || sourceShot?.camera || ''),
-          withModel: !!s.withModel,
-          personMode: compactText(s.personMode, 40),
-          sourceShotIndex,
-          durationRatio: clampNumber(s.durationRatio ?? sourceShot?.durationRatio, 0, 1, sourceShot?.durationRatio || 0),
-          framing: compactText(s.framing || sourceShot?.framing || sourceShot?.shotType, 120),
-          composition: compactText(s.composition || sourceShot?.composition, 160),
-          lighting: compactText(s.lighting || sourceShot?.lighting, 120),
-          color: compactText(s.color || sourceShot?.color, 120),
-          captionStyle: compactText(s.captionStyle || sourceShot?.captionStyle || analysis?.captionStyle, 160),
-          transition: compactText(s.transition || sourceShot?.transition || analysis?.transitionStyle, 120),
-          sourceStyle: styleFingerprint(analysis, sourceShot),
-        };
-      });
-      scenes = applySeedancePersonPolicy(scenes, {
-        videoModel: opts.models?.video,
-        hasModel: !!modelUrl,
-        productText: [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' '),
-        sourceShots: analysis?.shots || [],
-        notes,
-      });
-      if (opts.models?.video !== 'seedance' && modelUrl && !scenes.some((s) => s.withModel)) {
-        // 非 Seedance：上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
-        const last = scenes[scenes.length - 1];
-        last.withModel = true;
-        last.personMode = 'identifiable';
-        if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
-      }
+    }
+    scenes = scenes.slice(0, 6).map((s, i) => {
+      const sourceShotIndex = normalizeSourceIndex(s.sourceShotIndex ?? s.sourceIndex, i, analysis);
+      const sourceShot = sourceShotFor(analysis, sourceShotIndex ?? i);
+      return {
+        type: s.type || sourceShot?.role || 'demo',
+        text: String(s.text || ''),
+        visual: String(s.visual || s.text || sourceShot?.action || ''),
+        motion: String(s.motion || sourceShot?.camera || ''),
+        withModel: !!s.withModel,
+        personMode: compactText(s.personMode, 40),
+        sourceShotIndex,
+        durationRatio: clampNumber(s.durationRatio ?? sourceShot?.durationRatio, 0, 1, sourceShot?.durationRatio || 0),
+        framing: compactText(s.framing || sourceShot?.framing || sourceShot?.shotType, 120),
+        composition: compactText(s.composition || sourceShot?.composition, 160),
+        lighting: compactText(s.lighting || sourceShot?.lighting, 120),
+        color: compactText(s.color || sourceShot?.color, 120),
+        captionStyle: compactText(s.captionStyle || sourceShot?.captionStyle || analysis?.captionStyle, 160),
+        transition: compactText(s.transition || sourceShot?.transition || analysis?.transitionStyle, 120),
+        sourceStyle: styleFingerprint(analysis, sourceShot),
+      };
+    });
+    scenes = applySeedancePersonPolicy(scenes, {
+      videoModel: opts.models?.video,
+      hasModel: !!modelUrl,
+      productText: [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' '),
+      sourceShots: analysis?.shots || [],
+      notes,
+    });
+    if (opts.models?.video !== 'seedance' && modelUrl && !scenes.some((s) => s.withModel)) {
+      // 非 Seedance：上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
+      const last = scenes[scenes.length - 1];
+      last.withModel = true;
+      last.personMode = 'identifiable';
+      if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
+    }
+    if (!usedTemplateScenes) {
       await setStep(1, { status: 'succeeded' });
     }
 
@@ -496,7 +545,7 @@ export async function runReplicaPipeline(task, ctx) {
           const assetRefs = isAnonymous
             ? [productUrl, modelUrl].filter(Boolean)
             : (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
-          const styleRefs = analysis?.shots?.length ? sourceStyleFrames.slice(0, 3) : [];
+          const styleRefs = analysis?.shots?.length ? sourceStyleRefsForScene(sourceStyleFrames, analysis) : [];
           const refs = [...assetRefs, ...styleRefs];
           const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
           const sceneStyle = s.sourceStyle || styleFingerprint(analysis, sourceShot);
