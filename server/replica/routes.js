@@ -13,6 +13,7 @@ import { estimateCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { getPoints, addPoints, deductPoints } from '../lib/points.js';
+import { isTester } from '../lib/access.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // PRD: ≤200MB
 
@@ -206,6 +207,10 @@ replicaRouter.get('/replica/credits', async (req, res) => {
 replicaRouter.post('/replica/recharge', async (req, res) => {
   try {
     const email = getEmail(req, res); if (!email) return;
+    // 内测期：仅测试账号可充值；普通用户固定 320 体验额度
+    if (!isTester(email)) {
+      return res.json({ success: false, code: 'RECHARGE_DISABLED', message: '内测期间每位用户 320 积分体验额度，暂不支持充值' });
+    }
     const pkg = RECHARGE_PACKAGES.find((p) => p.id === String(req.body?.packageId || ''));
     if (!pkg) return res.status(400).json({ success: false, message: '充值套餐无效' });
     const total = pkg.credits + (pkg.bonus || 0);

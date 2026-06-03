@@ -19,6 +19,7 @@ import { WebSocketServer } from 'ws';
 import https from 'https';
 import { replicaRouter } from './replica/routes.js';
 import { discoverRouter } from './replica/discover.js';
+import { FREE_CREDITS } from './lib/access.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, 'uploads');
@@ -302,7 +303,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const existing = await findUserByEmail(trimmed);
     if (existing) return res.status(400).json({ success: false, message: '该账号已注册，请直接登录' });
-    await sbFetch('POST', '/moly_users', { email: trimmed, password: hashPw(password), points: 100 });
+    await sbFetch('POST', '/moly_users', { email: trimmed, password: hashPw(password), points: FREE_CREDITS });
     return res.json({ success: true, message: '注册成功' });
   } catch (err) {
     console.error('[register]', err.message);
@@ -359,7 +360,7 @@ app.post('/api/auth/login-by-code', async (req, res) => {
       if (!isPhone) {
         return res.status(404).json({ success: false, message: '该账号未注册，请先注册' });
       }
-      const rows = await sbFetch('POST', '/moly_users', { email: acc, password: hashPw(`phone-${acc}-${Date.now()}`), points: 100 });
+      const rows = await sbFetch('POST', '/moly_users', { email: acc, password: hashPw(`phone-${acc}-${Date.now()}`), points: FREE_CREDITS });
       user = Array.isArray(rows) ? rows[0] : rows;
     }
     return res.json({ success: true, user: { email: user.email, points: user.points ?? 0 } });

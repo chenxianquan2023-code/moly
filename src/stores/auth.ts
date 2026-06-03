@@ -6,7 +6,9 @@ const STORAGE_KEY = 'omni_gen_auth';
 const POINTS_KEY = 'omni_gen_points';
 const TRANSACTIONS_KEY = 'omni_gen_transactions';
 
-const defaultPoints = 100;
+const defaultPoints = 320;
+// 内测：仅此测试账号可充值（需与后端 server/lib/access.js 的 TEST_EMAIL 一致）
+const TEST_EMAIL = 'tester@moly.app';
 
 interface StoredAuth {
   email?: string;
@@ -56,6 +58,8 @@ export const useAuthStore = defineStore('auth', () => {
   // Getters
   const isLoggedIn = computed(() => !!email.value || !!phone.value);
   const displayName = computed(() => userDisplayName.value || email.value || phone.value || '未登录');
+  // 内测期：仅测试账号可充值（仅控制充值 UI；真正放行由后端按邮箱校验）
+  const isTester = computed(() => (email.value || '').trim().toLowerCase() === TEST_EMAIL);
   
   const userPoints = computed<UserPoints>(() => ({
     balance: points.value,
@@ -288,6 +292,7 @@ export const useAuthStore = defineStore('auth', () => {
     
     // Getters
     isLoggedIn,
+    isTester,
     displayName,
     userPoints,
     canAfford,

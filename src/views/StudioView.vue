@@ -212,17 +212,20 @@
     <!-- 充值弹窗 -->
     <div v-if="showRecharge" class="modal-mask" @click.self="showRecharge = false">
       <div class="modal">
-        <div class="modal-head"><b>积分充值</b><button type="button" class="modal-x" @click="showRecharge = false">×</button></div>
+        <div class="modal-head"><b>{{ auth.isTester ? '积分充值' : '内测体验额度' }}</b><button type="button" class="modal-x" @click="showRecharge = false">×</button></div>
         <p v-if="rechargeMsg" class="modal-msg">{{ rechargeMsg }}</p>
-        <div class="pkgs">
-          <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
-            <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
-            <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
-            <span class="pkg-price">¥{{ p.priceYuan }}</span>
-            <span v-if="recharging === p.id" class="pkg-spin" />
-          </button>
-        </div>
-        <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 支付网关待接入，当前为体验充值</p>
+        <template v-if="auth.isTester">
+          <div class="pkgs">
+            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
+              <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
+              <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
+              <span class="pkg-price">¥{{ p.priceYuan }}</span>
+              <span v-if="recharging === p.id" class="pkg-spin" />
+            </button>
+          </div>
+          <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 测试账号可无限充值</p>
+        </template>
+        <p v-else class="modal-tip">内测期间每位用户固定 <b>320 积分</b> 体验额度，暂不支持充值。<br>当前余额 <b>{{ auth.points }}</b> 积分。<br>正式上线后将开放充值，敬请期待 🙌</p>
       </div>
     </div>
   </div>
@@ -763,6 +766,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .pkg-price { margin-left:auto; font-size:17px; font-weight:800; color:var(--color-primary); }
 .pkg-spin { position:absolute; right:16px; width:16px; height:16px; border:2px solid var(--color-border); border-top-color:var(--color-primary); border-radius:50%; animation:spin .8s linear infinite; }
 .modal-foot { font-size:11px; color:var(--color-text-tertiary); text-align:center; margin:14px 0 0; }
+.modal-tip { font-size:14px; line-height:1.75; color: var(--color-text-secondary); text-align:center; padding:6px 4px 2px; b { color: var(--color-primary); font-weight:700; } }
 
 .voice-hint { font-size:12px; color:var(--color-text-tertiary); margin:10px 0 0; line-height:1.5; }
 .script { background:rgba(248,250,252,.8); border:1px solid var(--color-border-light); border-radius:var(--radius-md); padding:12px 14px;

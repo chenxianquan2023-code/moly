@@ -43,17 +43,20 @@
     <!-- 全局充值弹窗（侧边栏与工作台共用） -->
     <div v-if="ui.showRecharge" class="modal-mask" @click.self="ui.closeRecharge()">
       <div class="modal">
-        <div class="modal-head"><b>积分充值</b><button type="button" class="modal-x" @click="ui.closeRecharge()">×</button></div>
+        <div class="modal-head"><b>{{ auth.isTester ? '积分充值' : '内测体验额度' }}</b><button type="button" class="modal-x" @click="ui.closeRecharge()">×</button></div>
         <p v-if="ui.rechargeMsg" class="modal-msg">{{ ui.rechargeMsg }}</p>
-        <div class="pkgs">
-          <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
-            <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
-            <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
-            <span class="pkg-price">¥{{ p.priceYuan }}</span>
-            <span v-if="recharging === p.id" class="pkg-spin" />
-          </button>
-        </div>
-        <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 支付网关待接入，当前为体验充值</p>
+        <template v-if="auth.isTester">
+          <div class="pkgs">
+            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
+              <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
+              <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
+              <span class="pkg-price">¥{{ p.priceYuan }}</span>
+              <span v-if="recharging === p.id" class="pkg-spin" />
+            </button>
+          </div>
+          <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 测试账号可无限充值</p>
+        </template>
+        <p v-else class="modal-tip">内测期间每位用户固定 <b>320 积分</b> 体验额度，暂不支持充值。<br>当前余额 <b>{{ auth.points }}</b> 积分。<br>正式上线后将开放充值，敬请期待 🙌</p>
         <button v-if="auth.isLoggedIn" type="button" class="modal-logout" @click="logout">退出登录</button>
       </div>
     </div>
@@ -198,5 +201,6 @@ async function recharge(pkg: any) {
 .pkg-price { margin-left:auto; font-size:17px; font-weight:800; color:var(--color-primary); }
 .pkg-spin { position:absolute; right:16px; width:16px; height:16px; border:2px solid var(--color-border); border-top-color:var(--color-primary); border-radius:50%; animation:spin .8s linear infinite; }
 .modal-foot { font-size:11px; color:var(--color-text-tertiary); text-align:center; margin:14px 0 0; }
+.modal-tip { font-size:14px; line-height:1.75; color: var(--color-text-secondary); text-align:center; padding:6px 4px 2px; b { color: var(--color-primary); font-weight:700; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
