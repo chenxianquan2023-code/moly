@@ -8,7 +8,7 @@ import multer from 'multer';
 import { insertRow, getById, selectOne, selectRows, updateById } from '../lib/supabase.js';
 import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
-import { runReplicaPipeline } from './pipeline.js';
+import { runReplicaPipeline, preflightAIHealth } from './pipeline.js';
 import { estimateCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
@@ -126,6 +126,12 @@ replicaRouter.post('/replica/generate', async (req, res) => {
     const balance = await getPoints(email);
     if (balance === null) return res.status(404).json({ success: false, message: '用户不存在，请先登录' });
     if (balance < cost) return res.status(402).json({ success: false, code: 'INSUFFICIENT', message: `积分不足：本次需 ${cost}，当前 ${balance}`, need: cost, points: balance });
+
+    // 生成前服务自检：AI 模型欠费/未配置 → 不建任务、不扣费，直接提示联系管理员（生出来的视频也不对，别浪费积分）
+    const health = await preflightAIHealth();
+    if (!health.ok) {
+      return res.status(503).json({ success: false, code: 'SERVICE_UNAVAILABLE', message: `生成服务暂时不可用（${health.reason}）。请联系管理员处理，本次未扣除积分。` });
+    }
 
     const task = await createTask({
       userEmail: email,

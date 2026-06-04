@@ -17,13 +17,13 @@ async function fetchRetry(url, opts, retries = 3) {
 }
 
 /** OpenAI 风格 chat 补全，返回文本内容 */
-export async function chat(messages, { model, temperature = 0.7, maxTokens = 1024 } = {}) {
+export async function chat(messages, { model, temperature = 0.7, maxTokens = 1024, timeoutMs = 120000 } = {}) {
   if (!KEY) throw new Error('缺少 EZMODEL_API_KEY / GEMINI_API_KEY');
   const r = await fetchRetry(`${BASE}/v1/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: model || DEFAULT_MODEL, messages, temperature, max_tokens: maxTokens }),
-    signal: AbortSignal.timeout(120000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const j = await r.json();
   const content = j?.choices?.[0]?.message?.content;

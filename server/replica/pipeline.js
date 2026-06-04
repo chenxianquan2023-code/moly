@@ -355,6 +355,28 @@ export function fallbackScenesForSource(name, lang = 'zh-CN', analysis = {}) {
   });
 }
 
+/** 是否「额度不足/欠费」类错误（中转账户没钱了） */
+export function isQuotaError(e) {
+  return /额度不足|余额|欠费|insufficient_user_quota|insufficient.?quota|quota.?exceeded|payment.?required|billing/i.test(String(e?.message || e || ''));
+}
+
+/**
+ * 生成前服务自检：任一关键付费模型欠费/未配置 → {ok:false, reason}。
+ * 让前端在「不扣费、不建任务」前提下直接拦下，提示联系管理员。
+ */
+export async function preflightAIHealth() {
+  if (!kling.isConfigured()) return { ok: false, reason: '视频引擎(可灵)未配置' };
+  if (!llm.isConfigured() && !gemini.isConfigured()) return { ok: false, reason: 'AI 文案/出图服务未配置' };
+  // 轻量探一次 ezmodel 额度（导演/识别/出图共用同一中转账户）
+  try {
+    await llm.generateText('ok', { maxTokens: 1, timeoutMs: 15000 });
+  } catch (e) {
+    if (isQuotaError(e)) return { ok: false, reason: 'AI 出图/文案额度不足' };
+    // 其它异常(网络抖动等)不拦截，让正式流程去跑/降级
+  }
+  return { ok: true };
+}
+
 export async function runReplicaPipeline(task, ctx) {
   const work = mkdtempSync(join(tmpdir(), 'moly-gen-'));
   const steps = [
@@ -387,9 +409,9 @@ export async function runReplicaPipeline(task, ctx) {
     const modelUrl = await urlOf(assets.model_image_id);
     const baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
 
-    // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款，且给出明确原因
+    // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款
     if (!kling.isConfigured()) {
-      throw new Error('视频引擎未配置：服务器缺少 KLING_ACCESS_KEY / KLING_SECRET_KEY，无法生成动态视频。已自动退款，请在部署环境补齐可灵密钥后重试。');
+      throw new Error('视频生成服务暂时不可用（视频引擎未配置）。请联系管理员处理，本次积分已自动退还。');
     }
 
     // 识别商品（即使用户没填，也让导演/文案知道这是什么货 + 品类）
@@ -399,6 +421,8 @@ export async function runReplicaPipeline(task, ctx) {
         productDesc = (await gemini.analyzeImages('用一句话描述这个电商商品：品类 + 外观 + 核心卖点，简洁中文', [productUrl])).trim().slice(0, 240);
       }
     } catch (e) { notes.push('商品识别降级: ' + String(e.message || e).split('\n')[0]); }
+    // 商品文字线索（名称+识别描述+卖点）——匿名镜的出图规则会用到，必须在 makeScene 作用域可见
+    const productText = [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' ');
 
     // ── 1. 解析爆款视频（有源视频时分析其分镜结构，供导演参考）──
     await setStep(0, { status: 'running' });
@@ -723,13 +747,18 @@ export async function runReplicaPipeline(task, ctx) {
       return vp;
     };
 
-    const sceneVideos = await Promise.all(scenes.map((_, i) => makeScene(i)));
-    // 一张 AI 画面都没生成出来 → 成片只会是上传的原图，毫无意义 → 失败并自动退款（别让用户白扣分）
-    if (aiImagesOk === 0) {
-      const quota = notes.some((n) => /额度不足|insufficient_user_quota|insufficient.?quota|欠费/i.test(String(n)));
-      throw new Error(quota
-        ? 'AI 出图额度不足（中转账户 ezmodel 欠费）：所有镜头画面都没能生成。已自动退款，请充值 ezmodel 后重试。'
-        : 'AI 出图全部失败：所有镜头画面都没能生成。已自动退款，请稍后重试。');
+    // 可灵并发太高会超时（实测 4 路齐发 3 路 timeout）→ 限并发，最多同时 2 镜，换取稳定动起来
+    const VIDEO_CONCURRENCY = 2;
+    const sceneVideos = new Array(scenes.length);
+    let nextScene = 0;
+    await Promise.all(Array.from({ length: Math.min(VIDEO_CONCURRENCY, scenes.length) }, async () => {
+      while (nextScene < scenes.length) { const i = nextScene++; sceneVideos[i] = await makeScene(i); }
+    }));
+    // 出图全失败(额度不足) 或 视频引擎全程没成功(可灵欠费/超时) → 成片必然不对 → 中止、退款、提示联系管理员
+    if (aiImagesOk === 0 || !usedAI) {
+      const quota = notes.some((n) => isQuotaError(n));
+      const what = aiImagesOk === 0 ? 'AI 出图服务' : '视频生成服务（可灵）';
+      throw new Error(`${what}暂时不可用${quota ? '（账户额度不足）' : ''}，已中止生成。请联系管理员处理，本次积分已自动退还。`);
     }
     await setStep(3, { status: usedAI ? 'succeeded' : 'skipped', note: usedAI ? `视频源: ${usedProvider}` : '降级:静态画面' });
 

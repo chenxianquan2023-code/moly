@@ -499,7 +499,12 @@ function pollTask(taskId: string) {
           if (auth.email) auth.fetchPointsFromServer(auth.email);
           return;
         }
-        if (j.task.status === 'failed') { generating.value = false; stopProgressUx(); return; }
+        if (j.task.status === 'failed') {
+          generating.value = false; stopProgressUx();
+          if (auth.email) auth.fetchPointsFromServer(auth.email); // 失败已自动退款，刷新余额
+          alert(j.task.error_message || '生成失败，请稍后重试或联系管理员');
+          return;
+        }
       }
     } catch { /* 网络抖动，继续轮询 */ }
     pollTimer = setTimeout(tick, 3000);
