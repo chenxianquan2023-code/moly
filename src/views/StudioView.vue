@@ -64,6 +64,7 @@
                 <template v-else-if="sourceVideoAsset">
                   <video :src="`${sourceVideoAsset.file_url}#t=0.5`" preload="metadata" muted playsinline class="upload-video"></video>
                   <span class="upload-vtag">参考视频</span>
+                  <button type="button" class="upload-play" title="播放" @click.stop.prevent="previewVideo = sourceVideoAsset.file_url"><span class="tri" /></button>
                   <button type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('source')">×</button>
                 </template>
                 <template v-else>
@@ -236,6 +237,14 @@
         <p v-else class="modal-tip">内测期间每位用户固定 <b>320 积分</b> 体验额度，暂不支持充值。<br>当前余额 <b>{{ auth.points }}</b> 积分。<br>正式上线后将开放充值，敬请期待 🙌</p>
       </div>
     </div>
+
+    <!-- 参考视频播放弹层 -->
+    <div v-if="previewVideo" class="pv-mask" @click.self="previewVideo = ''">
+      <div class="pv-box">
+        <button type="button" class="pv-x" @click="previewVideo = ''">×</button>
+        <video :src="previewVideo" controls autoplay playsinline class="pv-video"></video>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -275,6 +284,7 @@ const productAsset = ref<any>(null);
 const modelAsset = ref<any>(null);
 const sourceVideoAsset = ref<any>(null);
 const refInspiration = ref<any>(null); // 找爆款「用它复刻」带入的封面+文案参考（不下载原视频）
+const previewVideo = ref<string>(''); // 点击参考视频缩略图 → 弹层播放
 const uploading = ref('');
 
 // 删除/清空某个素材槽
@@ -699,6 +709,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .upload-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   .upload-del { position:absolute; top:5px; right:5px; z-index:3; width:22px; height:22px; padding:0; border:none; border-radius:50%; background:rgba(15,23,42,.6); color:#fff; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .15s, background .15s; &:hover { background:rgba(220,38,38,.92); } }
   &:hover .upload-del { opacity:1; }
+  .upload-play { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2; width:40px; height:40px; padding:0; border:1.5px solid rgba(255,255,255,.7); border-radius:50%; background:rgba(15,23,42,.42); backdrop-filter:blur(4px); cursor:pointer; display:flex; align-items:center; justify-content:center;
+    .tri { width:0; height:0; margin-left:3px; border-left:12px solid #fff; border-top:7px solid transparent; border-bottom:7px solid transparent; }
+    &:hover { background:rgba(37,99,235,.7); } }
 }
 .upload-note { margin:12px 0 0; color:#64748b; font-size:12px; line-height:1.7; }
 
@@ -878,4 +891,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .upload { min-width:0; }
   .hero { margin-bottom: 24px; h1 { font-size: clamp(22px, 6vw, 30px); } p { font-size: 14px; } }
 }
+/* 参考视频播放弹层 */
+.pv-mask { position:fixed; inset:0; background:rgba(15,23,42,.62); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; z-index:220; padding:20px; }
+.pv-box { position:relative; background:#000; border-radius:var(--radius-2xl); overflow:hidden; box-shadow:var(--shadow-xl); max-width:min(92vw, 460px); }
+.pv-x { position:absolute; top:8px; right:10px; z-index:3; width:32px; height:32px; border:none; border-radius:50%; background:rgba(15,23,42,.55); color:#fff; font-size:20px; line-height:1; cursor:pointer; }
+.pv-video { display:block; width:100%; max-height:86vh; object-fit:contain; background:#000; }
 </style>
