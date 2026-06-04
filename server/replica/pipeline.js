@@ -583,9 +583,8 @@ export async function runReplicaPipeline(task, ctx) {
       seedance: seedance.isConfigured() ? { name: 'Seedance', run: (img, p, d) => seedance.imageToVideo(img, p, { duration: d }) } : null,
       kling: kling.isConfigured() ? { name: 'Kling', run: (img, p, d) => kling.imageToVideo(img, p, { duration: String(d) }) } : null,
     };
-    // 用户选「高级·可灵」→ 真人/全部镜优先可灵；否则标准档 Seedance 优先(产品镜快)、可灵兜底
-    const vorder = (opts.models?.video === 'kling') ? ['kling', 'seedance'] : ['seedance', 'kling'];
-    const videoProviders = vorder.map((k) => provDefs[k]).filter(Boolean);
+    // 全站视频只用可灵：Seedance 已彻底下线（真人/敏感检测易出幺蛾子）。可灵失败只兜底 Ken Burns 运镜，绝不退回 Seedance。
+    const videoProviders = [provDefs.kling].filter(Boolean);
     let usedAI = false, usedProvider = '';
 
     const makeScene = async (i) => {
@@ -672,11 +671,8 @@ export async function runReplicaPipeline(task, ctx) {
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
-        // 可识别真人脸的镜头：Seedance 会因隐私(InputImageSensitiveContentDetected)直接拒绝 → 跳过它、只用可灵，省时且不降级
-        // 任何出真人(非匿名)的镜头都跳过 Seedance（它检测到真人脸直接拒绝）→ 只用可灵，不再降级成静态
-        const faceScene = s.withModel && s.personMode !== 'anonymous';
-        const sceneProviders = faceScene ? videoProviders.filter((p) => p.name !== 'Seedance') : videoProviders;
-        for (const prov of (sceneProviders.length ? sceneProviders : videoProviders)) {
+        // 全站只用可灵（Seedance 已下线），逐个尝试视频引擎（目前就可灵一个），失败再走 Ken Burns
+        for (const prov of videoProviders) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
             await download(url, vp);

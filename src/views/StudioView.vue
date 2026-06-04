@@ -250,8 +250,7 @@ const MAX_SOURCE_VIDEO_SECONDS = 60;
 const DEFAULT_PRICING = {
   base: 20,
   video: [
-    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用；面部遮挡类商品保留自然头部结构，不露可识别人脸' },
-    { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持完整真人脸，模特动作更自然(略慢)' },
+    { id: 'kling', label: '可灵', price: 50, desc: '支持完整真人脸，模特动作自然灵动' },
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },

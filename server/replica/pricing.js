@@ -8,10 +8,9 @@ export const BASE_COST = 20; // 基础流程（解析+导演分镜+配音+字幕
 export const DOWNLOAD_COST = 5; // 找爆款·下载原视频每条扣费（很低，覆盖 Apify 下载成本）
 export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+文案带入工作台的导入费（很低）
 
-// 视频引擎：真人镜的自然度/速度不同
+// 视频引擎：全站只用可灵（Seedance 已下线）
 export const VIDEO_MODELS = {
-  seedance: { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用；面部遮挡类商品保留自然头部结构，不露可识别人脸' },
-  kling: { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持完整真人脸，模特动作更自然(略慢)' },
+  kling: { id: 'kling', label: '可灵', price: 50, desc: '支持完整真人脸，模特动作自然灵动' },
 };
 
 // 画面生成模型：配图精细度不同
@@ -25,7 +24,7 @@ const pick = (table, id, def) => (table[id] ? id : def);
 /** 估算一次生成的积分价（不扣费），返回 {cost, breakdown} */
 export function estimateCost(options = {}) {
   const m = options.models || {};
-  const video = pick(VIDEO_MODELS, m.video, 'seedance');
+  const video = pick(VIDEO_MODELS, m.video, 'kling');
   const image = pick(IMAGE_MODELS, m.image, 'gemini');
   const cost = BASE_COST + VIDEO_MODELS[video].price + IMAGE_MODELS[image].price;
   return {
