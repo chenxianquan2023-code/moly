@@ -167,7 +167,8 @@ function assCaptionConfig(analysis = {}) {
   };
 }
 
-const ANONYMOUS_USE_RE = /面膜|facial\s*mask|face\s*mask|sheet\s*mask|skincare|护肤|美妆|乳贴|nipple|pasties|bra|抹胸|tube\s*top|服饰|穿搭|试穿|wear|try\s*on/i;
+const FACE_COVER_USE_RE = /面膜|facial\s*mask|sheet\s*mask|skincare|护肤|墨镜|太阳镜|眼镜|护目镜|眼罩|sunglasses|eyewear|goggles|口罩|medical\s*mask|respirator|防晒面罩|防晒口罩|护脸|遮脸|遮面|面罩|面具|头盔|帽盔|骑行盔|滑雪面罩|防风面罩|防尘面罩|face\s*mask|face\s*cover|face\s*shield|sun\s*mask|ski\s*mask|balaclava|neck\s*gaiter|visor|helmet/i;
+const ANONYMOUS_USE_RE = new RegExp(`${FACE_COVER_USE_RE.source}|乳贴|nipple|pasties|bra|抹胸|tube\\s*top|服饰|穿搭|试穿|wear|try\\s*on`, 'i');
 const PERSON_RE = /模特|女生|女性|人物|真人|手|肩颈|身体|背影|侧身|佩戴|试用|敷|戴|穿|woman|girl|model|hand|body|wear|try/i;
 
 function sourceHasPerson(shot) {
@@ -181,6 +182,16 @@ function shouldKeepAnonymousUsage(scene, sourceShot, productText) {
   return ANONYMOUS_USE_RE.test(text) && (scene?.withModel || sourceHasPerson(sourceShot) || PERSON_RE.test(text));
 }
 
+function faceCoverKind(text) {
+  const t = String(text || '');
+  if (/面膜|facial\s*mask|sheet\s*mask|skincare|护肤/i.test(t)) return 'sheetMask';
+  if (/墨镜|太阳镜|sunglasses|eyewear|goggles/i.test(t)) return 'eyewear';
+  if (/防晒面罩|防晒口罩|face\s*cover|sun\s*mask|balaclava|neck\s*gaiter/i.test(t)) return 'sunCover';
+  if (/口罩|medical\s*mask|respirator/i.test(t)) return 'mouthMask';
+  if (FACE_COVER_USE_RE.test(t)) return 'faceCover';
+  return '';
+}
+
 function anonymousUsageVisual(scene, sourceShot, productText) {
   const text = `${productText || ''} ${scene?.visual || ''} ${sourceShot?.action || ''}`;
   const sourceCue = [
@@ -188,13 +199,48 @@ function anonymousUsageVisual(scene, sourceShot, productText) {
     sourceShot?.composition && `构图参考：${sourceShot.composition}`,
     sourceShot?.lighting && `光线参考：${sourceShot.lighting}`,
   ].filter(Boolean).join('；');
-  if (/面膜|facial\s*mask|face\s*mask|sheet\s*mask|skincare|护肤/i.test(text)) {
-    return `匿名女性模特正在试用该面膜：脸部被面膜完整覆盖或被镜头裁切到不可识别，手轻按面膜贴合脸颊，商品包装在手边或画面前景清晰可见；${sourceCue || '生活化浴室/卧室自然光，真实护肤使用场景'}；不能变成单纯包装盒陈列`;
+  const coverKind = faceCoverKind(text);
+  if (coverKind === 'sheetMask') {
+    return `匿名女性模特正在真实试用该片状面膜：面膜贴合脸部但保留自然头部和面部结构，必须有眼部/鼻部/嘴部开孔或半透明材质，能看到闭眼轮廓、鼻梁和嘴部位置，手轻按面膜贴合脸颊，商品包装在手边或画面前景清晰可见；${sourceCue || '生活化浴室/卧室自然光，真实护肤使用场景'}；不能变成单纯包装盒陈列，不能生成空白脸、白板脸、无脸人或恐怖面具`;
+  }
+  if (coverKind === 'eyewear') {
+    return `匿名模特正在佩戴该墨镜/太阳镜：镜片遮住眼睛或有自然反光，鼻梁、嘴部、下颌线和自然脸部轮廓清楚，采用侧脸/半侧脸/裁切构图避免可识别正脸，商品佩戴效果清楚；${sourceCue || '生活化穿搭或户外自然光场景'}；不能变成单纯包装盒陈列，不能生成空白脸、白板脸、无脸人或假人头`;
+  }
+  if (coverKind === 'mouthMask') {
+    return `匿名模特正在佩戴该口罩：口罩覆盖鼻口并贴合脸部，耳带、鼻梁条和材质细节真实，眉眼、额头、发际线和自然脸部轮廓可见但不可识别，手可轻调耳带或鼻梁条；${sourceCue || '生活化通勤/户外/室内自然光场景'}；不能变成单纯包装盒陈列，不能生成空白脸、白板脸、无脸人或假人头`;
+  }
+  if (coverKind === 'sunCover') {
+    return `匿名模特正在佩戴该防晒面罩：防晒面罩覆盖下半脸、脸颊或颈部，眼周、额头、发际线和自然头部轮廓可见，可搭配墨镜但人体结构必须真实，商品防晒覆盖效果清楚；${sourceCue || '户外阳光/骑行/海边防晒场景'}；不能变成单纯包装盒陈列，不能生成空白脸、白板脸、无脸人或假人头`;
+  }
+  if (coverKind === 'faceCover') {
+    return `匿名模特正在佩戴/试用该面部遮挡类商品：商品覆盖眼部、鼻口、脸颊或全脸的对应区域，头部、发际线、耳朵/肩颈、眼鼻口位置或商品开孔/镜片/透气孔/边缘结构必须真实合理，采用侧脸/半侧脸/裁切构图避免可识别正脸，商品佩戴效果清楚；${sourceCue || '生活化真实试用场景'}；不能变成单纯包装盒陈列，不能生成空白脸、白板脸、无脸人、假人头或恐怖面具`;
   }
   if (/乳贴|nipple|pasties|bra|抹胸|tube\s*top/i.test(text)) {
     return `匿名女性模特展示该贴身商品的穿搭效果：只拍肩颈以下、背影、侧身或手部整理衣物，绝不出现可识别正脸，商品使用状态清楚自然；${sourceCue || '生活化穿搭场景'}；不能变成单纯商品包装陈列`;
   }
   return `匿名模特正在使用该商品：只出现手部、身体局部、背影、侧身或被商品/道具遮挡的脸，绝不出现可识别正脸，商品与人体接触关系真实；${sourceCue || '生活化真实试用场景'}；不能变成单纯商品包装陈列`;
+}
+
+export function anonymousSubjectRule(scene = {}, productText = '', sourceShot = {}) {
+  const text = `${productText || ''} ${scene?.visual || ''} ${scene?.text || ''} ${sourceShot?.action || ''} ${sourceShot?.subject || ''}`;
+  const base = '人物呈现必须匿名：不要还原上传模特或源视频人物的可识别身份；可以用侧脸、半侧脸、裁切、商品遮挡、墨镜反光、低头/闭眼等方式隐藏身份。人体必须真实自然，不能生成空白脸、白板脸、无脸人、假人脸或恐怖面具。画面核心是"正在试用商品"，不是单纯商品包装陈列。';
+  const coverKind = faceCoverKind(text);
+  if (coverKind === 'sheetMask') {
+    return `${base}片状面膜规则：面膜可以覆盖皮肤，但必须有真实眼部/鼻部/嘴部开孔或半透明凝胶材质；眼睛可闭上或在开孔后自然可见，鼻梁和嘴部位置必须存在，脸部轮廓和头发/耳朵/肩颈比例正常。`;
+  }
+  if (coverKind === 'eyewear') {
+    return `${base}墨镜/太阳镜规则：镜片可以遮住眼睛或反光，但鼻梁、嘴部、下颌线、发际线和自然脸部轮廓必须存在；避免正脸身份证式角度，使用侧脸/半侧脸/裁切构图。`;
+  }
+  if (coverKind === 'mouthMask') {
+    return `${base}口罩规则：口罩覆盖鼻口，耳带、鼻梁条、脸颊贴合关系真实；眉眼、额头、发际线和自然脸部轮廓可见但不可识别。`;
+  }
+  if (coverKind === 'sunCover') {
+    return `${base}防晒面罩规则：防晒面罩覆盖下半脸、脸颊或颈部，眼周、额头、发际线和自然头部轮廓可见，可搭配墨镜遮眼，但不能把整张脸抹成空洞面具。`;
+  }
+  if (coverKind === 'faceCover') {
+    return `${base}通用面部遮挡商品规则：商品可以覆盖眼部、鼻口、脸颊或全脸，但必须保留真实头部结构、发际线、耳朵/肩颈比例，以及眼鼻口所在位置或对应的开孔/镜片/透气孔/边缘结构；不能把脸抹平成空洞白板。`;
+  }
+  return `${base}只出现手部、身体局部、肩颈、背影、侧身，或让商品/道具遮挡可识别部分；未遮挡的人体部位必须保持自然结构。`;
 }
 
 export function applySeedancePersonPolicy(scenes, {
@@ -574,7 +620,7 @@ export async function runReplicaPipeline(task, ctx) {
             ? `【源视频风格硬性继承】${sceneStyle}。这一镜必须继承源镜头的景别、构图、光线、色调、字幕/贴纸位置和短视频质感；不要自动改成通用明亮棚拍、白底商品图或普通电商海报，除非源视频本身就是这种风格。`
             : '光线明亮、背景干净有层次、电商质感。';
           const assetRule = isAnonymous
-            ? '参考图说明：用户商品必须保持一致；用户模特图只能作为肤色、身形、气质和穿搭氛围的弱参考，绝对不要还原或暴露可识别脸。'
+            ? '参考图说明：用户商品必须保持一致；用户模特图只能作为肤色、发型、身形、气质和穿搭氛围的弱参考，绝对不要还原或暴露可识别脸。'
             : `参考图说明：前${assetRefs.length}张是必须保持一致的用户商品/模特；`;
           const referenceRule = styleRefs.length
             ? `${assetRule}后${styleRefs.length}张来自源爆款视频，只能参考构图、灯光、色调、字幕位置、运镜氛围，不得复制源视频人物、原商品、品牌标识或具体文字。`
@@ -584,7 +630,7 @@ export async function runReplicaPipeline(task, ctx) {
             ? '模特自然手持或使用该商品，商品与手部接触真实、比例协调'
             : '商品稳稳放在真实台面上（木桌/大理石台/桌面），带真实接触投影，或被手自然握持；绝不悬浮于纯色背景或半空中；商品尺寸与场景比例真实';
           const subjectRule = isAnonymous
-            ? '人物呈现必须匿名：只出现手部、身体局部、肩颈、背影、侧身，或脸被面膜/商品完整遮挡、被镜头裁切到不可识别；绝不出现清晰可识别正脸、五官肖像或与参考模特一致的脸。画面核心是"正在试用商品"，不是单纯商品包装陈列'
+            ? anonymousSubjectRule(s, productText, sourceShot)
             : isIdentifiable && modelUrl
               ? '模特外貌保持一致，正在自然展示或使用该商品'
               : '以商品为主角，外观保持一致、清晰可见';
@@ -598,7 +644,7 @@ export async function runReplicaPipeline(task, ctx) {
             // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次
             if (/safety|rejected|敏感|sensitive|policy|blocked/i.test(m1)) {
               const safePrompt = isAnonymous
-                ? `电商带货竖版匿名试用图(9:16)：${s.visual}。仅展示手部/身体局部/背影/被商品遮挡的脸，不出现可识别正脸，不含裸露或敏感内容；商品与参考图一致、清晰，真实生活化试用场景。${qualityCue}。`
+                ? `电商带货竖版匿名试用图(9:16)：${s.visual}。${anonymousSubjectRule(s, productText, sourceShot)}不含裸露或敏感内容；商品与参考图一致、清晰，真实生活化试用场景。${qualityCue}。`
                 : `电商带货竖版产品静物图(9:16)：${s.visual}。仅展示商品本身，构图干净、背景明亮整洁、得体专业，不含任何人物裸露或敏感内容。商品与参考图一致、清晰、光线明亮、电商质感。${qualityCue}。`;
               c = await image.generate(safePrompt, [productUrl].filter(Boolean), { aspectRatio: '9:16', provider: opts.models?.image });
               notes.push(`场景${i + 1}安全重试成功`);
@@ -618,7 +664,7 @@ export async function runReplicaPipeline(task, ctx) {
           ? `按源爆款第${(s.sourceShotIndex ?? i) + 1}镜的节奏做轻运镜：${s.motion || sourceShot?.camera || '保持源镜头运动感'}；剪辑节奏：${analysis?.editingRhythm || analysis?.pacing || '贴近源视频'}；转场倾向：${s.transition || analysis?.transitionStyle || '贴近源视频'}。`
           : `镜头运动：${String(s.motion || '缓慢推近').slice(0, 80)}。`;
         const anonymityMotionRule = s.personMode === 'anonymous'
-          ? '全程保持脸部遮挡/裁切/背影/局部，不出现清晰可识别正脸；'
+          ? '全程保持匿名，不出现清晰可识别正脸；若是面膜/墨镜/口罩/防晒面罩等面部遮挡商品，保留真实头部、眼鼻口位置或自然脸部轮廓，不能变成空白脸、无脸人或假人面具；'
           : '';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}主体保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。`.slice(0, 420);
         for (const prov of videoProviders) {

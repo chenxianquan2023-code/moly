@@ -10,7 +10,7 @@ export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+�
 
 // 视频引擎：真人镜的自然度/速度不同
 export const VIDEO_MODELS = {
-  seedance: { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用/手部/身材/遮脸镜头，不露可识别人脸' },
+  seedance: { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用；面部遮挡类商品保留自然头部结构，不露可识别人脸' },
   kling: { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持完整真人脸，模特动作更自然(略慢)' },
 };
 

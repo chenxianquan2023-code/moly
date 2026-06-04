@@ -105,7 +105,7 @@
                   </button>
                 </div>
               </div>
-              <p v-if="videoModel === 'seedance'" class="model-hint">Seedance 会做匿名试用镜头：可出现手部、身材、背影、遮脸/裁脸画面，不露可识别真人脸。</p>
+              <p v-if="videoModel === 'seedance'" class="model-hint">Seedance 会做匿名试用镜头：不露可识别真人脸；面膜、墨镜、口罩、面罩等会保留自然头部结构，避免无脸效果。</p>
               <p v-else-if="modelAsset && videoModel === 'kling'" class="model-hint ok">✓ 已用「可灵」——适合完整真人脸和更自然的人物动作。</p>
               <div class="model-row">
                 <span class="model-label">画面质量</span>
@@ -259,7 +259,7 @@ const MAX_SOURCE_VIDEO_SECONDS = 60;
 const DEFAULT_PRICING = {
   base: 20,
   video: [
-    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用/手部/身材/遮脸镜头，不露可识别人脸' },
+    { id: 'seedance', label: '标准 · Seedance', price: 30, desc: '支持匿名试用；面部遮挡类商品保留自然头部结构，不露可识别人脸' },
     { id: 'kling', label: '高级 · 可灵', price: 50, desc: '支持完整真人脸，模特动作更自然(略慢)' },
   ],
   image: [
