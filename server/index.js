@@ -824,8 +824,9 @@ app.use('/api/kling', (req, res) => {
   proxyReq.end();
 });
 
-// Health check
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+// Health check（带部署版本号，便于确认 advideo 是否已上线）
+const BUILD_REV = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_REV || '').slice(0, 7) || 'dev';
+app.get('/api/health', (_req, res) => res.json({ ok: true, rev: BUILD_REV }));
 
 // 爆款视频复刻 MVP API
 app.use('/api', replicaRouter);
