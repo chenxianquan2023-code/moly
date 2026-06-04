@@ -468,7 +468,7 @@ export async function runReplicaPipeline(task, ctx) {
           prompt = `你是电商带货短视频导演。任务：【复刻】下面这条爆款视频的拍法与节奏，把主角换成用户的商品，做一条"同款风格"的带货片。\n${common}\n` +
             `源视频风格指纹：${sourceStyle}\n源爆款分镜(按时间顺序)：${sourceShots}\n` +
             `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与大致时长占比，分镜数贴合源视频(最多6镜)。\n` +
-            `2. 主体换成【用户的商品】：源镜纯产品/特写→拍本商品对应特写或细节；源镜"手+产品"的操作演示→改拍该操作的"结果状态"(如盖子已打开露出内胆)，withModel=false；源镜完整真人→模特出镜手持/使用本商品，withModel=true。\n` +
+            `2. 主体换成【用户的商品】：源镜纯产品/特写→拍本商品对应特写或细节；源镜"手+产品"的操作演示→改拍该操作的"结果状态"(如盖子已打开露出内胆)，withModel=false；源镜完整真人→模特出镜手持/使用本商品，withModel=true。【模特长相只以用户上传的模特图为准：visual 里写模特时只描述动作/姿态/表情/景别/场景，绝不写发色/发型/脸型/五官等外貌特征，更不要照抄源视频人物的长相（如"深棕色长发"之类）】\n` +
             `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 同款字幕/贴纸/大字节奏"，不要改成普通棚拍海报。\n` +
             `4. 每一项必须填写 sourceShotIndex、durationRatio、framing、composition、lighting、color、captionStyle、transition，让后续出图/合成能按源视频风格执行。\n` +
             `5. ${realityRule}\n6. ${seedanceFaceRule}\n7. ${copyRule}\n8. ${punchRule}\n9. ${fmt}`;
@@ -632,7 +632,7 @@ export async function runReplicaPipeline(task, ctx) {
           const subjectRule = isAnonymous
             ? anonymousSubjectRule(s, productText, sourceShot)
             : isIdentifiable && modelUrl
-              ? '模特外貌保持一致，正在自然展示或使用该商品'
+              ? '模特的发色/发型/五官/长相严格以参考模特图为准（忽略文字里任何发色/外貌描述词），全程保持同一个人，正在自然展示或使用该商品'
               : '以商品为主角，外观保持一致、清晰可见';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
           const prompt = `${styleCue}：${s.visual}。${referenceRule}${subjectRule}。${styleRule}${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
