@@ -97,17 +97,6 @@
             <div class="card-title"><span class="num">3</span>复刻设置</div>
             <div class="model-opts" v-if="pricing">
               <div class="model-row">
-                <span class="model-label">视频引擎</span>
-                <div class="seg">
-                  <button v-for="v in pricing.video" :key="v.id" type="button"
-                    :class="{ active: videoModel === v.id }" @click="videoModel = v.id" :title="v.desc">
-                    {{ v.label }}<em>{{ v.price ? '+' + v.price : '含' }}</em>
-                  </button>
-                </div>
-              </div>
-              <p v-if="videoModel === 'seedance'" class="model-hint">Seedance 会做匿名试用镜头：不露可识别真人脸；面膜、墨镜、口罩、面罩等会保留自然头部结构，避免无脸效果。</p>
-              <p v-else-if="modelAsset && videoModel === 'kling'" class="model-hint ok">✓ 已用「可灵」——适合完整真人脸和更自然的人物动作。</p>
-              <div class="model-row">
                 <span class="model-label">画面质量</span>
                 <div class="seg">
                   <button v-for="im in pricing.image" :key="im.id" type="button"
@@ -126,9 +115,10 @@
             <div class="switches">
               <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
               <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
-              <label v-if="!generateVoice" class="switch"><input type="checkbox" v-model="generateMusic" /><span />背景音乐</label>
+              <label class="switch"><input type="checkbox" v-model="generateMusic" /><span />背景音乐</label>
             </div>
-            <p v-if="!generateVoice" class="voice-hint">已关 AI 配音：{{ generateMusic ? '将用爆款源视频里的音乐当背景乐' : '成片无声' }}，并保留字幕脚本，可自己后期配音。</p>
+            <p v-if="generateMusic" class="voice-hint">背景音乐取自你的爆款参考视频（需有参考视频）{{ generateVoice ? '，作配音的轻背景乐' : '，无配音' }}。</p>
+            <p v-else-if="!generateVoice" class="voice-hint">已关 AI 配音、无背景乐：成片无声，保留字幕脚本，可自己后期配。</p>
             <div v-if="generateVoice && voices.length" class="voice-pick">
               <span class="model-label">配音音色</span>
               <button type="button" class="voice-trigger" @click="openVoicePicker">
@@ -275,7 +265,7 @@ const DEFAULT_PACKAGES = [
 ];
 const pricing = ref<any>(DEFAULT_PRICING);
 const packages = ref<any[]>(DEFAULT_PACKAGES);
-const videoModel = ref('seedance');
+const videoModel = ref('kling'); // 视频引擎固定为可灵（Seedance 已下线）
 const imageModel = ref('gemini');
 const showRecharge = ref(false);
 const rechargeMsg = ref('');

@@ -736,6 +736,17 @@ export async function runReplicaPipeline(task, ctx) {
     }).join('\n');
     writeFileSync(join(work, 'subs.srt'), srt);
 
+    // 背景乐：开了「背景音乐」且有参考源视频时，取源视频音轨（有配音则压低做轻背景乐、淡出）
+    let bgmPath = null;
+    if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+      try {
+        const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
+        bgmPath = join(work, 'bgm.mp3');
+        const fadeSt = Math.max(0, total - 1).toFixed(2);
+        await ff.ffmpeg(['-y', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+      } catch (e) { bgmPath = null; notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
+    }
+
     let staged = concatPath;
     if (ttsOk) {
       const alist = join(work, 'alist.txt');
@@ -749,20 +760,23 @@ export async function runReplicaPipeline(task, ctx) {
       const voice = join(work, 'voice.mp3');
       await ff.ffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', alist, '-c', 'copy', voice]);
       const av = join(work, 'av.mp4');
-      await ff.addAudio(concatPath, voice, av);
+      if (bgmPath) {
+        // 配音 + 背景乐混音（配音为主，背景乐已压低；normalize=0 不自动衰减人声）
+        const mixed = join(work, 'mixed.mp3');
+        try {
+          await ff.ffmpeg(['-y', '-i', voice, '-i', bgmPath, '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]', '-map', '[a]', '-c:a', 'mp3', mixed]);
+          await ff.addAudio(concatPath, mixed, av);
+          notes.push('配音 + 源视频背景乐');
+        } catch { await ff.addAudio(concatPath, voice, av); }
+      } else {
+        await ff.addAudio(concatPath, voice, av);
+      }
       staged = av;
-    } else if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
-      // 没配音 → 用源爆款视频的音乐当背景乐（模仿原视频的音乐/氛围）
-      try {
-        const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
-        const bgm = join(work, 'bgm.mp3');
-        const fadeSt = Math.max(0, total - 1).toFixed(2);
-        await ff.ffmpeg(['-y', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=0.9,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgm]);
-        const av = join(work, 'av_bgm.mp4');
-        await ff.addAudio(concatPath, bgm, av);
-        staged = av;
-        notes.push('已用源视频音乐作背景乐');
-      } catch (e) { notes.push('背景乐降级(无声): ' + String(e.message || e).split('\n')[0].slice(0, 60)); }
+    } else if (bgmPath) {
+      const av = join(work, 'av_bgm.mp4');
+      await ff.addAudio(concatPath, bgmPath, av);
+      staged = av;
+      notes.push('已用源视频音乐作背景乐');
     }
 
     const finalPath = join(work, 'final.mp4');
