@@ -824,9 +824,22 @@ app.use('/api/kling', (req, res) => {
   proxyReq.end();
 });
 
-// Health check（带部署版本号，便于确认 advideo 是否已上线）
+// Health check（带部署版本号 + 各 AI 引擎是否在本环境配置好，便于排查；只暴露布尔，不含任何密钥）
 const BUILD_REV = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_REV || '').slice(0, 7) || 'dev';
-app.get('/api/health', (_req, res) => res.json({ ok: true, rev: BUILD_REV }));
+app.get('/api/health', async (_req, res) => {
+  const engines = {};
+  try {
+    const [kling, seedance, llm, gemini] = await Promise.all([
+      import('./replica/ai/kling.js'), import('./replica/ai/seedance.js'),
+      import('./replica/ai/llm.js'), import('./replica/ai/gemini.js'),
+    ]);
+    engines.kling = kling.isConfigured?.() || false;
+    engines.seedance = seedance.isConfigured?.() || false;
+    engines.llm = llm.isConfigured?.() || false;     // 导演/文案（ezmodel）
+    engines.gemini = gemini.isConfigured?.() || false; // 识别/解析/出图（ezmodel）
+  } catch (e) { engines.error = String(e.message || e).slice(0, 80); }
+  res.json({ ok: true, rev: BUILD_REV, engines });
+});
 
 // 爆款视频复刻 MVP API
 app.use('/api', replicaRouter);
