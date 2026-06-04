@@ -432,7 +432,7 @@ export async function runReplicaPipeline(task, ctx) {
         const hasSrc = Array.isArray(analysis?.shots) && analysis.shots.length;
         const tone = (hasSrc && analysis.tone) ? String(analysis.tone) : '活泼种草';
         const formal = /正式|专业/.test(tone);
-        const common = `${langRule}\n商品：${product.name ? product.name + '；' : ''}${productDesc || '(见参考图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}`;
+        const common = `${langRule}\n商品：${product.name ? product.name + '；' : ''}${productDesc || '(见参考图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${modelUrl ? '\n用户已上传模特图：可安排模特出镜镜头(withModel=true)，模特长相只以模特图为准。' : '\n用户未上传模特图：所有镜头都用纯商品(withModel=false、personMode=none)，绝不安排真人/模特/手部出镜的镜头。'}`;
         const sourceStyle = hasSrc ? styleFingerprint(analysis, null) : '';
         const sourceShots = hasSrc
           ? JSON.stringify(analysis.shots.map((shot) => ({
@@ -517,12 +517,26 @@ export async function runReplicaPipeline(task, ctx) {
       sourceShots: analysis?.shots || [],
       notes,
     });
-    if (opts.models?.video !== 'seedance' && modelUrl && !scenes.some((s) => s.withModel)) {
-      // 非 Seedance：上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
-      const last = scenes[scenes.length - 1];
-      last.withModel = true;
-      last.personMode = 'identifiable';
-      if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
+    if (modelUrl) {
+      // 上传了模特却一个模特镜都没有 → 强制末镜(cta)出模特
+      if (!scenes.some((s) => s.withModel)) {
+        const last = scenes[scenes.length - 1];
+        last.withModel = true;
+        last.personMode = 'identifiable';
+        if (!/模特/.test(last.visual)) last.visual = '模特手持商品、微笑看镜头推荐，' + last.visual;
+      }
+    } else {
+      // 没上传模特图 → 全程纯商品演示，绝不凭空生成"每镜长相都不一样"的随机 AI 人物
+      scenes.forEach((s) => {
+        if (s.withModel || s.personMode === 'identifiable' || s.personMode === 'anonymous') {
+          s.withModel = false;
+          s.personMode = 'none';
+          if (/模特|真人|博主|女主|男主|出镜|人物|手持|手部/.test(String(s.visual || ''))) {
+            s.visual = `${product.name || '商品'}的有说服力特写或真实使用场景（${s.text || '突出外观质感与核心卖点'}），画面不出现任何人物`;
+          }
+        }
+      });
+      notes.push('未上传模特：全程纯商品演示');
     }
     if (!usedTemplateScenes) {
       await setStep(1, { status: 'succeeded' });
