@@ -666,7 +666,12 @@ export async function runReplicaPipeline(task, ctx) {
         const anonymityMotionRule = s.personMode === 'anonymous'
           ? '全程保持匿名，不出现清晰可识别正脸；若是面膜/墨镜/口罩/防晒面罩等面部遮挡商品，保留真实头部、眼鼻口位置或自然脸部轮廓，不能变成空白脸、无脸人或假人面具；'
           : '';
-        const motionPrompt = `${rhythmCue}${anonymityMotionRule}主体保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。`.slice(0, 420);
+        // 有人物的镜头：让模特/人物自然灵动地动起来（像源爆款那样）；纯产品镜才保持静止防漂浮
+        const hasPerson = s.withModel || s.personMode === 'anonymous';
+        const subjectMotionRule = hasPerson
+          ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
+          : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
+        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
         for (const prov of videoProviders) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
