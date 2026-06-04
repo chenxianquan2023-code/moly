@@ -479,7 +479,7 @@ export async function runReplicaPipeline(task, ctx) {
             `\n2. ${realityRule}\n3. ${copyRule}` +
             `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${seedanceFaceRule}\n6. ${punchRule}\n7. ${fmt}`;
         }
-        const txt = await llm.generateText(prompt, { maxTokens: 3000 });
+        const txt = await llm.generateText(prompt, { maxTokens: 8000 });
         scenes = llm.parseJson(txt);
       }
     } catch (e) { notes.push('导演降级: ' + String(e.message || e).split('\n')[0]); }
@@ -673,7 +673,8 @@ export async function runReplicaPipeline(task, ctx) {
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
         // 可识别真人脸的镜头：Seedance 会因隐私(InputImageSensitiveContentDetected)直接拒绝 → 跳过它、只用可灵，省时且不降级
-        const faceScene = s.personMode === 'identifiable';
+        // 任何出真人(非匿名)的镜头都跳过 Seedance（它检测到真人脸直接拒绝）→ 只用可灵，不再降级成静态
+        const faceScene = s.withModel && s.personMode !== 'anonymous';
         const sceneProviders = faceScene ? videoProviders.filter((p) => p.name !== 'Seedance') : videoProviders;
         for (const prov of (sceneProviders.length ? sceneProviders : videoProviders)) {
           try {
@@ -780,12 +781,26 @@ export async function runReplicaPipeline(task, ctx) {
     }
 
     const finalPath = join(work, 'final.mp4');
+    // 结尾淡出，避免戛然而止（与字幕烧录合并成一道滤镜，不额外多压一遍）
+    let fadeVf = '';
+    try {
+      const sd = (await ff.probe(staged))?.duration || 0;
+      if (sd > 1.2) fadeVf = `fade=t=out:st=${Math.max(0, sd - 0.6).toFixed(2)}:d=0.6`;
+    } catch { /* 探测失败就不加淡出 */ }
     let burned = false;
     if (opts.generate_subtitle !== false) {
-      try { await ff.burnSubtitles(staged, 'subs.ass', finalPath, { cwd: work }); burned = true; }
+      const vf = fadeVf ? `subtitles=subs.ass,${fadeVf}` : 'subtitles=subs.ass';
+      try { await ff.ffmpeg(['-y', '-i', staged, '-vf', vf, finalPath], { cwd: work }); burned = true; }
       catch (e) { notes.push('字幕烧录降级: ' + String(e.message || e).split('\n')[0]); }
     }
-    if (!burned) await ff.ffmpeg(['-y', '-i', staged, '-c', 'copy', finalPath]);
+    if (!burned) {
+      if (fadeVf) {
+        try { await ff.ffmpeg(['-y', '-i', staged, '-vf', fadeVf, finalPath]); }
+        catch { await ff.ffmpeg(['-y', '-i', staged, '-c', 'copy', finalPath]); }
+      } else {
+        await ff.ffmpeg(['-y', '-i', staged, '-c', 'copy', finalPath]);
+      }
+    }
 
     const coverPath = join(work, 'cover.jpg');
     await ff.thumbnail(finalPath, coverPath, 0);

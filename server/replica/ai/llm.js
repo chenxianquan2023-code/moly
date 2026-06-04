@@ -45,6 +45,11 @@ export function parseJson(text) {
   // 兜底：抓第一个完整的 JSON 数组/对象
   const m = s.match(/[\[{][\s\S]*[\]}]/);
   if (m) { try { return JSON.parse(m[0]); } catch { /* fallthrough */ } }
+  // 截断的数组（输出被 token 上限切断）→ 截到最后一个完整对象，补 ]
+  if (s.startsWith('[')) {
+    const lastObj = s.lastIndexOf('}');
+    if (lastObj > 0) { try { return JSON.parse(s.slice(0, lastObj + 1) + ']'); } catch { /* fallthrough */ } }
+  }
   throw new Error('LLM JSON 解析失败: ' + s.slice(0, 80));
 }
 
