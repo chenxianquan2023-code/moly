@@ -6,7 +6,7 @@
  *
  * 优雅降级：任何 AI 步失败都不崩，尽量出片；外部调用均带重试。
  */
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { insertRow, getById } from '../lib/supabase.js';
@@ -672,7 +672,10 @@ export async function runReplicaPipeline(task, ctx) {
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
-        for (const prov of videoProviders) {
+        // 可识别真人脸的镜头：Seedance 会因隐私(InputImageSensitiveContentDetected)直接拒绝 → 跳过它、只用可灵，省时且不降级
+        const faceScene = s.personMode === 'identifiable';
+        const sceneProviders = faceScene ? videoProviders.filter((p) => p.name !== 'Seedance') : videoProviders;
+        for (const prov of (sceneProviders.length ? sceneProviders : videoProviders)) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
             await download(url, vp);
@@ -748,6 +751,18 @@ export async function runReplicaPipeline(task, ctx) {
       const av = join(work, 'av.mp4');
       await ff.addAudio(concatPath, voice, av);
       staged = av;
+    } else if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+      // 没配音 → 用源爆款视频的音乐当背景乐（模仿原视频的音乐/氛围）
+      try {
+        const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
+        const bgm = join(work, 'bgm.mp3');
+        const fadeSt = Math.max(0, total - 1).toFixed(2);
+        await ff.ffmpeg(['-y', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=0.9,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgm]);
+        const av = join(work, 'av_bgm.mp4');
+        await ff.addAudio(concatPath, bgm, av);
+        staged = av;
+        notes.push('已用源视频音乐作背景乐');
+      } catch (e) { notes.push('背景乐降级(无声): ' + String(e.message || e).split('\n')[0].slice(0, 60)); }
     }
 
     const finalPath = join(work, 'final.mp4');

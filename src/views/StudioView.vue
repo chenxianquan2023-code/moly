@@ -126,8 +126,9 @@
             <div class="switches">
               <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
               <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
+              <label v-if="!generateVoice" class="switch"><input type="checkbox" v-model="generateMusic" /><span />背景音乐</label>
             </div>
-            <p v-if="!generateVoice" class="voice-hint">已关 AI 配音：成片无人声、保留字幕脚本，方便你自己后期配音。</p>
+            <p v-if="!generateVoice" class="voice-hint">已关 AI 配音：{{ generateMusic ? '将用爆款源视频里的音乐当背景乐' : '成片无声' }}，并保留字幕脚本，可自己后期配音。</p>
             <div v-if="generateVoice && voices.length" class="voice-pick">
               <span class="model-label">配音音色</span>
               <button type="button" class="voice-trigger" @click="openVoicePicker">
@@ -300,6 +301,7 @@ const sellingPoints = ref('');
 
 const generateVoice = ref(true);
 const generateSubtitle = ref(true);
+const generateMusic = ref(true); // 没配音时用源爆款视频的音乐当背景乐
 const language = ref('zh-CN');
 const LANGS = [{ code: 'zh-CN', label: '中文' }, { code: 'en-US', label: '英文' }, { code: 'ja-JP', label: '日语' }, { code: 'es-ES', label: '西语' }];
 const VS = 'https://ycivzfqijxngognpoeil.supabase.co/storage/v1/object/public/moly-media/voices/samples/';
@@ -475,7 +477,7 @@ async function generate() {
         userEmail: auth.email, sourceVideoId,
         assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
         product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-        options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value },
+        options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value },
         models: { video: videoModel.value, image: imageModel.value },
         language: language.value, aspectRatio: '9:16',
       }),
