@@ -387,6 +387,11 @@ export async function runReplicaPipeline(task, ctx) {
     const modelUrl = await urlOf(assets.model_image_id);
     const baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
 
+    // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款，且给出明确原因
+    if (!kling.isConfigured()) {
+      throw new Error('视频引擎未配置：服务器缺少 KLING_ACCESS_KEY / KLING_SECRET_KEY，无法生成动态视频。已自动退款，请在部署环境补齐可灵密钥后重试。');
+    }
+
     // 识别商品（即使用户没填，也让导演/文案知道这是什么货 + 品类）
     let productDesc = '';
     try {
@@ -599,7 +604,7 @@ export async function runReplicaPipeline(task, ctx) {
     };
     // 全站视频只用可灵：Seedance 已彻底下线（真人/敏感检测易出幺蛾子）。可灵失败只兜底 Ken Burns 运镜，绝不退回 Seedance。
     const videoProviders = [provDefs.kling].filter(Boolean);
-    let usedAI = false, usedProvider = '';
+    let usedAI = false, usedProvider = '', aiImagesOk = 0;
 
     const makeScene = async (i) => {
       const s = scenes[i];
@@ -664,6 +669,7 @@ export async function runReplicaPipeline(task, ctx) {
             } else { throw e1; }
           }
           animBase = await uploadBuffer(makePath(task.user_email, 'scene', `s${i}.png`), c.buffer, c.mimeType);
+          aiImagesOk++;
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
       }
       if (!animBase) animBase = (s.personMode === 'anonymous' ? (productUrl || modelUrl) : (s.withModel ? (modelUrl || productUrl) : (productUrl || modelUrl))) || baseImageUrl;
@@ -718,6 +724,13 @@ export async function runReplicaPipeline(task, ctx) {
     };
 
     const sceneVideos = await Promise.all(scenes.map((_, i) => makeScene(i)));
+    // 一张 AI 画面都没生成出来 → 成片只会是上传的原图，毫无意义 → 失败并自动退款（别让用户白扣分）
+    if (aiImagesOk === 0) {
+      const quota = notes.some((n) => /额度不足|insufficient_user_quota|insufficient.?quota|欠费/i.test(String(n)));
+      throw new Error(quota
+        ? 'AI 出图额度不足（中转账户 ezmodel 欠费）：所有镜头画面都没能生成。已自动退款，请充值 ezmodel 后重试。'
+        : 'AI 出图全部失败：所有镜头画面都没能生成。已自动退款，请稍后重试。');
+    }
     await setStep(3, { status: usedAI ? 'succeeded' : 'skipped', note: usedAI ? `视频源: ${usedProvider}` : '降级:静态画面' });
 
     // ── 5. 合成：拼接 + 配音 + ASS字幕 + 封面 ──
