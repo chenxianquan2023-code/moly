@@ -34,7 +34,7 @@ function toImageUrl(image) {
  */
 export async function imageToVideo(image, prompt = '', {
   model = MODEL, duration = '5', resolution = '768P',
-  maxPollingMs = 300000, pollIntervalMs = 5000,
+  maxPollingMs = 600000, pollIntervalMs = 5000,
 } = {}) {
   if (!FAL_KEY) throw new Error('缺少 FAL_KEY');
   const image_url = toImageUrl(image);
