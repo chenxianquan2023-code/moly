@@ -463,24 +463,17 @@ export async function runReplicaPipeline(task, ctx) {
         const formal = /正式|专业/.test(tone);
         const common = `${langRule}\n商品：${product.name ? product.name + '；' : ''}${productDesc || '(见参考图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${modelUrl ? '\n用户已上传模特图：可安排模特出镜镜头(withModel=true)，模特长相只以模特图为准。' : '\n用户未上传模特图：所有镜头都用纯商品(withModel=false、personMode=none)，绝不安排真人/模特/手部出镜的镜头。'}`;
         const sourceStyle = hasSrc ? styleFingerprint(analysis, null) : '';
+        // 只给导演最关键的结构字段（构图/光线/色调/字幕等细节出图时再从源分镜取）——prompt 太大会让 LLM 只吐一个"["
         const sourceShots = hasSrc
           ? JSON.stringify(analysis.shots.map((shot) => ({
-            index: shot.index,
-            durationRatio: shot.durationRatio,
-            shotType: shot.shotType,
+            i: shot.index,
+            dr: shot.durationRatio,
+            role: shot.role,
             framing: shot.framing,
             camera: shot.camera,
-            composition: shot.composition,
-            lighting: shot.lighting,
-            color: shot.color,
-            visualStyle: shot.visualStyle,
-            hasPerson: shot.hasPerson,
             action: shot.action,
-            role: shot.role,
-            purpose: shot.purpose,
-            captionStyle: shot.captionStyle,
-            transition: shot.transition,
-          }))).slice(0, 3000)
+            person: shot.hasPerson,
+          }))).slice(0, 1500)
           : '';
         // 关键约束：每镜是"静态图+轻运镜"短片，演不出复杂动作 → 文案只说画面能展示的状态/卖点，避免文案与画面对不上
         const realityRule = `【非常重要】每个分镜是由一张静态图生成的约3-5秒短片，只能做缓慢推近/轻移/轻微旋转等"轻运镜"，演不出"拧开盖子/倒水/翻转/手部操作"等复杂动作。所以：(a) visual 要拍"一个有说服力的状态/瞬间"(例：盖子已拧开摆在旁、露出内胆与厚密封圈；产品细节微距；模特手持商品微笑)，不要写动作过程；(b) 文案只描述画面看得到的状态/卖点，绝不承诺画面演不出的动作——例如别写"拧开超顺滑"(演不出拧)，改成"密封圈厚实、倒提都不漏"这种描述状态/结果的说法。`;
@@ -491,7 +484,8 @@ export async function runReplicaPipeline(task, ctx) {
         const seedanceFaceRule = opts.models?.video === 'seedance'
           ? `\n【Seedance 人物限制】当前视频引擎不能出现可识别真人脸，但可以出现匿名模特：手部、身体局部、肩颈、背影、侧身、被面膜/商品遮挡的脸、被裁切到不可识别的脸。若源视频是人物试用，且用户上传了模特/商品，请保留"人在试用商品"这个核心，不要改成纯包装图；personMode 用 "anonymous"，visual 明确写清"脸被遮挡/裁切/背影/手部局部，不可识别"。`
           : `\n【人物模式】若模特完整出镜且可识别，personMode 用 "identifiable"；纯商品用 "none"；只拍手部/身体局部/背影/遮脸试用用 "anonymous"。`;
-        const fmt = `输出 JSON 数组，每项：{"sourceShotIndex":源分镜index数字(从1开始，无源视频可省略),"durationRatio":沿用源镜头时长占比0-1,"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句，与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文，主角是本商品)","motion":"继承源镜头的轻运镜描述","withModel":true或false,"personMode":"none|anonymous|identifiable","framing":"继承源镜头的景别/画幅","composition":"继承源镜头的构图","lighting":"继承源镜头的光线","color":"继承源镜头的色调","captionStyle":"继承源镜头字幕/贴纸样式","transition":"继承源镜头转场"}。只输出 JSON。`;
+        // 只让导演输出必填字段（景别/构图/光线/色调/字幕/转场出图时自动取源分镜，不必导演重复写）——输出越短越不容易被截断
+        const fmt = `输出 JSON 数组，每项只含这些字段：{"sourceShotIndex":源分镜i数字(从1开始,无源可省略),"durationRatio":沿用源镜头时长占比0-1,"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句,与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文,主角是本商品)","motion":"轻运镜描述","withModel":true或false,"personMode":"none|anonymous|identifiable"}。直接只输出 JSON 数组，不要任何解释或 markdown 说明。`;
         let prompt;
         if (hasSrc) {
           prompt = `你是电商带货短视频导演。任务：【复刻】下面这条爆款视频的拍法与节奏，把主角换成用户的商品，做一条"同款风格"的带货片。\n${common}\n` +
