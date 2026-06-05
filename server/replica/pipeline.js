@@ -632,6 +632,7 @@ export async function runReplicaPipeline(task, ctx) {
     // 全站视频只用可灵：Seedance 已彻底下线（真人/敏感检测易出幺蛾子）。可灵失败只兜底 Ken Burns 运镜，绝不退回 Seedance。
     const videoProviders = [provDefs.kling].filter(Boolean);
     let usedAI = false, usedProvider = '', aiImagesOk = 0;
+    const animatedScenes = new Set(); // 哪些镜头真用可灵动起来了——用于"部分失败逐个重试"
 
     const makeSceneImage = async (i) => {
       const s = scenes[i];
@@ -728,7 +729,7 @@ export async function runReplicaPipeline(task, ctx) {
           try {
             const url = await prov.run(animBase, motionPrompt, d);
             await download(url, vp);
-            usedAI = true; usedProvider = prov.name;
+            usedAI = true; usedProvider = prov.name; animatedScenes.add(i);
             return vp;
           } catch (e) { notes.push(`场景${i + 1} ${prov.name}失败: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
         }
@@ -765,6 +766,13 @@ export async function runReplicaPipeline(task, ctx) {
     await Promise.all(Array.from({ length: Math.min(VIDEO_CONCURRENCY, scenes.length) }, async () => {
       while (nextScene < scenes.length) { const i = nextScene++; sceneVideos[i] = await makeSceneVideo(i, animBases[i]); }
     }));
+    // 部分镜头可灵失败（常见于可灵临时变慢）→ 串行逐个补打一次，给第二次机会、且不增并发负载。
+    // 全失败=可灵挂了，不补打（白耗时间），直接走下面的退款逻辑。
+    const failedScenes = scenes.map((_, i) => i).filter((i) => !animatedScenes.has(i));
+    if (failedScenes.length > 0 && failedScenes.length < scenes.length) {
+      notes.push(`部分镜头可灵失败(${failedScenes.length}/${scenes.length})，逐个补打`);
+      for (const i of failedScenes) sceneVideos[i] = await makeSceneVideo(i, animBases[i]);
+    }
     // 出图全失败(额度不足) 或 视频引擎全程没成功(可灵欠费/超时) → 成片必然不对 → 中止、退款、提示联系管理员
     if (aiImagesOk === 0 || !usedAI) {
       const quota = notes.some((n) => isQuotaError(n));
@@ -902,6 +910,10 @@ export async function runReplicaPipeline(task, ctx) {
       replicated: !!(analysis?.shots?.length),
       notes,
     };
+  } catch (e) {
+    // 失败时把诊断 notes 挂到错误上，让任务运行器存进 DB——否则一抛错 notes 就丢了，失败成黑盒
+    try { if (e && Array.isArray(notes)) e.notes = notes.slice(-15); } catch { /* ignore */ }
+    throw e;
   } finally {
     try { rmSync(work, { recursive: true, force: true }); } catch {}
   }

@@ -50,7 +50,7 @@ export function runTask(taskId, runner) {
       await updateTask(taskId, { status: 'succeeded', progress: 100, output_json: output || {} });
     } catch (e) {
       console.error(`[task ${taskId}] failed:`, e?.message || e);
-      try { await updateTask(taskId, { status: 'failed', error_message: String(e?.message || e) }); }
+      try { await updateTask(taskId, { status: 'failed', error_message: String(e?.message || e), output_json: { failed: true, notes: Array.isArray(e?.notes) ? e.notes : [] } }); }
       catch (e2) { console.error(`[task ${taskId}] 更新失败状态也失败:`, e2?.message || e2); }
       // 生成失败 → 退还已扣积分
       try {
