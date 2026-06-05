@@ -152,6 +152,7 @@
             <video :src="result.videoUrl" controls playsinline class="result-video" />
             <div class="result-actions">
               <button type="button" class="btn-download" :disabled="downloading" @click="downloadVideo">{{ downloading ? '下载中…' : '下载视频' }}</button>
+              <button type="button" class="btn-variant" :disabled="generating" @click="regenerate" title="用同样的商品/模特/爆款，再生成一条不同的版本">🔄 换一版</button>
               <button class="btn-again" @click="reset">再做一条</button>
             </div>
             <div v-if="result.shots?.length" class="script">
@@ -513,6 +514,12 @@ function pollTask(taskId: string) {
 }
 
 function reset() { task.value = null; result.value = null; stopProgressUx(); }
+// 换一版：复用当前商品/模特/爆款/选项，再生成一条不同版本（AI 视频有波动，多生成几条挑最好的）
+function regenerate() {
+  if (generating.value) return;
+  if (!confirm(`换一版：用同样的素材再生成一条不同的版本，需扣约 ${estimatedCredits.value} 积分。继续？`)) return;
+  generate();
+}
 
 // 直接下载成片：浏览器拉 blob 触发下载，停留在当前页（不再整页跳到视频直链）
 const downloading = ref(false);
@@ -744,6 +751,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .result-actions { display:flex; gap:10px; }
   .btn-download { flex:1; text-align:center; padding:12px; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; border-radius: var(--radius-md); font-weight:600; font-size:14px; text-decoration:none; cursor:pointer; box-shadow:0 8px 20px -8px rgba(37,99,235,.55); &:disabled { opacity:.6; cursor:default; } }
   .btn-again { flex:1; padding:12px; background:#fff; border:1px solid var(--color-border); border-radius: var(--radius-md); font-weight:600; font-size:14px; color: var(--color-text-primary); cursor:pointer; }
+  .btn-variant { flex:1; padding:12px; background: var(--color-primary-light, #eef2ff); border:1px solid var(--color-primary); border-radius: var(--radius-md); font-weight:600; font-size:14px; color: var(--color-primary); cursor:pointer; &:disabled { opacity:.5; cursor:default; } }
   .result-notes { font-size:12px; color: var(--color-text-tertiary); margin:0; line-height:1.5; }
 }
 .preview-progress { flex:1; display:flex; flex-direction:column; align-items:center; padding-top:24px; gap:18px;
