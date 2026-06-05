@@ -3,7 +3,7 @@
  * 用法: node test/replica-offline.mjs
  * 覆盖: ① computeSceneDurations 各场景不出"首幕过长/总长超源被砍尾" ② 背景乐循环铺底，-shortest 不砍画面。
  */
-import { computeSceneDurations } from '../server/replica/pipeline.js';
+import { computeSceneDurations, composeVideo } from '../server/replica/pipeline.js';
 import { ffmpeg, probe, concatVideo, addAudio } from '../server/replica/ai/ffmpeg.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -88,6 +88,26 @@ try {
   fail++; console.log('  ✗ 合成测试异常:', String(e.message || e).slice(0, 150));
 } finally {
   try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+}
+
+console.log('\n═══ Part 3: composeVideo 抽出后端到端合成（假片，验证抽函数没改坏）═══');
+{
+  const d2 = mkdtempSync(join(tmpdir(), 'moly-compose-'));
+  try {
+    const mk = async (n, dur, c) => { const p = join(d2, n); await ffmpeg(['-y', '-f', 'lavfi', '-i', `color=c=${c}:s=320x568:d=${dur}:r=30`, '-pix_fmt', 'yuv420p', p]); return p; };
+    // 源视频(带音轨6s)放到 work/src.mp4 供背景乐
+    await ffmpeg(['-y', '-f', 'lavfi', '-i', 'color=c=gray:s=320x568:d=6:r=30', '-f', 'lavfi', '-i', 'sine=frequency=320:duration=6', '-shortest', '-pix_fmt', 'yuv420p', join(d2, 'src.mp4')]);
+    const scenes = [{ type: 'hook', text: '第一幕文案' }, { type: 'demo', text: '第二幕文案' }, { type: 'proof', text: '第三幕文案' }];
+    const audios = scenes.map(() => ({ path: null }));
+    const { durations } = computeSceneDurations(scenes, audios, 8.8);
+    const clips = [await mk('s0.mp4', 6, 'red'), await mk('s1.mp4', 6, 'green'), await mk('s2.mp4', 6, 'blue')];
+    const r = await composeVideo({ work: d2, scenes, sceneDurations: durations, sceneClips: clips, sceneAudios: audios, ttsOk: false, analysis: { durationSec: 8.8 }, opts: { generate_music: true, generate_subtitle: true }, notes: [] });
+    const outDur = (await probe(r.finalPath)).duration;
+    console.log(`  composeVideo → 成片 ${outDur.toFixed(1)}s (期望≈${sum(durations).toFixed(1)})`);
+    ok(Math.abs(outDur - sum(durations)) < 0.9, 'composeVideo 成片时长正确、结尾没被砍(含背景乐循环+烧字幕+淡出)');
+    ok(r.duration > 0 && !!r.coverPath, 'composeVideo 返回封面+时长');
+  } catch (e) { fail++; console.log('  ✗ composeVideo 异常:', String(e.message || e).slice(0, 160)); }
+  finally { try { rmSync(d2, { recursive: true, force: true }); } catch { /* ignore */ } }
 }
 
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);

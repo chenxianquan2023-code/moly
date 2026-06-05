@@ -413,6 +413,105 @@ export function computeSceneDurations(scenes, sceneAudios, sourceDurationSec = 0
   return { durations, note };
 }
 
+/**
+ * 合成成片：纯 ffmpeg（裁剪+拼接+字幕+背景乐+配音+淡出+封面），不含 AI、不上传。
+ * 返回本地路径，便于离线测试 + 复用于"换单镜/重做"的重新合成。
+ * @returns {{finalPath:string, coverPath:string, srtPath:string, duration:number}}
+ */
+export async function composeVideo({ work, scenes, sceneDurations, sceneClips, sceneAudios = [], ttsOk = false, analysis = null, opts = {}, notes = [] }) {
+  // 把每镜裁到其时长（防拼接后总长超音频被 -shortest 砍尾）
+  const trimmed = [];
+  for (let i = 0; i < sceneClips.length; i++) {
+    const t = join(work, `vt_${i}.mp4`);
+    try {
+      await ff.ffmpeg(['-y', '-i', sceneClips[i], '-t', String(Math.max(1.2, sceneDurations[i])), '-an', '-r', '30', '-pix_fmt', 'yuv420p', t]);
+      trimmed.push(t);
+    } catch { trimmed.push(sceneClips[i]); }
+  }
+  const concatPath = join(work, 'concat.mp4');
+  if (trimmed.length === 1) await ff.toVertical(trimmed[0], concatPath);
+  else await ff.concatVideo(trimmed, concatPath);
+
+  const ass = buildAss(scenes, sceneDurations, analysis);
+  writeFileSync(join(work, 'subs.ass'), ass);
+  let cur = 0;
+  const srt = scenes.map((s, i) => {
+    const t = (x) => { const p = (n, l = 2) => String(n).padStart(l, '0'); const ms = Math.floor((x % 1) * 1000); return `${p(Math.floor(x / 3600))}:${p(Math.floor(x / 60) % 60)}:${p(Math.floor(x) % 60)},${p(ms, 3)}`; };
+    const seg = `${i + 1}\n${t(cur)} --> ${t(cur + sceneDurations[i])}\n${s.text}\n`;
+    cur += sceneDurations[i]; return seg;
+  }).join('\n');
+  writeFileSync(join(work, 'subs.srt'), srt);
+
+  let bgmPath = null;
+  if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+    try {
+      const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
+      bgmPath = join(work, 'bgm.mp3');
+      const fadeSt = Math.max(0, total - 1).toFixed(2);
+      // -stream_loop -1：源音乐若比成片短就循环铺满，保证覆盖全片，不被 -shortest 砍尾
+      await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+    } catch (e) { bgmPath = null; notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
+  }
+
+  let staged = concatPath;
+  if (ttsOk) {
+    const alist = join(work, 'alist.txt');
+    const paddedAudios = [];
+    for (let i = 0; i < sceneAudios.length; i++) {
+      const padded = join(work, `ap_${i}.mp3`);
+      await ff.ffmpeg(['-y', '-i', sceneAudios[i].path, '-af', `apad,atrim=0:${Math.max(1.2, sceneDurations[i])}`, '-c:a', 'mp3', padded]);
+      paddedAudios.push(padded);
+    }
+    writeFileSync(alist, paddedAudios.map((p) => `file '${p}'`).join('\n'));
+    const voice = join(work, 'voice.mp3');
+    await ff.ffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', alist, '-c', 'copy', voice]);
+    const av = join(work, 'av.mp4');
+    if (bgmPath) {
+      const mixed = join(work, 'mixed.mp3');
+      try {
+        await ff.ffmpeg(['-y', '-i', voice, '-i', bgmPath, '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]', '-map', '[a]', '-c:a', 'mp3', mixed]);
+        await ff.addAudio(concatPath, mixed, av);
+        notes.push('配音 + 源视频背景乐');
+      } catch { await ff.addAudio(concatPath, voice, av); }
+    } else {
+      await ff.addAudio(concatPath, voice, av);
+    }
+    staged = av;
+  } else if (bgmPath) {
+    const av = join(work, 'av_bgm.mp4');
+    await ff.addAudio(concatPath, bgmPath, av);
+    staged = av;
+    notes.push('已用源视频音乐作背景乐');
+  }
+
+  const finalPath = join(work, 'final.mp4');
+  // 结尾淡出（与字幕烧录合并成一道滤镜）
+  let fadeVf = '';
+  try {
+    const sd = (await ff.probe(staged))?.duration || 0;
+    if (sd > 1.2) fadeVf = `fade=t=out:st=${Math.max(0, sd - 0.6).toFixed(2)}:d=0.6`;
+  } catch { /* 探测失败就不加淡出 */ }
+  let burned = false;
+  if (opts.generate_subtitle !== false) {
+    const vf = fadeVf ? `subtitles=subs.ass,${fadeVf}` : 'subtitles=subs.ass';
+    try { await ff.ffmpeg(['-y', '-i', staged, '-vf', vf, finalPath], { cwd: work }); burned = true; }
+    catch (e) { notes.push('字幕烧录降级: ' + String(e.message || e).split('\n')[0]); }
+  }
+  if (!burned) {
+    if (fadeVf) {
+      try { await ff.ffmpeg(['-y', '-i', staged, '-vf', fadeVf, finalPath]); }
+      catch { await ff.ffmpeg(['-y', '-i', staged, '-c', 'copy', finalPath]); }
+    } else {
+      await ff.ffmpeg(['-y', '-i', staged, '-c', 'copy', finalPath]);
+    }
+  }
+
+  const coverPath = join(work, 'cover.jpg');
+  await ff.thumbnail(finalPath, coverPath, 0);
+  const meta = await ff.probe(finalPath);
+  return { finalPath, coverPath, srtPath: join(work, 'subs.srt'), duration: meta.duration };
+}
+
 export async function runReplicaPipeline(task, ctx) {
   const work = mkdtempSync(join(tmpdir(), 'moly-gen-'));
   const steps = [
