@@ -490,10 +490,10 @@ export async function runReplicaPipeline(task, ctx) {
         if (hasSrc) {
           prompt = `你是电商带货短视频导演。任务：【复刻】下面这条爆款视频的拍法与节奏，把主角换成用户的商品，做一条"同款风格"的带货片。\n${common}\n` +
             `源视频风格指纹：${sourceStyle}\n源爆款分镜(按时间顺序)：${sourceShots}\n` +
-            `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与大致时长占比，分镜数贴合源视频(最多6镜)。\n` +
-            `2. 主体换成【用户的商品】：源镜纯产品/特写→拍本商品对应特写或细节；源镜"手+产品"的操作演示→改拍该操作的"结果状态"(如盖子已打开露出内胆)，withModel=false；源镜完整真人→模特出镜手持/使用本商品，withModel=true。【模特长相只以用户上传的模特图为准：visual 里写模特时只描述动作/姿态/表情/景别/场景，绝不写发色/发型/脸型/五官等外貌特征，更不要照抄源视频人物的长相（如"深棕色长发"之类）】\n` +
-            `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 同款字幕/贴纸/大字节奏"，不要改成普通棚拍海报。\n` +
-            `4. 每一项必须填写 sourceShotIndex、durationRatio、framing、composition、lighting、color、captionStyle、transition，让后续出图/合成能按源视频风格执行。\n` +
+            `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与时长占比，分镜数贴合源视频(最多6镜)。【必须完整复刻整条"转变弧"：尤其保留源视频的"成果展示镜"(如护肤后皮肤透亮/前后对比)和"收尾镜"(如打扮好/换装准备出门)，绝不能只做前半段就结束；最后一镜要落在一个完整有力的成果或行动状态(打扮好、微笑看镜头推荐)，不要停在动作中途】\n` +
+            `2. 主体换成【用户的商品】：源镜纯产品→拍本商品对应特写；源镜"手+产品"操作演示→改拍其"结果状态"，withModel=false；源镜完整真人→模特出镜，withModel=true。【忠实复刻源镜人物"实际在做的事"：源镜是自然生活状态(素颜静坐/洗漱/起床)就照拍那个状态，严禁擅自改成"举着产品包装怼镜头"的硬广镜，除非源镜本身就在展示包装】【模特长相只以用户上传模特图为准：只写动作/姿态/表情/景别/场景，绝不写发色/发型/五官，也不照抄源视频人物长相】\n` +
+            `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 同款节奏"，不改成普通棚拍海报。\n` +
+            `4. 若某镜涉及"喝水/拿杯子/细长道具"，visual 改用不透明杯或直接手持商品，避免吸管、透明玻璃杯这类 AI 视频里极易变形/消失的细长或透明物。\n` +
             `5. ${realityRule}\n6. ${seedanceFaceRule}\n7. ${copyRule}\n8. ${punchRule}\n9. ${fmt}`;
         } else {
           prompt = `你是电商带货短视频导演。${common}` +
@@ -678,7 +678,11 @@ export async function runReplicaPipeline(task, ctx) {
               ? '模特的发色/发型/五官/长相严格以参考模特图为准（忽略文字里任何发色/外貌描述词），全程保持同一个人，正在自然展示或使用该商品'
               : '以商品为主角，外观保持一致、清晰可见';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
-          const prompt = `${styleCue}：${s.visual}。${referenceRule}${subjectRule}。${styleRule}${groundRule}。画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          // 禁止把源视频的原字幕(如 just woke up)抄进画面；中文档画面不烧任何文字(字幕后期统一加)
+          const noSrcTextRule = `画面里严禁出现源爆款视频中的任何文字/字幕(如 just woke up 等英文字)——那是源视频的文字、不属于本片；${isZh ? '本片字幕由后期统一添加，出图阶段画面上不要烧任何文字。' : ''}`;
+          // 避开吸管/透明玻璃杯这类后续视频里极易变形或消失的道具
+          const propRule = '若画面涉及喝水/杯子等场景：用不透明杯具、不要吸管和透明玻璃杯。';
+          const prompt = `${styleCue}：${s.visual}。${referenceRule}${subjectRule}。${styleRule}${groundRule}。${propRule}${noSrcTextRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
             c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
@@ -723,7 +727,9 @@ export async function runReplicaPipeline(task, ctx) {
         const subjectMotionRule = hasPerson
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
-        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
+        // 杯子/餐具/吸管等道具保持完整、不变形不消失（治"吸管消失/杯子缺口"）
+        const propStableRule = '画面中的杯子、餐具、吸管等道具全程保持完整稳定的形状，不变形、不增减、不消失、不无故出现。';
+        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 540);
         // Railway(海外) → 可灵(北京) 上传 2.5MB 大图极易超时：把底图重压成小 JPEG(同分辨率)再喂可灵，
         // 上传体积砍到 ~1/6，远不易超时（成片清晰度由可灵自身渲染决定，输入压一点几乎无感）。
         let klingInput = animBase;
