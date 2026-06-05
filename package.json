@@ -9,7 +9,8 @@
     "build": "vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "start": "node server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:offline": "node test/replica-offline.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

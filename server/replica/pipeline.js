@@ -378,6 +378,41 @@ export async function preflightAIHealth() {
   return { ok: true };
 }
 
+/**
+ * 纯函数：计算每镜时长（不依赖 AI/ffmpeg/IO，可单独单测各种场景）。
+ * 关键不变量：没配音时总时长应贴合源视频时长(不超太多)，否则合成时会被背景乐 -shortest 砍掉结尾。
+ * @returns {{durations:number[], note:string|null}}
+ */
+export function computeSceneDurations(scenes, sceneAudios, sourceDurationSec = 0) {
+  const sourceTotal = clampNumber(sourceDurationSec, 0, SOURCE_VIDEO_REFERENCE_MAX_SEC, 0);
+  const ratioSum = scenes.reduce((sum, s) => sum + (Number(s.durationRatio) || 0), 0);
+  const targetTotal = sourceTotal
+    ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
+    : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a?.duration || 0), 0);
+  const evenRatio = 1 / Math.max(1, scenes.length);
+  let durations = scenes.map((s, i) => {
+    const hasVoice = !!sceneAudios[i]?.path;
+    // 没配音时不要用 4 秒默认值兜底——否则每镜被撑到 4 秒、总时长远超源音乐、被 -shortest 砍掉结尾
+    const audioDur = hasVoice ? Math.max(1.2, sceneAudios[i].duration || 3) : 0;
+    const srcRatio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : evenRatio;
+    // 没配音时偏均匀(0.4源+0.6均)，让各幕时长接近、总时长贴合源视频；某一幕不过长、结尾也不被砍
+    const ratio = hasVoice ? (0.5 * srcRatio + 0.5 * evenRatio) : (0.4 * srcRatio + 0.6 * evenRatio);
+    const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 2.0, 6, audioDur || 2.8) : (audioDur || 3);
+    return Math.max(audioDur, rhythmDur);
+  });
+  let note = null;
+  const plannedTotal = durations.reduce((sum, d) => sum + d, 0);
+  if (plannedTotal > OUTPUT_VIDEO_MAX_SEC) {
+    const minSceneDur = 1.8;
+    const fixedTotal = minSceneDur * scenes.length;
+    const flexTotal = durations.reduce((sum, d) => sum + Math.max(0, d - minSceneDur), 0);
+    const flexBudget = Math.max(0, OUTPUT_VIDEO_MAX_SEC - fixedTotal);
+    durations = durations.map((d) => minSceneDur + (flexTotal ? Math.max(0, d - minSceneDur) * (flexBudget / flexTotal) : 0));
+    note = `成片时长已压缩到约 ${OUTPUT_VIDEO_MAX_SEC} 秒以内`;
+  }
+  return { durations, note };
+}
+
 export async function runReplicaPipeline(task, ctx) {
   const work = mkdtempSync(join(tmpdir(), 'moly-gen-'));
   const steps = [
@@ -603,31 +638,8 @@ export async function runReplicaPipeline(task, ctx) {
       }
     }
 
-    const sourceTotal = clampNumber(analysis?.durationSec, 0, SOURCE_VIDEO_REFERENCE_MAX_SEC, 0);
-    const ratioSum = scenes.reduce((sum, s) => sum + (Number(s.durationRatio) || 0), 0);
-    const targetTotal = sourceTotal
-      ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
-      : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a.duration || 0), 0);
-    const evenRatio = 1 / Math.max(1, scenes.length);
-    let sceneDurations = scenes.map((s, i) => {
-      const hasVoice = !!sceneAudios[i]?.path;
-      // 没配音时不要用 4 秒默认值兜底——否则每镜被撑到 4 秒、总时长远超源音乐、被 -shortest 砍掉结尾
-      const audioDur = hasVoice ? Math.max(1.2, sceneAudios[i].duration || 3) : 0;
-      const srcRatio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : evenRatio;
-      // 没配音时偏均匀(0.4源+0.6均)，让各幕时长接近、总时长贴合源视频；某一幕不过长、结尾也不被砍
-      const ratio = hasVoice ? (0.5 * srcRatio + 0.5 * evenRatio) : (0.4 * srcRatio + 0.6 * evenRatio);
-      const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 2.0, 6, audioDur || 2.8) : (audioDur || 3);
-      return Math.max(audioDur, rhythmDur);
-    });
-    const plannedTotal = sceneDurations.reduce((sum, d) => sum + d, 0);
-    if (plannedTotal > OUTPUT_VIDEO_MAX_SEC) {
-      const minSceneDur = 1.8;
-      const fixedTotal = minSceneDur * scenes.length;
-      const flexTotal = sceneDurations.reduce((sum, d) => sum + Math.max(0, d - minSceneDur), 0);
-      const flexBudget = Math.max(0, OUTPUT_VIDEO_MAX_SEC - fixedTotal);
-      sceneDurations = sceneDurations.map((d) => minSceneDur + (flexTotal ? Math.max(0, d - minSceneDur) * (flexBudget / flexTotal) : 0));
-      notes.push(`成片时长已压缩到约 ${OUTPUT_VIDEO_MAX_SEC} 秒以内`);
-    }
+    const { durations: sceneDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec);
+    if (durNote) notes.push(durNote);
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
