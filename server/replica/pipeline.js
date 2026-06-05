@@ -824,6 +824,14 @@ export async function runReplicaPipeline(task, ctx) {
     }
     await setStep(3, { status: usedAI ? 'succeeded' : 'skipped', note: usedAI ? `视频源: ${usedProvider}` : '降级:静态画面' });
 
+    // P1 地基：把每镜"底图URL + 动画片"持久化，供"换一版/换单镜/出多版"复用上游缓存（不重跑导演/出图）
+    const sceneImages = animBases.slice();
+    const sceneClips = [];
+    for (let i = 0; i < sceneVideos.length; i++) {
+      try { sceneClips.push(await uploadBuffer(makePath(task.user_email, 'scene-clip', `c${i}.mp4`), readFileSync(sceneVideos[i]), 'video/mp4')); }
+      catch { sceneClips.push(null); }
+    }
+
     // ── 5. 合成：拼接 + 配音 + ASS字幕 + 封面 ──
     await setStep(4, { status: 'running' });
     // 把每镜视频裁到它自己配音的时长，避免拼接后总视频远长于音频、被 -shortest 截掉后面的镜（模特镜消失的根因）
@@ -940,6 +948,10 @@ export async function runReplicaPipeline(task, ctx) {
       usedAI,
       ttsOk,
       shots: scenes,
+      sceneImages,                 // P1：每镜底图 URL（"换一版/换单镜"复用，不重新出图）
+      sceneClips,                  // P1：每镜动画片 URL（"换单镜/重合成"复用，不重跑可灵）
+      sceneDurations,              // P1：每镜时长（重合成用）
+      usedProvider,                // 本次用的视频引擎（"换一版"时换另一个）
       sourceShots: analysis?.shots || null,
       styleFingerprint: analysis ? {
         tone: analysis.tone,
