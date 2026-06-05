@@ -829,10 +829,11 @@ const BUILD_REV = (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_REV || 
 app.get('/api/health', async (_req, res) => {
   const engines = {};
   try {
-    const [kling, seedance, llm, gemini] = await Promise.all([
+    const [kling, seedance, llm, gemini, falMod] = await Promise.all([
       import('./replica/ai/kling.js'), import('./replica/ai/seedance.js'),
-      import('./replica/ai/llm.js'), import('./replica/ai/gemini.js'),
+      import('./replica/ai/llm.js'), import('./replica/ai/gemini.js'), import('./replica/ai/fal.js'),
     ]);
+    engines.fal = falMod.isConfigured?.() || false;  // 默认视频引擎（海螺等，走 fal）
     engines.kling = kling.isConfigured?.() || false;
     engines.seedance = seedance.isConfigured?.() || false;
     engines.llm = llm.isConfigured?.() || false;     // 导演/文案（ezmodel）

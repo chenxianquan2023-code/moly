@@ -16,6 +16,7 @@ import * as gemini from './ai/gemini.js';
 import * as llm from './ai/llm.js';
 import * as kling from './ai/kling.js';
 import * as seedance from './ai/seedance.js';
+import * as fal from './ai/fal.js';
 import * as image from './ai/image.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { resolveVoice } from './voices.js';
@@ -365,7 +366,7 @@ export function isQuotaError(e) {
  * 让前端在「不扣费、不建任务」前提下直接拦下，提示联系管理员。
  */
 export async function preflightAIHealth() {
-  if (!kling.isConfigured()) return { ok: false, reason: '视频引擎(可灵)未配置' };
+  if (!fal.isConfigured() && !kling.isConfigured()) return { ok: false, reason: '视频引擎(fal/可灵)未配置' };
   if (!llm.isConfigured() && !gemini.isConfigured()) return { ok: false, reason: 'AI 文案/出图服务未配置' };
   // 轻量探一次 ezmodel 额度（导演/识别/出图共用同一中转账户）
   try {
@@ -410,7 +411,7 @@ export async function runReplicaPipeline(task, ctx) {
     const baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
 
     // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款
-    if (!kling.isConfigured()) {
+    if (!fal.isConfigured() && !kling.isConfigured()) {
       throw new Error('视频生成服务暂时不可用（视频引擎未配置）。请联系管理员处理，本次积分已自动退还。');
     }
 
@@ -629,11 +630,12 @@ export async function runReplicaPipeline(task, ctx) {
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
     const provDefs = {
+      fal: fal.isConfigured() ? { name: 'Fal', run: (img, p, d) => fal.imageToVideo(img, p, { duration: String(d) }) } : null,
       seedance: seedance.isConfigured() ? { name: 'Seedance', run: (img, p, d) => seedance.imageToVideo(img, p, { duration: d }) } : null,
       kling: kling.isConfigured() ? { name: 'Kling', run: (img, p, d) => kling.imageToVideo(img, p, { duration: String(d) }) } : null,
     };
-    // 全站视频只用可灵：Seedance 已彻底下线（真人/敏感检测易出幺蛾子）。可灵失败只兜底 Ken Burns 运镜，绝不退回 Seedance。
-    const videoProviders = [provDefs.kling].filter(Boolean);
+    // 默认走 fal(海螺等海外多模型，喂 URL 不跨境上传)；可灵退居兜底(仍可用)。都失败再走 Ken Burns。
+    const videoProviders = [provDefs.fal, provDefs.kling].filter(Boolean);
     let usedAI = false, usedProvider = '', aiImagesOk = 0;
     const animatedScenes = new Set(); // 哪些镜头真用可灵动起来了——用于"部分失败逐个重试"
 
@@ -737,18 +739,24 @@ export async function runReplicaPipeline(task, ctx) {
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 540);
         // Railway(海外) → 可灵(北京) 上传 2.5MB 大图极易超时：把底图重压成小 JPEG(同分辨率)再喂可灵，
         // 上传体积砍到 ~1/6，远不易超时（成片清晰度由可灵自身渲染决定，输入压一点几乎无感）。
-        let klingInput = animBase;
-        try {
-          const kdl = join(work, `kdl_${i}.jpg`);
-          await download(animBase, kdl);
-          const ksm = join(work, `ksm_${i}.jpg`);
-          await ff.ffmpeg(['-y', '-i', kdl, '-q:v', '7', ksm]);
-          klingInput = readFileSync(ksm);
-        } catch { notes.push(`场景${i + 1}压图降级,用原图喂可灵`); }
-        // 全站只用可灵（Seedance 已下线），逐个尝试视频引擎（目前就可灵一个），失败再走 Ken Burns
+        // fal 直接喂公网 URL（海外自取、不跨境上传）；可灵兜底才需要压缩图，懒压一次缓存
+        let klingInput = null;
+        const getKlingInput = async () => {
+          if (klingInput) return klingInput;
+          try {
+            const kdl = join(work, `kdl_${i}.jpg`);
+            await download(animBase, kdl);
+            const ksm = join(work, `ksm_${i}.jpg`);
+            await ff.ffmpeg(['-y', '-i', kdl, '-q:v', '7', ksm]);
+            klingInput = readFileSync(ksm);
+          } catch { klingInput = animBase; }
+          return klingInput;
+        };
+        // fal 优先 → 可灵兜底；都失败再走 Ken Burns
         for (const prov of videoProviders) {
           try {
-            const url = await prov.run(klingInput, motionPrompt, d);
+            const img = prov.name === 'Kling' ? await getKlingInput() : animBase;
+            const url = await prov.run(img, motionPrompt, d);
             await download(url, vp);
             usedAI = true; usedProvider = prov.name; animatedScenes.add(i);
             return vp;
