@@ -607,9 +607,12 @@ export async function runReplicaPipeline(task, ctx) {
     const targetTotal = sourceTotal
       ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
       : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a.duration || 0), 0);
+    const evenRatio = 1 / Math.max(1, scenes.length);
     let sceneDurations = scenes.map((s, i) => {
       const audioDur = Math.max(1.2, sceneAudios[i]?.duration || 4);
-      const ratio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : 1 / Math.max(1, scenes.length);
+      const srcRatio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : evenRatio;
+      // 一半跟源节奏、一半均匀：避免某一幕(如喝水)吃掉大半时长、把"成果/收尾"高潮挤成1秒
+      const ratio = 0.5 * srcRatio + 0.5 * evenRatio;
       const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 1.8, 8, audioDur) : audioDur;
       return Math.max(audioDur, rhythmDur);
     });
@@ -678,11 +681,13 @@ export async function runReplicaPipeline(task, ctx) {
               ? '模特的发色/发型/五官/长相严格以参考模特图为准（忽略文字里任何发色/外貌描述词），全程保持同一个人，正在自然展示或使用该商品'
               : '以商品为主角，外观保持一致、清晰可见';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
-          // 禁止把源视频的原字幕(如 just woke up)抄进画面；中文档画面不烧任何文字(字幕后期统一加)
-          const noSrcTextRule = `画面里严禁出现源爆款视频中的任何文字/字幕(如 just woke up 等英文字)——那是源视频的文字、不属于本片；${isZh ? '本片字幕由后期统一添加，出图阶段画面上不要烧任何文字。' : ''}`;
+          // 禁止把源视频的原字幕(face mask/just woke up 等)抄进画面；中文档画面彻底无字(字幕后期统一加)
+          const noSrcTextRule = isZh
+            ? '【极重要·硬性】整张图必须完全干净、不含任何文字/字母/英文单词/字幕/水印——参考图角落里若有英文小字(如 face mask、just woke up、skincare done)，那是源视频残留，必须当它不存在、绝不重现；本片字幕后期统一添加。'
+            : '严禁照搬/重现源爆款视频里的原英文字幕(如 face mask、just woke up 等)，那是源视频的文字、不属于本片。';
           // 避开吸管/透明玻璃杯这类后续视频里极易变形或消失的道具
           const propRule = '若画面涉及喝水/杯子等场景：用不透明杯具、不要吸管和透明玻璃杯。';
-          const prompt = `${styleCue}：${s.visual}。${referenceRule}${subjectRule}。${styleRule}${groundRule}。${propRule}${noSrcTextRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          const prompt = `${styleCue}：${s.visual}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
             c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
