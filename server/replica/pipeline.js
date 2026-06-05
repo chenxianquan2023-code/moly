@@ -630,11 +630,8 @@ export async function runReplicaPipeline(task, ctx) {
     const videoProviders = [provDefs.kling].filter(Boolean);
     let usedAI = false, usedProvider = '', aiImagesOk = 0;
 
-    const makeScene = async (i) => {
+    const makeSceneImage = async (i) => {
       const s = scenes[i];
-      const dur = Math.max(2, Math.ceil(sceneDurations[i] || sceneAudios[i].duration));
-      const d = dur > 5 ? 10 : 5;
-      const vp = join(work, `v_${i}.mp4`);
 
       // 4.1 这一镜的演示画面（按 visual + 是否出模特，保持商品/模特一致）
       let animBase = null;
@@ -697,8 +694,16 @@ export async function runReplicaPipeline(task, ctx) {
         } catch (e) { notes.push(`场景${i + 1}画面合成降级: ` + String(e.message || e).split('\n')[0].slice(0, 80)); }
       }
       if (!animBase) animBase = (s.personMode === 'anonymous' ? (productUrl || modelUrl) : (s.withModel ? (modelUrl || productUrl) : (productUrl || modelUrl))) || baseImageUrl;
+      return animBase;
+    };
 
-      // 4.2 animate（运动按 motion；级联 Seedance→Kling）
+    // 4.2 动画：底图全部出好后再单独跑可灵（此时没有出图在抢资源，干净环境——实测此条件下单条/双条并发都正常）
+    const makeSceneVideo = async (i, animBase) => {
+      const s = scenes[i];
+      const dur = Math.max(2, Math.ceil(sceneDurations[i] || sceneAudios[i].duration));
+      const d = dur > 5 ? 10 : 5;
+      const vp = join(work, `v_${i}.mp4`);
+      // 4.2 animate（运动按 motion；可灵 → 失败兜底 Ken Burns）
       if (animBase) {
         // 只动镜头、不动主体：根除"商品自己起飞/漂浮/变形"的图生视频幻觉
         const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
@@ -747,12 +752,15 @@ export async function runReplicaPipeline(task, ctx) {
       return vp;
     };
 
-    // 可灵并发太高会超时（实测 4 路齐发 3 路 timeout）→ 限并发，最多同时 2 镜，换取稳定动起来
+    // 阶段一：先并行出全部底图（Gemini 出图，互不干扰、快）
+    const animBases = await Promise.all(scenes.map((_, i) => makeSceneImage(i)));
+    // 阶段二：底图都好了再单独跑可灵动画——此时没有出图抢资源，环境干净（实测此条件下并发正常）。
+    // 之前的超时正是"出图与可灵在同一批并发里互相挤"导致的，拆成两阶段后根除。
     const VIDEO_CONCURRENCY = 2;
     const sceneVideos = new Array(scenes.length);
     let nextScene = 0;
     await Promise.all(Array.from({ length: Math.min(VIDEO_CONCURRENCY, scenes.length) }, async () => {
-      while (nextScene < scenes.length) { const i = nextScene++; sceneVideos[i] = await makeScene(i); }
+      while (nextScene < scenes.length) { const i = nextScene++; sceneVideos[i] = await makeSceneVideo(i, animBases[i]); }
     }));
     // 出图全失败(额度不足) 或 视频引擎全程没成功(可灵欠费/超时) → 成片必然不对 → 中止、退款、提示联系管理员
     if (aiImagesOk === 0 || !usedAI) {

@@ -31,7 +31,7 @@ function jwt() {
 async function toBase64(src) {
   if (Buffer.isBuffer(src)) return src.toString('base64');
   if (typeof src === 'string' && src.startsWith('data:')) return src.split(',')[1] || '';
-  const r = await fetch(src, { signal: AbortSignal.timeout(180000) });
+  const r = await fetch(src, { signal: AbortSignal.timeout(90000) });
   return Buffer.from(await r.arrayBuffer()).toString('base64');
 }
 
@@ -55,7 +55,7 @@ export async function imageToVideo(image, prompt = '', {
     method: 'POST',
     headers: { Authorization: `Bearer ${jwt()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(180000),
+    signal: AbortSignal.timeout(90000),
   });
   const createData = await createRes.json();
   if (createData.code !== 0) throw new Error(`Kling 创建任务失败: ${createData.message || JSON.stringify(createData)}`);
