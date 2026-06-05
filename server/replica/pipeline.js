@@ -724,10 +724,20 @@ export async function runReplicaPipeline(task, ctx) {
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}`.slice(0, 460);
+        // Railway(海外) → 可灵(北京) 上传 2.5MB 大图极易超时：把底图重压成小 JPEG(同分辨率)再喂可灵，
+        // 上传体积砍到 ~1/6，远不易超时（成片清晰度由可灵自身渲染决定，输入压一点几乎无感）。
+        let klingInput = animBase;
+        try {
+          const kdl = join(work, `kdl_${i}.jpg`);
+          await download(animBase, kdl);
+          const ksm = join(work, `ksm_${i}.jpg`);
+          await ff.ffmpeg(['-y', '-i', kdl, '-q:v', '7', ksm]);
+          klingInput = readFileSync(ksm);
+        } catch { notes.push(`场景${i + 1}压图降级,用原图喂可灵`); }
         // 全站只用可灵（Seedance 已下线），逐个尝试视频引擎（目前就可灵一个），失败再走 Ken Burns
         for (const prov of videoProviders) {
           try {
-            const url = await prov.run(animBase, motionPrompt, d);
+            const url = await prov.run(klingInput, motionPrompt, d);
             await download(url, vp);
             usedAI = true; usedProvider = prov.name; animatedScenes.add(i);
             return vp;
