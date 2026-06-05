@@ -508,8 +508,17 @@ export async function runReplicaPipeline(task, ctx) {
             `\n2. ${realityRule}\n3. ${copyRule}` +
             `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${seedanceFaceRule}\n6. ${punchRule}\n7. ${fmt}`;
         }
-        const txt = await llm.generateText(prompt, { maxTokens: 8000 });
-        scenes = llm.parseJson(txt);
+        // 导演这步最关键：拉长超时(180s) + 失败重试一次，避免瞬时抖动直接降级成模板分镜
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const txt = await llm.generateText(prompt, { maxTokens: 8000, timeoutMs: 180000 });
+            scenes = llm.parseJson(txt);
+            break;
+          } catch (e) {
+            if (attempt === 1) throw e;
+            notes.push('导演重试: ' + String(e.message || e).split('\n')[0].slice(0, 60));
+          }
+        }
       }
     } catch (e) { notes.push('导演降级: ' + String(e.message || e).split('\n')[0]); }
     let usedTemplateScenes = false;
