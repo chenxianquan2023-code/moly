@@ -610,11 +610,13 @@ export async function runReplicaPipeline(task, ctx) {
       : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a.duration || 0), 0);
     const evenRatio = 1 / Math.max(1, scenes.length);
     let sceneDurations = scenes.map((s, i) => {
-      const audioDur = Math.max(1.2, sceneAudios[i]?.duration || 4);
+      const hasVoice = !!sceneAudios[i]?.path;
+      // 没配音时不要用 4 秒默认值兜底——否则每镜被撑到 4 秒、总时长远超源音乐、被 -shortest 砍掉结尾
+      const audioDur = hasVoice ? Math.max(1.2, sceneAudios[i].duration || 3) : 0;
       const srcRatio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : evenRatio;
-      // 一半跟源节奏、一半均匀：避免某一幕(如喝水)吃掉大半时长、把"成果/收尾"高潮挤成1秒
-      const ratio = 0.5 * srcRatio + 0.5 * evenRatio;
-      const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 1.8, 8, audioDur) : audioDur;
+      // 没配音时偏均匀(0.4源+0.6均)，让各幕时长接近、总时长贴合源视频；某一幕不过长、结尾也不被砍
+      const ratio = hasVoice ? (0.5 * srcRatio + 0.5 * evenRatio) : (0.4 * srcRatio + 0.6 * evenRatio);
+      const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 2.0, 6, audioDur || 2.8) : (audioDur || 3);
       return Math.max(audioDur, rhythmDur);
     });
     const plannedTotal = sceneDurations.reduce((sum, d) => sum + d, 0);
@@ -734,9 +736,9 @@ export async function runReplicaPipeline(task, ctx) {
         const subjectMotionRule = hasPerson
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
-        // 杯子/餐具/吸管等道具保持完整、不变形不消失（治"吸管消失/杯子缺口"）
-        const propStableRule = '画面中的杯子、餐具、吸管等道具全程保持完整稳定的形状，不变形、不增减、不消失、不无故出现。';
-        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 540);
+        // 衣服不乱动不穿模 + 道具保持完整（治"模特弄衣服/穿模"和"吸管消失/杯子缺口"）
+        const propStableRule = '模特的衣服自然贴身、不要去整理/拉扯/掀动衣物，衣物始终贴合身体、不穿模不穿帮；画面中的杯子、餐具、吸管等道具全程保持完整稳定，不变形、不增减、不消失、不无故出现。';
+        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 620);
         // Railway(海外) → 可灵(北京) 上传 2.5MB 大图极易超时：把底图重压成小 JPEG(同分辨率)再喂可灵，
         // 上传体积砍到 ~1/6，远不易超时（成片清晰度由可灵自身渲染决定，输入压一点几乎无感）。
         // fal 直接喂公网 URL（海外自取、不跨境上传）；可灵兜底才需要压缩图，懒压一次缓存
@@ -844,7 +846,8 @@ export async function runReplicaPipeline(task, ctx) {
         const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
         bgmPath = join(work, 'bgm.mp3');
         const fadeSt = Math.max(0, total - 1).toFixed(2);
-        await ff.ffmpeg(['-y', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+        // -stream_loop -1：源音乐若比成片短就循环铺满，保证背景乐覆盖全片，视频不会被 -shortest 砍尾
+        await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
       } catch (e) { bgmPath = null; notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
     }
 
