@@ -801,7 +801,7 @@ export async function runReplicaPipeline(task, ctx) {
             ? '【极重要·硬性】整张图必须完全干净、不含任何文字/字母/英文单词/字幕/水印——参考图角落里若有英文小字(如 face mask、just woke up、skincare done)，那是源视频残留，必须当它不存在、绝不重现；本片字幕后期统一添加。'
             : '严禁照搬/重现源爆款视频里的原英文字幕(如 face mask、just woke up 等)，那是源视频的文字、不属于本片。';
           // 避开吸管/透明玻璃杯这类后续视频里极易变形或消失的道具
-          const propRule = '若画面涉及喝水/杯子等场景：用不透明杯具、不要吸管和透明玻璃杯。';
+          const propRule = '若画面涉及喝水/杯子等场景：用不透明杯具、不要吸管和透明玻璃杯。若是片状/贴片面膜：要像真实面膜那样在眼睛和嘴巴处留有开口、露出眼睛和嘴唇，不要糊成一整张盖住整脸的纸（否则嘴被糊住很假）。';
           const prompt = `${styleCue}：${s.visual}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
