@@ -49,7 +49,19 @@
         <div class="vmeta">
           <p class="vtitle">{{ title(playing) }}</p>
           <p class="vsub">{{ langLabel(playing) }} · {{ time(playing) }}</p>
-          <button class="dl big" :disabled="busy === playing.id" @click="download(playing)">{{ busy === playing.id ? '下载中…' : '下载视频' }}</button>
+          <button class="dl big" :disabled="busy === playing.id || regenning" @click="download(playing)">{{ busy === playing.id ? '下载中…' : '下载视频' }}</button>
+
+          <div v-if="canRegen(playing)" class="vscenes">
+            <p class="vscenes-h">📝 分镜 · 哪一镜不满意，点 🔄 单独重出（约 {{ REGEN_COST }} 积分，其余镜不变）</p>
+            <ul class="vscene-list">
+              <li v-for="(s, i) in playing.output_json.shots" :key="i" class="vscene">
+                <img v-if="playing.output_json.sceneImages && playing.output_json.sceneImages[i]" :src="playing.output_json.sceneImages[i]" class="vscene-thumb" alt="" loading="lazy" />
+                <span class="vscene-text"><em>{{ s.type }}</em>{{ s.text }}</span>
+                <button type="button" class="vscene-regen" :disabled="regenning" @click="regenScene(playing, i)" :title="`只重出第 ${i + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
+              </li>
+            </ul>
+            <p v-if="regenning" class="vscene-prog">⏳ 第 {{ regenSceneIdx + 1 }} 镜重出中… 约 1–2 分钟，请勿关闭弹窗</p>
+          </div>
         </div>
       </div>
     </div>
@@ -57,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 
@@ -84,6 +96,57 @@ function time(t: any) {
 }
 
 function play(t: any) { playing.value = t; }
+
+// ── 换单镜（历史页）：弹窗内对某一镜点 🔄 单独重出，其余镜复用缓存 ──
+const REGEN_COST = 15; // 与后端 REGEN_SCENE_COST 一致
+const regenning = ref(false);
+const regenSceneIdx = ref(-1);
+let regenTimer: any = null;
+// 能否换单镜：成片带完整分镜缓存(底图+动画片)
+function canRegen(t: any) {
+  const o = t?.output_json;
+  return !!(o && Array.isArray(o.sceneClips) && o.sceneClips.length && Array.isArray(o.shots) && o.sceneClips.length === o.shots.length);
+}
+async function regenScene(t: any, i: number) {
+  if (regenning.value) return;
+  if (!confirm(`只重出第 ${i + 1} 个镜头（其余镜头保持不变），需扣约 ${REGEN_COST} 积分。继续？`)) return;
+  regenning.value = true; regenSceneIdx.value = i;
+  try {
+    const r = await fetch('/api/replica/regenerate-scene', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail: auth.email, taskId: t.id, sceneIndex: i }),
+    });
+    const j = await r.json();
+    if (!j.success) { regenning.value = false; regenSceneIdx.value = -1; alert(j.message || '换单镜失败'); return; }
+    if (auth.email) (auth as any).fetchPointsFromServer?.(auth.email);
+    pollRegen(j.taskId);
+  } catch (e: any) { regenning.value = false; regenSceneIdx.value = -1; alert(e.message); }
+}
+function pollRegen(taskId: string) {
+  const tick = async () => {
+    try {
+      const r = await fetch('/api/generation-tasks/' + taskId);
+      const j = await r.json();
+      if (j.success) {
+        if (j.task.status === 'succeeded') {
+          regenning.value = false; regenSceneIdx.value = -1;
+          if (playing.value) playing.value = j.task; // 弹窗还开着才切到新成片（含换好的那一镜）
+          if (auth.email) (auth as any).fetchPointsFromServer?.(auth.email);
+          load(); // 刷新列表
+          return;
+        }
+        if (j.task.status === 'failed') {
+          regenning.value = false; regenSceneIdx.value = -1;
+          alert(j.task.error_message || '换单镜失败，已自动退款');
+          if (auth.email) (auth as any).fetchPointsFromServer?.(auth.email);
+          return;
+        }
+      }
+    } catch { /* 网络抖动，继续轮询 */ }
+    regenTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
 
 async function load() {
   if (!auth.isLoggedIn || !auth.email) return;
@@ -120,6 +183,7 @@ async function download(t: any) {
 }
 
 onMounted(load);
+onUnmounted(() => { if (regenTimer) clearTimeout(regenTimer); });
 </script>
 
 <style scoped lang="scss">
@@ -162,6 +226,19 @@ onMounted(load);
 .vtitle { margin:0; font-size:16px; font-weight:700; color: var(--color-text-primary); }
 .vsub { margin:0; font-size:12px; color: var(--color-text-tertiary); }
 .dl.big { flex:none; padding:12px; font-size:14px; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; }
+
+/* 历史页·换单镜分镜条 */
+.vscenes { margin-top:4px; border-top:1px solid var(--color-border-light); padding-top:12px; }
+.vscenes-h { margin:0 0 8px; font-size:11.5px; font-weight:600; color: var(--color-text-tertiary); line-height:1.5; }
+.vscene-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; max-height:240px; overflow-y:auto; @media (min-width:720px){ max-height:42vh; } }
+.vscene { display:flex; align-items:center; gap:9px; }
+.vscene-thumb { width:30px; height:53px; object-fit:cover; border-radius:5px; flex-shrink:0; background:#e2e8f0; border:1px solid var(--color-border-light); }
+.vscene-text { flex:1; min-width:0; font-size:12.5px; color: var(--color-text-primary); line-height:1.35;
+  em { font-style:normal; font-size:10px; font-weight:700; color: var(--color-primary); margin-right:5px; text-transform:uppercase; } }
+.vscene-regen { flex-shrink:0; width:32px; height:32px; border:1px solid var(--color-border); border-radius:8px; background:#fff; cursor:pointer; font-size:14px; line-height:1; display:flex; align-items:center; justify-content:center; transition:all var(--transition-fast);
+  &:hover:not(:disabled) { border-color: var(--color-primary); background: var(--color-primary-light,#eef2ff); transform:rotate(-30deg); }
+  &:disabled { opacity:.4; cursor:default; } }
+.vscene-prog { margin:10px 0 0; font-size:12px; font-weight:600; color: var(--color-primary); line-height:1.5; }
 
 @media (max-width: 640px) {
   .history { padding: 22px 14px 48px; }

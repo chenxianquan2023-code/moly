@@ -142,13 +142,42 @@
             <span v-if="generating" class="gen-spin" />
             {{ generating ? '生成中…' : `一键生成 · 约 ${estimatedCredits} 积分` }}
           </button>
-          <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。</p>
+          <button class="generate-2up" :disabled="!canGenerate" @click="generateVariants" title="用同样素材并行生成 2 条不同版本，工作台并排挑选（约 2 倍积分）">
+            ✌️ 出 2 版供挑 · 约 {{ estimatedCredits * 2 }} 积分
+          </button>
+          <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
         </div>
 
         <!-- 右：进度 / 结果 -->
         <div class="preview">
-          <div v-if="!generating && !task && !result" class="preview-empty">
+          <div v-if="variants.length" class="preview-variants">
+            <div class="pv-head">
+              <b>出 2 版 · 挑你更满意的</b>
+              <span v-if="generating" class="pv-eta">并行生成中 · 已用时 {{ elapsedText }}</span>
+            </div>
+            <div class="pv-grid">
+              <div v-for="(v, vi) in variants" :key="vi" class="pv-cell">
+                <span class="pv-label">版本 {{ vi + 1 }}</span>
+                <template v-if="v.result">
+                  <video :src="v.result.videoUrl" controls playsinline class="pv-video" />
+                  <button type="button" class="btn-download pv-dl" :disabled="downloading" @click="downloadVariant(v)">下载这版</button>
+                </template>
+                <div v-else-if="v.startFailed" class="pv-msg fail">{{ v.startFailed }}</div>
+                <div v-else-if="v.task?.status === 'failed'" class="pv-msg fail">这版生成失败<br /><small>已自动退款</small></div>
+                <div v-else class="pv-msg">
+                  <div class="progress-ring sm" :class="{ running: v.task?.status !== 'failed' }" :style="{ '--p': (v.task?.progress || 0) + '%' }"><span>{{ v.task?.progress || 0 }}%</span></div>
+                  <p class="pv-step">{{ (v.task?.steps || []).filter(s => s.status === 'running').map(s => s.label)[0] || '排队中…' }}</p>
+                </div>
+              </div>
+            </div>
+            <div class="pv-actions">
+              <button class="btn-again" :disabled="generating" @click="reset">再做一条</button>
+            </div>
+            <p class="pv-tip">💡 两版用同样素材各摇一次。想微调某版的某一镜，去「历史记录」打开它、点该镜 🔄 换单镜。</p>
+          </div>
+
+          <div v-else-if="!generating && !task && !result" class="preview-empty">
             <div class="phone">
               <span>9:16</span>
             </div>
@@ -354,6 +383,7 @@ function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; 
 const task = ref<any>(null);
 const result = ref<any>(null);
 const generating = ref(false);
+const variants = ref<any[]>([]); // 出2版：[{ taskId, task, result, startFailed }]
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
 // —— 生成进度的友好提示：耗时预期 + 计时 + 轮播文案（生成较久，给用户心理预期）——
@@ -461,32 +491,39 @@ async function onFile(e: Event, assetType: string, slot: string) {
   }
 }
 
+// 出2版共用：建源视频记录 + 构造生成请求体（与单版完全一致，保证两版同素材同设置）
+async function ensureSourceVideoId() {
+  if (!sourceVideoAsset.value) return null;
+  const r = await fetch('/api/source-videos', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userEmail: auth.email, assetId: sourceVideoAsset.value.id }),
+  });
+  const j = await r.json();
+  return j.success ? j.sourceVideo.id : null;
+}
+function buildGenBody(sourceVideoId: any) {
+  return {
+    userEmail: auth.email, sourceVideoId,
+    assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
+    product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
+    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value },
+    models: { video: videoModel.value, image: imageModel.value },
+    language: language.value, aspectRatio: '9:16',
+  };
+}
+
 async function generate() {
   if (!canGenerate.value) return;
   generating.value = true;
   result.value = null;
   task.value = null;
+  variants.value = [];
   startProgressUx();
   try {
-    let sourceVideoId = null;
-    if (sourceVideoAsset.value) {
-      const r = await fetch('/api/source-videos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail: auth.email, assetId: sourceVideoAsset.value.id }),
-      });
-      const j = await r.json();
-      if (j.success) sourceVideoId = j.sourceVideo.id;
-    }
+    const sourceVideoId = await ensureSourceVideoId();
     const r = await fetch('/api/replica/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userEmail: auth.email, sourceVideoId,
-        assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
-        product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-        options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value },
-        models: { video: videoModel.value, image: imageModel.value },
-        language: language.value, aspectRatio: '9:16',
-      }),
+      body: JSON.stringify(buildGenBody(sourceVideoId)),
     });
     const j = await r.json();
     if (!j.success) {
@@ -529,12 +566,66 @@ function pollTask(taskId: string) {
   tick();
 }
 
-function reset() { task.value = null; result.value = null; stopProgressUx(); }
+function reset() { task.value = null; result.value = null; variants.value = []; stopProgressUx(); }
 // 换一版：复用当前商品/模特/爆款/选项，再生成一条不同版本（AI 视频有波动，多生成几条挑最好的）
 function regenerate() {
   if (generating.value) return;
   if (!confirm(`换一版：用同样的素材再生成一条不同的版本，需扣约 ${estimatedCredits.value} 积分。继续？`)) return;
   generate();
+}
+
+// 出2版：用同样素材并行生成 2 条不同版本，工作台并排展示供挑（扣 2 倍积分；后端每版独立扣费/失败自动退款）
+async function generateVariants() {
+  if (!canGenerate.value) return;
+  if (!confirm(`出 2 版：用同样的素材并行生成 2 条不同版本供你挑，需扣约 ${estimatedCredits.value * 2} 积分。继续？`)) return;
+  generating.value = true;
+  result.value = null;
+  task.value = null;
+  variants.value = [{ taskId: null, task: null, result: null, startFailed: '' }, { taskId: null, task: null, result: null, startFailed: '' }];
+  startProgressUx();
+  try {
+    const sourceVideoId = await ensureSourceVideoId(); // 两版共用一条源视频记录
+    for (let k = 0; k < 2; k++) {
+      try {
+        const r = await fetch('/api/replica/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildGenBody(sourceVideoId)),
+        });
+        const j = await r.json();
+        if (!j.success) { variants.value[k].startFailed = j.code === 'INSUFFICIENT' ? '积分不足，这版未生成' : (j.message || '启动失败'); continue; }
+        variants.value[k].taskId = j.taskId;
+        pollVariant(k, j.taskId);
+      } catch { variants.value[k].startFailed = '网络错误，这版未生成'; }
+    }
+    if (variants.value.every(v => v.startFailed)) {
+      generating.value = false; stopProgressUx();
+      if (variants.value.some(v => /积分不足/.test(v.startFailed))) { variants.value = []; openRecharge('积分不足，请充值后再「出2版」'); }
+      return;
+    }
+    if (auth.email) auth.fetchPointsFromServer(auth.email);
+  } catch (err: any) {
+    alert(err.message); generating.value = false; stopProgressUx(); variants.value = [];
+  }
+}
+function pollVariant(k: number, taskId: string) {
+  const tick = async () => {
+    try {
+      const r = await fetch('/api/generation-tasks/' + taskId);
+      const j = await r.json();
+      if (j.success) {
+        variants.value[k].task = j.task;
+        if (j.task.status === 'succeeded') { variants.value[k].result = j.task.output_json; onVariantSettled(); return; }
+        if (j.task.status === 'failed') { onVariantSettled(); if (auth.email) auth.fetchPointsFromServer(auth.email); return; }
+      }
+    } catch { /* 网络抖动，继续轮询 */ }
+    setTimeout(tick, 3000);
+  };
+  tick();
+}
+// 两版都结束(成功/失败/未启动)后收尾全局进度
+function onVariantSettled() {
+  const running = variants.value.some(v => !v.startFailed && !v.result && v.task?.status !== 'failed');
+  if (!running) { generating.value = false; stopProgressUx(); if (auth.email) auth.fetchPointsFromServer(auth.email); }
 }
 
 const REGEN_COST = 15; // 换单镜单价（与后端 REGEN_SCENE_COST 保持一致）
@@ -571,8 +662,9 @@ async function regenerateScene(i: number) {
 
 // 直接下载成片：浏览器拉 blob 触发下载，停留在当前页（不再整页跳到视频直链）
 const downloading = ref(false);
-async function downloadVideo() {
-  const url = result.value?.videoUrl;
+function downloadVideo() { return downloadFromUrl(result.value?.videoUrl, `moly-${result.value?.generatedVideoId || 'video'}.mp4`); }
+function downloadVariant(v: any) { return downloadFromUrl(v?.result?.videoUrl, `moly-${v?.result?.generatedVideoId || 'variant'}.mp4`); }
+async function downloadFromUrl(url: string, name: string) {
   if (!url || downloading.value) return;
   downloading.value = true;
   try {
@@ -582,7 +674,7 @@ async function downloadVideo() {
     const objUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objUrl;
-    a.download = `moly-${result.value.generatedVideoId || 'video'}.mp4`;
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -785,6 +877,10 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   &:disabled { opacity:.45; box-shadow:none; cursor:not-allowed; }
 }
 .gen-spin { width:16px; height:16px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation: spin .8s linear infinite; }
+.generate-2up { width:100%; margin-top:10px; padding:12px; border:1px solid var(--color-primary); border-radius: var(--radius-lg); background: var(--color-primary-light,#eef2ff); color: var(--color-primary); font-size:14px; font-weight:700; cursor:pointer; transition: all .2s ease;
+  &:not(:disabled):hover { background:#e0e7ff; transform: translateY(-1px); }
+  &:disabled { opacity:.45; cursor:not-allowed; }
+}
 .duration-note { text-align:center; font-size:12px; line-height:1.6; color:#64748b; margin:10px 0 0; }
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
 
@@ -794,6 +890,23 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
     &::before { content:''; position:absolute; inset:6px; border-radius:15px; border:1.5px dashed rgba(255,255,255,.22); }
     span { position:relative; opacity:.85; } }
   p { font-size:13px; margin:0; }
+}
+.preview-variants { flex:1; display:flex; flex-direction:column; gap:14px;
+  .pv-head { display:flex; flex-direction:column; gap:4px; b { font-size:16px; font-weight:800; color:#0f172a; } .pv-eta { font-size:12px; color: var(--color-text-tertiary); } }
+  .pv-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .pv-cell { display:flex; flex-direction:column; gap:8px; min-width:0; background:rgba(248,250,252,.7); border:1px solid var(--color-border-light); border-radius: var(--radius-lg); padding:10px; }
+  .pv-label { font-size:12px; font-weight:700; color: var(--color-primary); }
+  .pv-video { width:100%; border-radius: var(--radius-md); background:#000; aspect-ratio:9/16; object-fit:contain; box-shadow:0 10px 24px -14px rgba(15,23,42,.5); }
+  .pv-dl { padding:9px; font-size:13px; text-align:center; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; border-radius: var(--radius-md); font-weight:600; cursor:pointer; &:disabled { opacity:.6; cursor:default; } }
+  .pv-msg { aspect-ratio:9/16; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; font-size:12px; color: var(--color-text-tertiary); line-height:1.4;
+    &.fail { color: var(--color-error); font-weight:600; } small { color: var(--color-text-tertiary); font-weight:400; } }
+  .pv-step { margin:0; font-size:12px; color: var(--color-text-secondary); }
+  .progress-ring.sm { width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:#0f172a; background: conic-gradient(#2563eb var(--p), #e8edf5 0); position:relative;
+    &::before { content:''; position:absolute; inset:6px; background:#fff; border-radius:50%; }
+    &.running { animation: ringGlow 2s ease-in-out infinite; }
+    span { position:relative; z-index:1; } }
+  .pv-actions { display:flex; gap:10px; .btn-again { flex:1; padding:11px; background:#fff; border:1px solid var(--color-border); border-radius: var(--radius-md); font-weight:600; font-size:14px; color: var(--color-text-primary); cursor:pointer; &:disabled { opacity:.5; } } }
+  .pv-tip { margin:0; font-size:12px; line-height:1.5; color: var(--color-text-tertiary); background: rgba(37,99,235,.05); border:1px solid rgba(37,99,235,.1); padding:9px 12px; border-radius:10px; }
 }
 .preview-done { flex:1; display:flex; flex-direction:column; gap:14px;
   .result-video { width:100%; border-radius: var(--radius-lg); background:#000; aspect-ratio:9/16; object-fit:contain; box-shadow: 0 16px 36px -18px rgba(15,23,42,.5); }
