@@ -112,6 +112,12 @@
                 <button v-for="l in LANGS" :key="l.code" type="button" :class="{ active: language === l.code }" @click="language = l.code">{{ l.label }}</button>
               </div>
             </div>
+            <div class="model-row lang-row">
+              <span class="model-label">时长<em class="ml-note">成片总时长，自动按比例分到各幕</em></span>
+              <div class="seg">
+                <button v-for="d in DURATIONS" :key="d.v" type="button" :class="{ active: targetDuration === d.v }" @click="targetDuration = d.v">{{ d.label }}</button>
+              </div>
+            </div>
             <div class="switches">
               <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
               <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
@@ -294,6 +300,8 @@ const generateSubtitle = ref(true);
 const generateMusic = ref(true); // 没配音时用源爆款视频的音乐当背景乐
 const language = ref('zh-CN');
 const LANGS = [{ code: 'zh-CN', label: '中文' }, { code: 'en-US', label: '英文' }, { code: 'ja-JP', label: '日语' }, { code: 'es-ES', label: '西语' }];
+const targetDuration = ref(0); // 0=跟源视频；否则目标总秒数
+const DURATIONS = [{ v: 0, label: '跟源' }, { v: 8, label: '短·8秒' }, { v: 12, label: '标准·12秒' }, { v: 18, label: '长·18秒' }];
 const VS = 'https://ycivzfqijxngognpoeil.supabase.co/storage/v1/object/public/moly-media/voices/samples/';
 const DEFAULT_VOICES = [
   { id: 'volc-yuanqinvyou', label: '元气女友', desc: '元气活泼、甜美亲和', gender: '女', category: '通用', langs: ['zh-CN'], sample: VS + 'volc-yuanqinvyou.mp3' },
@@ -467,7 +475,7 @@ async function generate() {
         userEmail: auth.email, sourceVideoId,
         assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
         product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-        options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value },
+        options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value },
         models: { video: videoModel.value, image: imageModel.value },
         language: language.value, aspectRatio: '9:16',
       }),

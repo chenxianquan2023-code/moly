@@ -60,6 +60,19 @@ console.log('═══ Part 1: computeSceneDurations 纯逻辑（瞬时、0 成�
   ok(durations.every((d) => d >= 2 && d <= 6), `无源无配音兜底每幕 2~6s(${durations.map((d) => d.toFixed(1)).join(',')})`);
 }
 
+// F. 用户指定总时长(短/标准/长) → 成片总时长贴合该目标
+{
+  const scenes = [{ durationRatio: 0.5 }, { durationRatio: 0.3 }, { durationRatio: 0.2 }];
+  const audios = scenes.map(() => ({ path: null }));
+  for (const target of [8, 12, 18]) {
+    const { durations } = computeSceneDurations(scenes, audios, 8.8, target);
+    const s = sum(durations);
+    console.log(`  目标${target}s → ${durations.map((d) => d.toFixed(1)).join(',')} | 总${s.toFixed(1)}`);
+    ok(Math.abs(s - target) <= 2.0, `选"目标 ${target}s" → 成片总时长 ${s.toFixed(1)}s 贴合目标`);
+    ok(Math.max(...durations) <= 1.8 * (s / durations.length), `目标 ${target}s 各幕仍均衡、无某幕过长`);
+  }
+}
+
 console.log('\n═══ Part 2: 合成 -shortest 砍尾 回归（造假片+假音乐跑真 ffmpeg，0 AI）═══');
 const dir = mkdtempSync(join(tmpdir(), 'moly-test-'));
 try {

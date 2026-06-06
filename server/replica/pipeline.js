@@ -383,21 +383,26 @@ export async function preflightAIHealth() {
  * 关键不变量：没配音时总时长应贴合源视频时长(不超太多)，否则合成时会被背景乐 -shortest 砍掉结尾。
  * @returns {{durations:number[], note:string|null}}
  */
-export function computeSceneDurations(scenes, sceneAudios, sourceDurationSec = 0) {
+export function computeSceneDurations(scenes, sceneAudios, sourceDurationSec = 0, targetDurationSec = 0) {
   const sourceTotal = clampNumber(sourceDurationSec, 0, SOURCE_VIDEO_REFERENCE_MAX_SEC, 0);
   const ratioSum = scenes.reduce((sum, s) => sum + (Number(s.durationRatio) || 0), 0);
-  const targetTotal = sourceTotal
-    ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
-    : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a?.duration || 0), 0);
+  // 用户指定目标总时长(短/标准/长) → 用它(钳到合理范围)；否则跟源视频/配音
+  const userTotal = targetDurationSec ? clampNumber(targetDurationSec, Math.max(4, scenes.length * 2), OUTPUT_VIDEO_MAX_SEC, 0) : 0;
+  const targetTotal = userTotal
+    || (sourceTotal
+      ? Math.min(OUTPUT_VIDEO_MAX_SEC, Math.max(scenes.length * 2.2, sourceTotal))
+      : sceneAudios.reduce((sum, a) => sum + Math.max(1.2, a?.duration || 0), 0));
+  const useRhythm = userTotal || sourceTotal; // 有目标总时长(用户或源)就按比例分配各幕，否则跟配音
+  const maxScene = userTotal ? 8 : 6;          // 用户选"长"时允许单幕更长
   const evenRatio = 1 / Math.max(1, scenes.length);
   let durations = scenes.map((s, i) => {
     const hasVoice = !!sceneAudios[i]?.path;
-    // 没配音时不要用 4 秒默认值兜底——否则每镜被撑到 4 秒、总时长远超源音乐、被 -shortest 砍掉结尾
+    // 没配音时不要用 4 秒默认值兜底——否则每镜被撑到 4 秒、总时长远超目标、被 -shortest 砍掉结尾
     const audioDur = hasVoice ? Math.max(1.2, sceneAudios[i].duration || 3) : 0;
     const srcRatio = ratioSum > 0 ? (Number(s.durationRatio) || 0) / ratioSum : evenRatio;
-    // 没配音时偏均匀(0.4源+0.6均)，让各幕时长接近、总时长贴合源视频；某一幕不过长、结尾也不被砍
+    // 没配音时偏均匀(0.4源+0.6均)，各幕接近、总时长贴合目标；某幕不过长、结尾不被砍
     const ratio = hasVoice ? (0.5 * srcRatio + 0.5 * evenRatio) : (0.4 * srcRatio + 0.6 * evenRatio);
-    const rhythmDur = sourceTotal ? clampNumber(targetTotal * ratio, 2.0, 6, audioDur || 2.8) : (audioDur || 3);
+    const rhythmDur = useRhythm ? clampNumber(targetTotal * ratio, 2.0, maxScene, audioDur || 2.8) : (audioDur || 3);
     return Math.max(audioDur, rhythmDur);
   });
   let note = null;
@@ -737,7 +742,7 @@ export async function runReplicaPipeline(task, ctx) {
       }
     }
 
-    const { durations: sceneDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec);
+    const { durations: sceneDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec, Number(opts.targetDurationSec) || 0);
     if (durNote) notes.push(durNote);
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
