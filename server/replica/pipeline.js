@@ -448,7 +448,7 @@ export async function composeVideo({ work, scenes, sceneDurations, sceneClips, s
   writeFileSync(join(work, 'subs.srt'), srt);
 
   let bgmPath = null;
-  if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+  if (opts.generate_music !== false && !ttsOk && existsSync(join(work, 'src.mp4'))) {
     try {
       const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
       bgmPath = join(work, 'bgm.mp3');
@@ -966,7 +966,7 @@ export async function runReplicaPipeline(task, ctx) {
 
     // 背景乐：开了「背景音乐」且有参考源视频时，取源视频音轨（有配音则压低做轻背景乐、淡出）
     let bgmPath = null;
-    if (opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+    if (opts.generate_music !== false && !ttsOk && existsSync(join(work, 'src.mp4'))) {
       try {
         const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
         bgmPath = join(work, 'bgm.mp3');

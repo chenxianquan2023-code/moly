@@ -121,10 +121,11 @@
             <div class="switches">
               <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
               <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
-              <label class="switch"><input type="checkbox" v-model="generateMusic" /><span />背景音乐</label>
+              <label class="switch" :class="{ disabled: generateVoice }"><input type="checkbox" v-model="generateMusic" :disabled="generateVoice" /><span />复刻源视频背景乐</label>
             </div>
-            <p v-if="generateMusic" class="voice-hint">背景音乐取自你的爆款参考视频（需有参考视频）{{ generateVoice ? '，作配音的轻背景乐' : '，无配音' }}。</p>
-            <p v-else-if="!generateVoice" class="voice-hint">已关 AI 配音、无背景乐：成片无声，保留字幕脚本，可自己后期配。</p>
+            <p v-if="generateVoice" class="voice-hint">已开 AI 配音 → 成片只用 AI 人声；不叠加源视频原声（源视频背景里常有人说话，叠上去两种人声会打架）。</p>
+            <p v-else-if="generateMusic" class="voice-hint">复刻源视频的背景声/音乐（需有参考视频），成片无 AI 配音。</p>
+            <p v-else class="voice-hint">无 AI 配音、无背景乐：成片无声，保留字幕脚本，可自己后期配。</p>
             <div v-if="generateVoice && voices.length" class="voice-pick">
               <span class="model-label">配音音色</span>
               <button type="button" class="voice-trigger" @click="openVoicePicker">
@@ -729,6 +730,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
 
 .switches { display:flex; align-items:center; gap:18px; }
+.switch.disabled { opacity:.42; cursor:not-allowed; }
 .switch { display:flex; align-items:center; gap:7px; font-size:13px; cursor:pointer; user-select:none;
   input { display:none; }
   span { width:36px; height:20px; border-radius:999px; background: var(--color-border-muted); position:relative; transition: background var(--transition-fast); flex-shrink:0;
