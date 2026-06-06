@@ -591,7 +591,7 @@ export async function runReplicaPipeline(task, ctx) {
         }
       }
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
-    await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : '无源视频/默认结构' });
+    await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
 
     // ── 2. 导演分镜脚本（口播 + 画面 + 运动 + 是否出模特）──
     await setStep(1, { status: 'running' });

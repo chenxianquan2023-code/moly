@@ -82,8 +82,19 @@ export async function generateImage(prompt, refs = [], { model, aspectRatio = '9
 
 /** 容错解析 LLM 返回的 JSON（去除 ```json 包裹） */
 export function parseJson(text) {
-  const m = String(text).match(/```(?:json)?\s*([\s\S]*?)```/);
-  return JSON.parse((m ? m[1] : text).trim());
+  let s = String(text || '').trim();
+  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) s = fenced[1].trim();
+  else s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim(); // 只有开头围栏(被截断)
+  try { return JSON.parse(s); } catch { /* 继续兜底 */ }
+  const m = s.match(/[[{][\s\S]*[\]}]/);
+  if (m) { try { return JSON.parse(m[0]); } catch { /* fallthrough */ } }
+  // 截断的对象/数组 → 截到最后一个完整的 } 再补齐括号
+  if (s.startsWith('{') || s.startsWith('[')) {
+    const last = s.lastIndexOf('}');
+    if (last > 0) { try { return JSON.parse(s.slice(0, last + 1) + (s.startsWith('[') ? ']' : '')); } catch { /* fallthrough */ } }
+  }
+  throw new Error('Gemini JSON 解析失败: ' + s.slice(0, 80));
 }
 
 export const isConfigured = () => !!API_KEY;
