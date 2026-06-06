@@ -57,7 +57,7 @@
               <li v-for="(s, i) in playing.output_json.shots" :key="i" class="vscene">
                 <img v-if="playing.output_json.sceneImages && playing.output_json.sceneImages[i]" :src="playing.output_json.sceneImages[i]" class="vscene-thumb" alt="" loading="lazy" />
                 <span class="vscene-text"><em>{{ s.type }}</em>{{ s.text }}</span>
-                <button type="button" class="vscene-regen" :disabled="regenning" @click="regenScene(playing, i)" :title="`只重出第 ${i + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
+                <button type="button" class="vscene-regen" :disabled="regenning" @click="regenScene(playing, sceneIndex(i))" :title="`只重出第 ${sceneIndex(i) + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
               </li>
             </ul>
             <p v-if="regenning" class="vscene-prog">⏳ 第 {{ regenSceneIdx + 1 }} 镜重出中… 约 1–2 分钟，请勿关闭弹窗</p>
@@ -102,6 +102,7 @@ const REGEN_COST = 15; // 与后端 REGEN_SCENE_COST 一致
 const regenning = ref(false);
 const regenSceneIdx = ref(-1);
 let regenTimer: any = null;
+function sceneIndex(i: string | number) { return Number(i) || 0; }
 // 能否换单镜：成片带完整分镜缓存(底图+动画片)
 function canRegen(t: any) {
   const o = t?.output_json;

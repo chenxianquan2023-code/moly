@@ -167,7 +167,7 @@
                 <div v-else-if="v.task?.status === 'failed'" class="pv-msg fail">这版生成失败<br /><small>已自动退款</small></div>
                 <div v-else class="pv-msg">
                   <div class="progress-ring sm" :class="{ running: v.task?.status !== 'failed' }" :style="{ '--p': (v.task?.progress || 0) + '%' }"><span>{{ v.task?.progress || 0 }}%</span></div>
-                  <p class="pv-step">{{ (v.task?.steps || []).filter(s => s.status === 'running').map(s => s.label)[0] || '排队中…' }}</p>
+                  <p class="pv-step">{{ runningStepLabel(v.task?.steps) }}</p>
                 </div>
               </div>
             </div>
@@ -198,7 +198,7 @@
                 <li v-for="(s, i) in result.shots" :key="i" class="scene-item">
                   <img v-if="result.sceneImages && result.sceneImages[i]" :src="result.sceneImages[i]" class="scene-thumb" alt="" loading="lazy" />
                   <div class="scene-meta"><em>{{ s.type }}</em>{{ s.text }}</div>
-                  <button v-if="canRegenScene" type="button" class="scene-regen" :disabled="generating" @click="regenerateScene(i)" :title="`只重新生成第 ${i + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
+                  <button v-if="canRegenScene" type="button" class="scene-regen" :disabled="generating" @click="regenerateScene(sceneIndex(i))" :title="`只重新生成第 ${sceneIndex(i) + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
                 </li>
               </ol>
             </div>
@@ -385,6 +385,12 @@ const result = ref<any>(null);
 const generating = ref(false);
 const variants = ref<any[]>([]); // 出2版：[{ taskId, task, result, startFailed }]
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+type GenerationStep = { status?: string; label?: string };
+function sceneIndex(i: string | number) { return Number(i) || 0; }
+function runningStepLabel(steps?: GenerationStep[]) {
+  return (steps || []).find((s) => s.status === 'running')?.label || '排队中…';
+}
 
 // —— 生成进度的友好提示：耗时预期 + 计时 + 轮播文案（生成较久，给用户心理预期）——
 const elapsed = ref(0); // 已用秒数
