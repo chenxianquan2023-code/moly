@@ -579,15 +579,23 @@ export async function runReplicaPipeline(task, ctx) {
           const sdur = Math.min(SOURCE_VIDEO_REFERENCE_MAX_SEC, originalDuration);
           const fps = Math.min(1, Math.max(0.05, 14 / sdur)); // 自适应：跨整段均匀抽~14帧，覆盖全片而非只看开头
           await ff.extractFrames(vpath, join(work, 'f_%03d.jpg'), fps, sdur);
-          const frameFiles = readdirSync(work).filter((f) => f.startsWith('f_')).sort().slice(0, 16);
+          const frameFiles = readdirSync(work).filter((f) => f.startsWith('f_')).sort().slice(0, 10);
           const frames = frameFiles.map((f) => readFileSync(join(work, f)));
           sourceStyleFrames = pickSpread(frameFiles, 4).map((f) => readFileSync(join(work, f)));
-          const txt = await gemini.analyzeImages(
-            `这是一条电商带货短视频按时间顺序均匀抽取的帧(只参考前${Math.round(sdur)}秒${originalDuration > SOURCE_VIDEO_REFERENCE_MAX_SEC ? `，原视频约${Math.round(originalDuration)}秒，后半段忽略` : ''})。请像短视频导演一样做"风格指纹"拆解。` +
-            `必须只输出 JSON，schema 如下：` +
-            `{"durationSec":总时长数字,"tone":"口播/情绪基调","pacing":"快/中/慢 + 镜头节奏说明","styleBrief":"整体视觉风格一句话","colorPalette":"主色调/饱和度/对比度","lighting":"光线类型与氛围","cameraLanguage":"常用景别与运镜规律","editingRhythm":"剪辑、卡点、停顿、转场规律","captionStyle":"字幕/贴纸/大字的位置、大小、颜色、描边、背景条风格","transitionStyle":"转场风格","hookPattern":"前3秒钩子方式","shots":[{"index":1,"startSec":0,"endSec":3.2,"durationSec":3.2,"durationRatio":0.2,"shotType":"特写/近景/中景/全景/文字图形","framing":"景别与画幅","camera":"推近/拉远/摇/移/手持晃/固定","composition":"主体位置、前景/背景、留白","lighting":"本镜光线","color":"本镜色彩","visualStyle":"本镜视觉风格","subject":"主体","hasPerson":"none/hand/full","action":"具体动作或状态","role":"hook/demo/proof/cta","purpose":"带货目的","captionStyle":"本镜字幕/贴纸样式","transition":"进入/退出转场"}]}。` +
-            `请估算每个镜头时长和占比，重点描述可复刻的拍摄方式、构图、光线、色调、字幕样式，不要泛泛而谈。`, frames);
-          analysis = normalizeAnalysis(gemini.parseJson(txt), sdur);
+          // 精简 schema(每镜只留关键字段)→ 输出更短、更不易被截断成空；2 次重试兜瞬时空响应
+          const analyzePrompt =
+            `这是一条电商带货短视频按时间顺序均匀抽取的帧(只参考前${Math.round(sdur)}秒${originalDuration > SOURCE_VIDEO_REFERENCE_MAX_SEC ? `，原视频约${Math.round(originalDuration)}秒，后半段忽略` : ''})。请像短视频导演一样做"风格指纹"拆解，必须只输出 JSON、不要任何解释或 markdown。schema：` +
+            `{"durationSec":总秒数,"tone":"口播/情绪基调","pacing":"快/中/慢+节奏","colorPalette":"主色调/饱和度","lighting":"光线氛围","cameraLanguage":"常用景别与运镜","editingRhythm":"剪辑/卡点/转场规律","captionStyle":"字幕/贴纸样式","hookPattern":"前3秒钩子","shots":[{"index":1,"durationRatio":0.2,"shotType":"特写/近景/中景/全景/文字","framing":"景别画幅","camera":"推近/拉远/摇/移/手持/固定","action":"具体动作或状态","role":"hook/demo/proof/cta","hasPerson":"none/hand/full"}]}` +
+            `。重点估算每镜时长占比 durationRatio(各镜相加≈1)与动作 action，别泛泛而谈。`;
+          for (let attempt = 0; attempt < 2 && !analysis; attempt++) {
+            try {
+              const txt = await gemini.analyzeImages(analyzePrompt, frames);
+              analysis = normalizeAnalysis(gemini.parseJson(txt), sdur);
+            } catch (e) {
+              if (attempt === 1) throw e;
+              notes.push('解析重试: ' + String(e.message || e).split('\n')[0].slice(0, 50));
+            }
+          }
         }
       }
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
@@ -799,7 +807,7 @@ export async function runReplicaPipeline(task, ctx) {
             ? anonymousSubjectRule(s, productText, sourceShot)
             : isIdentifiable && modelUrl
               ? '模特的发色/发型/五官/长相严格以参考模特图为准（忽略文字里任何发色/外貌描述词），全程保持同一个人，正在自然展示或使用该商品'
-              : '以商品为主角，外观保持一致、清晰可见';
+              : '以商品为主角：商品的外形、轮廓、颜色、材质，以及上面的 logo/标志/文字/按钮/接口等细节，必须与参考商品图严格一致——不得改变形状、不得丢失或改动标志；商品清晰可见、占画面主体';
           const textRule = isZh ? '' : `画面可叠加少量、简短的「${langName}」海报文字点缀（卖点关键词/型号/NEW/折扣数字等），营造带货海报感；但硬性要求：①只用极简短的词或短语、拼写准确，绝不写长句或段落；②复杂介绍交给字幕；③画面里绝对不出现中文/汉字。`;
           // 禁止把源视频的原字幕(face mask/just woke up 等)抄进画面；中文档画面彻底无字(字幕后期统一加)
           const noSrcTextRule = isZh
@@ -851,7 +859,7 @@ export async function runReplicaPipeline(task, ctx) {
         const hasPerson = s.withModel || s.personMode === 'anonymous';
         const subjectMotionRule = hasPerson
           ? '画面里的人物要自然地动起来——轻微手势、点头、微笑、眨眼、转头、身体律动等真人化的灵动表情与动作，像真实带货博主出镜般生动鲜活；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
-          : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
+          : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；商品的形状、logo/标志、按钮等细节全程保持一致、不变样不丢失；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         // 衣服不乱动不穿模 + 道具保持完整（治"模特弄衣服/穿模"和"吸管消失/杯子缺口"）
         const propStableRule = '模特的衣服自然贴身、不要去整理/拉扯/掀动衣物，衣物始终贴合身体、不穿模不穿帮；画面中的杯子、餐具、吸管等道具全程保持完整稳定，不变形、不增减、不消失、不无故出现。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 620);
