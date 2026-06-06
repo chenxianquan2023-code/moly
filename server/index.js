@@ -865,6 +865,11 @@ const server = app.listen(PORT, () => {
     console.log('[Moly Auth] 未配置 SMTP，验证码将仅在接口响应中返回（devCode）');
   }
   console.log('[Moly Auth] 进程保持运行中，按 Ctrl+C 可停止');
+  // 孤儿任务自愈：启动时回收上次进程遗留的中断任务(>3分钟没更新即孤儿)，并每 10 分钟兜一次(>20分钟卡死)
+  import('./replica/tasks.js').then(({ reapOrphanTasks }) => {
+    reapOrphanTasks(3);
+    setInterval(() => reapOrphanTasks(20), 10 * 60 * 1000);
+  }).catch((e) => console.error('[reaper] 加载失败:', e?.message || e));
 });
 
 // WebSocket：手机扫码上传完成通知
