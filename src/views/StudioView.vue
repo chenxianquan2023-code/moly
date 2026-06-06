@@ -12,7 +12,7 @@
         <p>上传商品素材，AI 自动写文案、配音、生成画面，产出 9:16 带货短视频。</p>
         <div class="hero-limits">
           <span>参考视频：建议 5–60 秒，只拆解前 60 秒</span>
-          <span>输出成片：通常 8–30 秒，最长约 45 秒</span>
+          <span>输出成片：9:16 竖屏，时长可选（跟源 / 8 / 12 / 18 秒）</span>
         </div>
       </section>
 
@@ -141,7 +141,7 @@
             <span v-if="generating" class="gen-spin" />
             {{ generating ? '生成中…' : `一键生成 · 约 ${estimatedCredits} 积分` }}
           </button>
-          <p class="duration-note">成片按 9:16 输出，通常 8–30 秒；参考视频较长时会控制在 45 秒以内。</p>
+          <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
         </div>
 
