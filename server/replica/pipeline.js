@@ -900,9 +900,10 @@ export async function runReplicaPipeline(task, ctx) {
 
     // 阶段一：先并行出全部底图（Gemini 出图，互不干扰、快）
     const animBases = await Promise.all(scenes.map((_, i) => makeSceneImage(i)));
-    // 阶段二：底图都好了再单独跑可灵动画——此时没有出图抢资源。
-    // 并发取 2：实测流水线里大尺寸生成图 4 路并发会把上传挤爆→超时静态；2 路稳定零失败。
-    const VIDEO_CONCURRENCY = 2;
+    // 阶段二：底图都好了再跑视频动画。fal 喂 URL、不跨境上传、实测并行(2条总耗时≈单条)，
+    // 所以把所有镜头一次性丢给 fal 并行跑 → 视频阶段从"N批×2分钟"压到"≈1条2分钟"，整片提速一半。
+    // (旧值 2 是可灵时代防上传挤爆用的，fal 无此问题。可灵兜底虽串行但已退居其次。)
+    const VIDEO_CONCURRENCY = 6;
     const sceneVideos = new Array(scenes.length);
     let nextScene = 0;
     await Promise.all(Array.from({ length: Math.min(VIDEO_CONCURRENCY, scenes.length) }, async () => {
