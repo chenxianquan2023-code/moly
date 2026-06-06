@@ -361,12 +361,26 @@ export function isQuotaError(e) {
   return /额度不足|余额|欠费|insufficient_user_quota|insufficient.?quota|quota.?exceeded|payment.?required|billing/i.test(String(e?.message || e || ''));
 }
 
+// "余额/额度耗尽"信号（fal: Exhausted balance / User is locked；可灵: balance not enough）
+function looksLikeNoBalance(s) {
+  return /Exhausted balance|balance not enough|User is locked|insufficient|payment.?required|额度不足|余额|欠费/i.test(String(s || ''));
+}
+// 视频引擎熔断器：当 fal+可灵 都因"余额耗尽"导致整片视频失败时熔断一段时间。
+// 之后的生成请求在 preflight 处被秒拒（不建任务/不扣费/不让用户白等十几分钟），提示充值。
+// 下次成功出片或熔断到期后自动恢复（充值后≤10分钟自愈）。
+let _videoExhaustedUntil = 0;
+const VIDEO_BREAKER_MS = 10 * 60 * 1000;
+export const isVideoEngineExhausted = () => Date.now() < _videoExhaustedUntil;
+export const tripVideoBreaker = () => { _videoExhaustedUntil = Date.now() + VIDEO_BREAKER_MS; };
+export const clearVideoBreaker = () => { _videoExhaustedUntil = 0; };
+
 /**
  * 生成前服务自检：任一关键付费模型欠费/未配置 → {ok:false, reason}。
  * 让前端在「不扣费、不建任务」前提下直接拦下，提示联系管理员。
  */
 export async function preflightAIHealth() {
   if (!fal.isConfigured() && !kling.isConfigured()) return { ok: false, reason: '视频引擎(fal/可灵)未配置' };
+  if (isVideoEngineExhausted()) return { ok: false, reason: '视频模型没额度了，请联系管理员充值' };
   if (!llm.isConfigured() && !gemini.isConfigured()) return { ok: false, reason: 'AI 文案/出图服务未配置' };
   // 轻量探一次 ezmodel 额度（导演/识别/出图共用同一中转账户）
   try {
@@ -962,12 +976,16 @@ export async function runReplicaPipeline(task, ctx) {
       notes.push(`部分镜头可灵失败(${failedScenes.length}/${scenes.length})，逐个补打`);
       for (const i of failedScenes) sceneVideos[i] = await makeSceneVideo(i, animBases[i]);
     }
-    // 出图全失败(额度不足) 或 视频引擎全程没成功(可灵欠费/超时) → 成片必然不对 → 中止、退款、提示联系管理员
+    // 出图全失败(额度不足) 或 视频引擎全程没成功(fal/可灵欠费、超时) → 成片必然不对 → 中止、退款、提示联系管理员
     if (aiImagesOk === 0 || !usedAI) {
-      const quota = notes.some((n) => isQuotaError(n));
-      const what = aiImagesOk === 0 ? 'AI 出图服务' : '视频生成服务（可灵）';
-      throw new Error(`${what}暂时不可用${quota ? '（账户额度不足）' : ''}，已中止生成。请联系管理员处理，本次积分已自动退还。`);
+      const noBalance = notes.some((n) => looksLikeNoBalance(n));
+      const what = aiImagesOk === 0 ? '出图模型' : '视频模型';
+      // 视频引擎因余额耗尽全军覆没 → 熔断，让后续请求在 preflight 处秒拒，别再让人白等十几分钟
+      if (!usedAI && noBalance) tripVideoBreaker();
+      if (noBalance) throw new Error(`${what}没额度了，请联系管理员充值。本次积分已自动退还。`);
+      throw new Error(`${what}暂时不可用，已中止生成。请稍后重试或联系管理员处理，本次积分已自动退还。`);
     }
+    clearVideoBreaker(); // 走到这=本次视频引擎正常出片 → 解除熔断（充值后自愈）
     await setStep(3, { status: usedAI ? 'succeeded' : 'skipped', note: usedAI ? `视频源: ${usedProvider}` : '降级:静态画面' });
 
     // P1 地基：把每镜"底图URL + 动画片"持久化，供"换一版/换单镜/出多版"复用上游缓存（不重跑导演/出图）
