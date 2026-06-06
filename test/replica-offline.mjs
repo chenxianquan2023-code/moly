@@ -123,5 +123,29 @@ console.log('\n═══ Part 3: composeVideo 抽出后端到端合成（假片�
   finally { try { rmSync(d2, { recursive: true, force: true }); } catch { /* ignore */ } }
 }
 
+console.log('\n═══ Part 4: 换单镜 swap-重合成 回归（换掉中间一镜，验证总时长/对齐不变）═══');
+{
+  const d3 = mkdtempSync(join(tmpdir(), 'moly-regen-'));
+  try {
+    const mk = async (n, dur, c) => { const p = join(d3, n); await ffmpeg(['-y', '-f', 'lavfi', '-i', `color=c=${c}:s=320x568:d=${dur}:r=30`, '-pix_fmt', 'yuv420p', p]); return p; };
+    await ffmpeg(['-y', '-f', 'lavfi', '-i', 'color=c=gray:s=320x568:d=6:r=30', '-f', 'lavfi', '-i', 'sine=frequency=320:duration=6', '-shortest', '-pix_fmt', 'yuv420p', join(d3, 'src.mp4')]);
+    const scenes = [{ type: 'hook', text: '第一幕' }, { type: 'demo', text: '第二幕' }, { type: 'proof', text: '第三幕' }];
+    const audios = scenes.map(() => ({ path: null }));
+    const { durations } = computeSceneDurations(scenes, audios, 8.8);
+    // 原片：3 镜
+    const clips = [await mk('s0.mp4', 6, 'red'), await mk('s1.mp4', 6, 'green'), await mk('s2.mp4', 6, 'blue')];
+    const r1 = await composeVideo({ work: d3, scenes, sceneDurations: durations, sceneClips: clips, sceneAudios: audios, ttsOk: false, analysis: { durationSec: 8.8 }, opts: { generate_music: true, generate_subtitle: true }, notes: [] });
+    const dur1 = (await probe(r1.finalPath)).duration;
+    // 换单镜：只把第 2 镜(index 1)换成新片(同样时长够长)，其余复用 → 重合成
+    const swapped = clips.slice(); swapped[1] = await mk('s1b.mp4', 6, 'orange');
+    const r2 = await composeVideo({ work: mkdtempSync(join(tmpdir(), 'moly-regen2-')), scenes, sceneDurations: durations, sceneClips: swapped, sceneAudios: audios, ttsOk: false, analysis: { durationSec: 8.8 }, opts: { generate_music: true, generate_subtitle: true }, notes: [] });
+    const dur2 = (await probe(r2.finalPath)).duration;
+    console.log(`  原片 ${dur1.toFixed(1)}s → 换中间镜重合成 ${dur2.toFixed(1)}s (期望两者≈${sum(durations).toFixed(1)})`);
+    ok(Math.abs(dur1 - sum(durations)) < 0.9 && Math.abs(dur2 - sum(durations)) < 0.9, '换单镜重合成：总时长与原片一致、对齐不乱、结尾不被砍');
+    ok(Math.abs(dur1 - dur2) < 0.5, '换单镜前后成片时长稳定（换一镜不改变整片节奏）');
+  } catch (e) { fail++; console.log('  ✗ 换单镜重合成异常:', String(e.message || e).slice(0, 160)); }
+  finally { try { rmSync(d3, { recursive: true, force: true }); } catch { /* ignore */ } }
+}
+
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);
 process.exit(fail ? 1 : 0);

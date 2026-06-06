@@ -5,6 +5,7 @@
  */
 
 export const BASE_COST = 20; // 基础流程（解析+导演分镜+配音+字幕+合成）
+export const REGEN_SCENE_COST = 15; // 换单镜：只重生一镜（复用其余镜的底图/动画片缓存 + 重新合成），远低于整条重生
 export const DOWNLOAD_COST = 5; // 找爆款·下载原视频每条扣费（很低，覆盖 Apify 下载成本）
 export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+文案带入工作台的导入费（很低）
 
@@ -35,6 +36,11 @@ export function estimateCost(options = {}) {
       image: IMAGE_MODELS[image],
     },
   };
+}
+
+/** 换单镜估价（只重生一镜，复用其余缓存）——比整条生成便宜得多 */
+export function estimateRegenCost() {
+  return { cost: REGEN_SCENE_COST, breakdown: { base: REGEN_SCENE_COST } };
 }
 
 /** 给前端渲染定价/选项用 */

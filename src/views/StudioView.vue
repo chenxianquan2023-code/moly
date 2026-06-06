@@ -163,8 +163,15 @@
               <button class="btn-again" @click="reset">再做一条</button>
             </div>
             <div v-if="result.shots?.length" class="script">
-              <div class="script-head">📝 文案脚本<span v-if="!result.ttsOk"> · 无 AI 配音，照此自己配</span></div>
-              <ol><li v-for="(s, i) in result.shots" :key="i"><em>{{ s.type }}</em>{{ s.text }}</li></ol>
+              <div class="script-head">📝 分镜脚本<span v-if="!result.ttsOk"> · 无 AI 配音，照此自己配</span></div>
+              <p v-if="canRegenScene" class="regen-hint">哪一镜不满意（穿模/变形/多手/串品类），点该镜的 🔄 单独重出，其余镜不变 · 每镜约 {{ REGEN_COST }} 积分</p>
+              <ol class="scene-list">
+                <li v-for="(s, i) in result.shots" :key="i" class="scene-item">
+                  <img v-if="result.sceneImages && result.sceneImages[i]" :src="result.sceneImages[i]" class="scene-thumb" alt="" loading="lazy" />
+                  <div class="scene-meta"><em>{{ s.type }}</em>{{ s.text }}</div>
+                  <button v-if="canRegenScene" type="button" class="scene-regen" :disabled="generating" @click="regenerateScene(i)" :title="`只重新生成第 ${i + 1} 镜（约 ${REGEN_COST} 积分）`">🔄</button>
+                </li>
+              </ol>
             </div>
             <p v-if="genNote" class="result-notes">{{ genNote }}</p>
           </div>
@@ -530,6 +537,38 @@ function regenerate() {
   generate();
 }
 
+const REGEN_COST = 15; // 换单镜单价（与后端 REGEN_SCENE_COST 保持一致）
+// 能否换单镜：结果带完整分镜缓存(底图+动画片)且能定位到原任务 id（刚生成完即可用）
+const canRegenScene = computed(() => {
+  const r = result.value;
+  return !!(r && Array.isArray(r.sceneClips) && r.sceneClips.length && Array.isArray(r.shots) && r.sceneClips.length === r.shots.length && task.value?.id);
+});
+// 换单镜：只重生第 i 镜，其余镜复用缓存（AI 偶尔某一镜翻车，单独重出比整条重赌划算且便宜）
+async function regenerateScene(i: number) {
+  if (generating.value) return;
+  const tid = task.value?.id;
+  if (!tid) { alert('无法定位原视频任务，请整条重新生成一次再试'); return; }
+  if (!confirm(`只重出第 ${i + 1} 个镜头（其余镜头保持不变），需扣约 ${REGEN_COST} 积分。继续？`)) return;
+  generating.value = true;
+  result.value = null;
+  startProgressUx();
+  try {
+    const r = await fetch('/api/replica/regenerate-scene', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail: auth.email, taskId: tid, sceneIndex: i }),
+    });
+    const j = await r.json();
+    if (!j.success) {
+      if (j.code === 'INSUFFICIENT') { generating.value = false; stopProgressUx(); openRecharge(`积分不足：本次需 ${j.need}，当前 ${j.points}`); return; }
+      throw new Error(j.message || '换单镜失败');
+    }
+    if (auth.email) auth.fetchPointsFromServer(auth.email); // 扣费后刷新余额
+    pollTask(j.taskId);
+  } catch (err: any) {
+    alert(err.message); generating.value = false; stopProgressUx();
+  }
+}
+
 // 直接下载成片：浏览器拉 blob 触发下载，停留在当前页（不再整页跳到视频直链）
 const downloading = ref(false);
 async function downloadVideo() {
@@ -845,8 +884,15 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .voice-hint { font-size:12px; color:var(--color-text-tertiary); margin:10px 0 0; line-height:1.5; }
 .script { background:rgba(248,250,252,.8); border:1px solid var(--color-border-light); border-radius:var(--radius-md); padding:12px 14px;
   .script-head { font-size:13px; font-weight:700; margin-bottom:8px; }
-  ol { margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px; }
-  li { font-size:13px; color:var(--color-text-primary); line-height:1.4; em { font-style:normal; font-size:11px; font-weight:600; color:var(--color-primary); margin-right:6px; text-transform:uppercase; } }
+  .regen-hint { font-size:11.5px; color:var(--color-text-tertiary); margin:0 0 10px; line-height:1.5; }
+  .scene-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .scene-item { display:flex; align-items:center; gap:10px; }
+  .scene-thumb { width:34px; height:60px; object-fit:cover; border-radius:6px; flex-shrink:0; background:#e2e8f0; border:1px solid var(--color-border-light); }
+  .scene-meta { flex:1; min-width:0; font-size:13px; color:var(--color-text-primary); line-height:1.35;
+    em { font-style:normal; font-size:11px; font-weight:600; color:var(--color-primary); margin-right:6px; text-transform:uppercase; } }
+  .scene-regen { flex-shrink:0; width:34px; height:34px; border:1px solid var(--color-border); border-radius:8px; background:#fff; cursor:pointer; font-size:15px; line-height:1; display:flex; align-items:center; justify-content:center; transition:all var(--transition-fast);
+    &:hover:not(:disabled) { border-color:var(--color-primary); background:var(--color-primary-light,#eef2ff); transform:rotate(-30deg); }
+    &:disabled { opacity:.4; cursor:default; } }
 }
 
 .voice-pick { margin-top:14px; display:flex; flex-direction:column; gap:8px; }

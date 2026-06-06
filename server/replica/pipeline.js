@@ -539,6 +539,27 @@ export async function runReplicaPipeline(task, ctx) {
     const opts = task.options_json || {};
     const assets = input.assets || {};
     const product = input.product || {};
+    // 换单镜：input.regen = { origTaskId, sceneIndex }。从原任务 output_json 取回每镜底图/动画片缓存，
+    // 只重生 sceneIndex 那一镜，其余镜直接复用缓存（不重跑解析/导演/出图/视频引擎），再整体重新合成。
+    let regen = null;
+    if (input.regen && Number.isInteger(input.regen.sceneIndex)) {
+      try {
+        const orig = await getById('generation_tasks', input.regen.origTaskId);
+        const o = orig?.output_json || {};
+        if (Array.isArray(o.shots) && o.shots.length && Array.isArray(o.sceneClips) && o.sceneClips.length === o.shots.length) {
+          regen = {
+            sceneIndex: input.regen.sceneIndex,
+            scenes: o.shots,
+            sceneImages: o.sceneImages || [],
+            sceneClips: o.sceneClips || [],
+            sceneDurations: o.sceneDurations || [],
+            usedProvider: o.usedProvider || '',
+            // 用持久化的风格指纹 + 源分镜重建一个精简 analysis（够 makeSceneImage/buildAss/computeSceneDurations 用），跳过昂贵的 Gemini 解析
+            analysis: { ...(o.styleFingerprint || {}), shots: o.sourceShots || [], durationSec: o.duration || 0 },
+          };
+        }
+      } catch (e) { notes.push('换单镜缓存加载失败，回退整条生成: ' + String(e.message || e).split('\n')[0].slice(0, 60)); }
+    }
     const lang = opts.language || 'zh-CN';
     const LANG_NAMES = { 'zh-CN': '简体中文', 'en-US': 'English（英文）', 'ja-JP': '日本語（日文）', 'es-ES': 'Español（西班牙语）' };
     const langName = LANG_NAMES[lang] || lang;
@@ -566,7 +587,7 @@ export async function runReplicaPipeline(task, ctx) {
 
     // ── 1. 解析爆款视频（有源视频时分析其分镜结构，供导演参考）──
     await setStep(0, { status: 'running' });
-    let analysis = null;
+    let analysis = regen ? regen.analysis : null; // 换单镜：复用缓存的精简 analysis → 下面 `&& !analysis` 的 Gemini 解析循环天然跳过（但仍会下载源视频+抽帧供出图/背景乐用）
     let sourceStyleFrames = [];
     try {
       if (task.source_video_id && gemini.isConfigured()) {
@@ -603,9 +624,9 @@ export async function runReplicaPipeline(task, ctx) {
 
     // ── 2. 导演分镜脚本（口播 + 画面 + 运动 + 是否出模特）──
     await setStep(1, { status: 'running' });
-    let scenes = null;
+    let scenes = regen ? regen.scenes.slice() : null; // 换单镜：复用缓存分镜，跳过导演 LLM（下面归一化是幂等的，重跑无害）
     try {
-      if (llm.isConfigured()) {
+      if (!regen && llm.isConfigured()) {
         const hasSrc = Array.isArray(analysis?.shots) && analysis.shots.length;
         const tone = (hasSrc && analysis.tone) ? String(analysis.tone) : '活泼种草';
         const formal = /正式|专业/.test(tone);
@@ -750,8 +771,11 @@ export async function runReplicaPipeline(task, ctx) {
       }
     }
 
-    const { durations: sceneDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec, Number(opts.targetDurationSec) || 0);
-    if (durNote) notes.push(durNote);
+    const { durations: computedDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec, Number(opts.targetDurationSec) || 0);
+    // 换单镜：复用原片每镜时长，确保新生成的目标镜与其余缓存镜在拼接/字幕时间轴上严格对齐
+    const sceneDurations = (regen && Array.isArray(regen.sceneDurations) && regen.sceneDurations.length === scenes.length)
+      ? regen.sceneDurations : computedDurations;
+    if (durNote && !regen) notes.push(durNote);
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
@@ -766,6 +790,8 @@ export async function runReplicaPipeline(task, ctx) {
     const animatedScenes = new Set(); // 哪些镜头真用可灵动起来了——用于"部分失败逐个重试"
 
     const makeSceneImage = async (i) => {
+      // 换单镜：非目标镜直接复用缓存底图（不重新出图）；计入成功数，避免后面把"只生成1镜"误判成"出图全失败"
+      if (regen && i !== regen.sceneIndex) { if (regen.sceneImages[i]) aiImagesOk++; return regen.sceneImages[i] || null; }
       const s = scenes[i];
 
       // 4.1 这一镜的演示画面（按 visual + 是否出模特，保持商品/模特一致）
@@ -846,6 +872,11 @@ export async function runReplicaPipeline(task, ctx) {
       const dur = Math.max(2, Math.ceil(sceneDurations[i] || sceneAudios[i].duration));
       const d = dur > 5 ? 10 : 5;
       const vp = join(work, `v_${i}.mp4`);
+      // 换单镜：非目标镜下载原片缓存动画片复用（不重跑可灵/海螺）；下载失败再落到下面重新生成
+      if (regen && i !== regen.sceneIndex && regen.sceneClips[i]) {
+        try { await download(regen.sceneClips[i], vp); usedAI = true; usedProvider = usedProvider || regen.usedProvider; animatedScenes.add(i); return vp; }
+        catch (e) { notes.push(`场景${i + 1}缓存片下载失败，改重新生成`); }
+      }
       // 4.2 animate（运动按 motion；可灵 → 失败兜底 Ken Burns）
       if (animBase) {
         // 只动镜头、不动主体：根除"商品自己起飞/漂浮/变形"的图生视频幻觉
@@ -943,6 +974,8 @@ export async function runReplicaPipeline(task, ctx) {
     const sceneImages = animBases.slice();
     const sceneClips = [];
     for (let i = 0; i < sceneVideos.length; i++) {
+      // 换单镜：非目标镜直接沿用原片缓存 URL，不重新上传（省存储/带宽）
+      if (regen && i !== regen.sceneIndex && regen.sceneClips[i]) { sceneClips.push(regen.sceneClips[i]); continue; }
       try { sceneClips.push(await uploadBuffer(makePath(task.user_email, 'scene-clip', `c${i}.mp4`), readFileSync(sceneVideos[i]), 'video/mp4')); }
       catch { sceneClips.push(null); }
     }

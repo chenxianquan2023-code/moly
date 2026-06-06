@@ -9,7 +9,7 @@ import { insertRow, getById, selectOne, selectRows, updateById } from '../lib/su
 import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
 import { runReplicaPipeline, preflightAIHealth } from './pipeline.js';
-import { estimateCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
+import { estimateCost, estimateRegenCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { getPoints, addPoints, deductPoints } from '../lib/points.js';
@@ -153,6 +153,54 @@ replicaRouter.post('/replica/generate', async (req, res) => {
 
     runTask(task.id, runReplicaPipeline);
     res.json({ success: true, taskId: task.id, status: 'queued', cost, breakdown, points: remaining });
+  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST /api/replica/regenerate-scene  body: { taskId, sceneIndex } —— 换单镜：只重生某一镜，复用其余镜的缓存
+replicaRouter.post('/replica/regenerate-scene', async (req, res) => {
+  try {
+    const email = getEmail(req, res); if (!email) return;
+    const { taskId, sceneIndex } = req.body || {};
+    if (!taskId || !Number.isInteger(sceneIndex)) return res.status(400).json({ success: false, message: '缺少 taskId 或 sceneIndex' });
+
+    // 取原任务 + 校验归属 + 校验分镜缓存完整（换单镜依赖 output_json 里的 shots/sceneClips）
+    const orig = await getTask(taskId);
+    if (!orig || orig.user_email !== email) return res.status(404).json({ success: false, message: '原任务不存在或无权访问' });
+    const o = orig.output_json || {};
+    if (!Array.isArray(o.shots) || !o.shots.length || !Array.isArray(o.sceneClips) || o.sceneClips.length !== o.shots.length) {
+      return res.status(400).json({ success: false, message: '该视频没有可复用的分镜缓存，无法换单镜，请整条重新生成一次' });
+    }
+    if (sceneIndex < 0 || sceneIndex >= o.shots.length) return res.status(400).json({ success: false, message: '镜头序号越界' });
+
+    const { cost } = estimateRegenCost();
+    const balance = await getPoints(email);
+    if (balance === null) return res.status(404).json({ success: false, message: '用户不存在，请先登录' });
+    if (balance < cost) return res.status(402).json({ success: false, code: 'INSUFFICIENT', message: `积分不足：本次需 ${cost}，当前 ${balance}`, need: cost, points: balance });
+
+    const health = await preflightAIHealth();
+    if (!health.ok) return res.status(503).json({ success: false, code: 'SERVICE_UNAVAILABLE', message: `生成服务暂时不可用（${health.reason}）。本次未扣除积分。` });
+
+    // 新建 regen 任务：复用原任务的素材(input)与选项(options)，加 regen 标记，让流水线只重生这一镜
+    const task = await createTask({
+      userEmail: email,
+      sourceVideoId: orig.source_video_id || null,
+      taskType: 'regen_scene',
+      options: orig.options_json || {},
+      input: { ...(orig.input_json || {}), regen: { origTaskId: taskId, sceneIndex } },
+      creditsEstimated: cost,
+      creditsCharged: cost,
+    });
+
+    let remaining;
+    try { remaining = await deductPoints(email, cost, `换单镜#${String(task.id).slice(0, 8)}`); }
+    catch (e) {
+      await updateById('generation_tasks', task.id, { status: 'failed', error_message: '积分不足', credits_charged: 0 });
+      if (e.code === 'INSUFFICIENT') return res.status(402).json({ success: false, code: 'INSUFFICIENT', message: '积分不足，请充值', need: cost, points: e.points });
+      throw e;
+    }
+
+    runTask(task.id, runReplicaPipeline);
+    res.json({ success: true, taskId: task.id, status: 'queued', cost, points: remaining });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
