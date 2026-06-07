@@ -613,6 +613,8 @@ export async function runReplicaPipeline(task, ctx) {
     } catch (e) { notes.push('商品识别降级: ' + String(e.message || e).split('\n')[0]); }
     // 商品文字线索（名称+识别描述+卖点）——匿名镜的出图规则会用到，必须在 makeScene 作用域可见
     const productText = [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' ');
+    // 商品是否"穿在身上"的(服装/鞋包/配饰)——决定是否做"服装锁"+ 出图时不喂源风格帧(防把源里别款穿搭画进来)
+    const productIsWearable = /衣|裙|裤|鞋|靴|包|帽|袜|内衣|文胸|外套|上衣|连衣|睡衣|吊带|服[装饰]|穿戴|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|fashion|dress|shirt|skirt|wear/i.test(productText);
 
     // ── 1. 解析爆款视频（有源视频时分析其分镜结构，供导演参考）──
     await setStep(0, { status: 'running' });
@@ -868,7 +870,9 @@ export async function runReplicaPipeline(task, ctx) {
           const assetRefs = isAnonymous
             ? [productUrl, modelUrl].filter(Boolean)
             : (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
-          const styleRefs = analysis?.shots?.length ? sourceStyleRefsForScene(sourceStyleFrames, analysis) : [];
+          // 穿戴类(服装等)：不喂源视频风格帧——源帧里若是别款穿搭，Seedance/Seedream 会跟着画、把商品裙顶掉(串款)。
+          // 源视频的氛围/构图仍由下面的文字 styleRule(风格指纹)继承，不靠这几张帧。
+          const styleRefs = (analysis?.shots?.length && !productIsWearable) ? sourceStyleRefsForScene(sourceStyleFrames, analysis) : [];
           const refs = [...assetRefs, ...styleRefs];
           const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
           const sceneStyle = s.sourceStyle || styleFingerprint(analysis, sourceShot);
@@ -907,7 +911,11 @@ export async function runReplicaPipeline(task, ctx) {
           const propRule = '若画面涉及喝水/杯子等场景：用不透明杯具、不要吸管和透明玻璃杯。若是片状/贴片面膜：要像真实面膜那样在眼睛和嘴巴处留有开口、露出眼睛和嘴唇，不要糊成一整张盖住整脸的纸（否则嘴被糊住很假）。绝不要在画面上方/角落画悬浮的产品图或放大的产品缩略图——商品只能以实物形态自然出现在场景里（被佩戴/手持/置于台面），不得漂浮在人物头顶或半空。';
           // 商品唯一性·硬性：根治"串品类"（耳挂式被额外画成头戴式大耳机挂脖、源视频里别款同类产品被复刻进来）
           const productLockRule = '【商品唯一性·硬性】全片只能出现参考商品图里的这一个商品本体，严格保持它的品类与佩戴/使用方式（参考图是耳挂式就始终耳挂式、入耳式就始终入耳式、头戴式才头戴式）；绝不额外生成第二个、也绝不换成不同款式或不同品类的同类商品——例如不得把耳挂/入耳耳机画成头戴式大耳机，不得在脖子上/头上/画面角落另加一个耳机或同类产品；即便源视频镜头里出现别的款式同类产品，也只画我们参考图这一款、不复刻源视频里的别款产品。';
-          const prompt = `${styleCue}：${s.visual}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          // 服装锁：穿戴类商品全片必须是参考商品图里的这一件，绝不被源里的别款穿搭带偏(根治"好几个镜不是同一条裙子")
+          const garmentRule = productIsWearable
+            ? '【服装锁·硬性】人物身上穿/戴的必须是参考商品图里的这一件(同款式、同颜色、同印花、同面料、同领型、同长短、同细节)，全片每一镜都是这一件，绝不画成别的衣服/别的款式/别的颜色；源参考图里若出现别的穿搭，一律忽略其服装，只借鉴背景、光线、构图。'
+            : '';
+          const prompt = `${styleCue}：${s.visual}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
             c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
