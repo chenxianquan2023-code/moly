@@ -598,6 +598,8 @@ export async function runReplicaPipeline(task, ctx) {
     const productUrl = await urlOf(assets.product_image_id);
     let modelUrl = await urlOf(assets.model_image_id); // 可被"自动虚拟模特"重赋值
     let baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
+    let virtualModel = false; // 是否自动生成了虚拟模特
+    let heroUrl = null;       // 基准图(模特穿着商品)：后续每镜的一致性锚，从它"编辑"出各镜，不重画
 
     // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款
     if (!fal.isConfigured() && !kling.isConfigured()) {
@@ -666,10 +668,28 @@ export async function runReplicaPipeline(task, ctx) {
           const vm = await image.generate(vmPrompt, vmRefs, { aspectRatio: '9:16', provider: opts.models?.image });
           modelUrl = await uploadBuffer(makePath(task.user_email, 'virtual-model', 'vm.png'), vm.buffer, vm.mimeType);
           baseImageUrl = modelUrl || baseImageUrl;
+          virtualModel = true;
           notes.push('未上传模特：已自动生成虚拟模特(全新人物)');
         } catch (e) { notes.push('虚拟模特生成失败，降级纯商品: ' + String(e.message || e).split('\n')[0].slice(0, 60)); }
       }
     }
+
+    // ── 1.6 基准图(hero)：模特镜的一致性锚 ──
+    // 一张"模特穿着商品"的代表图，之后每镜都从它"编辑"出来(同一个人+同一件商品，只换姿势/景别/背景)，
+    // 这是根治"串款/每镜不同人/不同裙子"的结构性做法——不再每镜从零重画。
+    // 虚拟模特本身就是"模特穿商品"→直接当 hero；上传的模特只是人→生成一张"该模特穿着商品"的 hero。
+    if (!regen) {
+      if (virtualModel) heroUrl = modelUrl;
+      else if (modelUrl && productUrl) {
+        try {
+          const hero = await image.generate(
+            '电商带货竖版基准图(9:16)：让参考图里这位模特，自然地穿着/手持参考图里的这件商品，全身或大半身、构图干净、专业布光、真实质感、生活化不僵硬。模特长相严格以模特参考图为准；商品的款式/颜色/印花/logo/细节严格以商品参考图为准、不得改动；画面干净无文字水印。',
+            [modelUrl, productUrl], { aspectRatio: '9:16', provider: opts.models?.image });
+          heroUrl = await uploadBuffer(makePath(task.user_email, 'hero', 'hero.png'), hero.buffer, hero.mimeType);
+          notes.push('已生成基准图(模特穿商品)，逐镜锚定');
+        } catch (e) { heroUrl = modelUrl; notes.push('基准图降级用模特图'); }
+      }
+    } else { heroUrl = modelUrl; }
 
     // ── 2. 导演分镜脚本（口播 + 画面 + 运动 + 是否出模特）──
     await setStep(1, { status: 'running' });
@@ -867,13 +887,15 @@ export async function runReplicaPipeline(task, ctx) {
           const personMode = s.personMode || (s.withModel ? 'identifiable' : 'none');
           const isAnonymous = personMode === 'anonymous';
           const isIdentifiable = personMode === 'identifiable';
-          const assetRefs = isAnonymous
-            ? [productUrl, modelUrl].filter(Boolean)
-            : (s.withModel && modelUrl) ? [modelUrl, productUrl].filter(Boolean) : [productUrl || modelUrl].filter(Boolean);
-          // 穿戴类(服装等)：不喂源视频风格帧——源帧里若是别款穿搭，Seedance/Seedream 会跟着画、把商品裙顶掉(串款)。
-          // 源视频的氛围/构图仍由下面的文字 styleRule(风格指纹)继承，不靠这几张帧。
-          const styleRefs = (analysis?.shots?.length && !productIsWearable) ? sourceStyleRefsForScene(sourceStyleFrames, analysis) : [];
-          const refs = [...assetRefs, ...styleRefs];
+          // 一致性锚(治本)：模特镜锚定 hero(模特穿商品的基准图)、纯商品镜锚定商品图——每镜都从同一张"编辑"出来，
+          // 只换姿势/景别/角度/背景，人和商品锁死不重画。绝不喂源风格帧(源里别款会串进来)。
+          const isModelScene = s.withModel || isAnonymous;
+          const anchorUrl = isModelScene ? (heroUrl || modelUrl || productUrl) : (productUrl || heroUrl || modelUrl);
+          const assetRefs = isModelScene
+            ? [anchorUrl, productUrl].filter((v, idx, a) => v && a.indexOf(v) === idx) // hero + 商品图(强化细节)
+            : [anchorUrl].filter(Boolean);
+          const styleRefs = [];
+          const refs = assetRefs;
           const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
           const sceneStyle = s.sourceStyle || styleFingerprint(analysis, sourceShot);
           const isZh = lang === 'zh-CN';
@@ -887,12 +909,9 @@ export async function runReplicaPipeline(task, ctx) {
           const styleRule = sceneStyle
             ? `【源视频风格硬性继承】${sceneStyle}。这一镜必须继承源镜头的景别、构图、光线、色调、字幕/贴纸位置和短视频质感；不要自动改成通用明亮棚拍、白底商品图或普通电商海报，除非源视频本身就是这种风格。`
             : '光线明亮、背景干净有层次、电商质感。';
-          const assetRule = isAnonymous
-            ? '参考图说明：用户商品必须保持一致；用户模特图只能作为肤色、发型、身形、气质和穿搭氛围的弱参考，绝对不要还原或暴露可识别脸。'
-            : `参考图说明：前${assetRefs.length}张是必须保持一致的用户商品/模特；`;
-          const referenceRule = styleRefs.length
-            ? `${assetRule}后${styleRefs.length}张来自源爆款视频，只能参考构图、灯光、色调、字幕位置、运镜氛围，不得复制源视频人物、原商品、品牌标识或具体文字。`
-            : assetRule;
+          const referenceRule = isAnonymous
+            ? '参考图说明：参考图就是本片基准——商品(款式/颜色/印花/细节)必须与参考图严格一致；人物只作为肤色/发型/身形/气质参考，绝不暴露可识别正脸。'
+            : '参考图说明：参考图(基准图)就是本片的基准——画面里的人物必须是参考图里的同一个人(长相/发型/肤色一致)、商品必须是参考图里的同一件(款式/颜色/印花/logo/细节一致)，只改姿势/景别/角度/背景，绝不换人、绝不换衣换款。';
           // 物理可信：商品必须落地或被握持，杜绝"悬浮在纯色背景"——这是图生视频"凭空起飞/漂浮"的根因
           const groundRule = (s.withModel && modelUrl)
             ? '模特自然手持或使用该商品，商品与手部接触真实、比例协调'
@@ -915,7 +934,11 @@ export async function runReplicaPipeline(task, ctx) {
           const garmentRule = productIsWearable
             ? '【服装锁·硬性】人物身上穿/戴的必须是参考商品图里的这一件(同款式、同颜色、同印花、同面料、同领型、同长短、同细节)，全片每一镜都是这一件，绝不画成别的衣服/别的款式/别的颜色；源参考图里若出现别的穿搭，一律忽略其服装，只借鉴背景、光线、构图。'
             : '';
-          const prompt = `${styleCue}：${s.visual}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          // 锚定基准图"编辑"：把"保持参考图人+商品完全一致"放最前、最高优先级——治本一致性
+          const anchorRule = isModelScene
+            ? '【最高优先级·一致性】以参考图(基准图)为准：保持同一个人(长相/发型/肤色全一致)、同一件商品(款式/颜色/印花/细节全一致)完全不变，只把画面改成下面描述的姿势/景别/角度/背景，绝不换人、绝不换衣服款式或颜色。'
+            : '【最高优先级·一致性】以参考商品图为准：商品的款式/颜色/印花/logo/细节完全一致，只改背景/角度/景别。';
+          const prompt = `${anchorRule}\n本镜画面：${s.visual}。${styleCue}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           let c;
           try {
             c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
