@@ -20,6 +20,7 @@ import * as fal from './ai/fal.js';
 import * as image from './ai/image.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { resolveVoice } from './voices.js';
+import { notifyAdmin } from '../lib/alert.js';
 
 const SOURCE_VIDEO_REFERENCE_MAX_SEC = 60;
 const OUTPUT_VIDEO_MAX_SEC = 45;
@@ -386,7 +387,10 @@ export async function preflightAIHealth() {
   try {
     await llm.generateText('ok', { maxTokens: 1, timeoutMs: 15000 });
   } catch (e) {
-    if (isQuotaError(e)) return { ok: false, reason: 'AI 出图/文案额度不足' };
+    if (isQuotaError(e)) {
+      notifyAdmin('出图/文案模型没额度了', 'ezmodel(导演/识别/出图共用账户)额度不足，生成已无法进行。请尽快充值。');
+      return { ok: false, reason: '出图/文案模型没额度了，请联系管理员充值' };
+    }
     // 其它异常(网络抖动等)不拦截，让正式流程去跑/降级
   }
   return { ok: true };
@@ -982,7 +986,10 @@ export async function runReplicaPipeline(task, ctx) {
       const what = aiImagesOk === 0 ? '出图模型' : '视频模型';
       // 视频引擎因余额耗尽全军覆没 → 熔断，让后续请求在 preflight 处秒拒，别再让人白等十几分钟
       if (!usedAI && noBalance) tripVideoBreaker();
-      if (noBalance) throw new Error(`${what}没额度了，请联系管理员充值。本次积分已自动退还。`);
+      if (noBalance) {
+        notifyAdmin(`${what}没额度了`, `${what === '视频模型' ? '视频引擎(fal 主 / 可灵兜底)' : '出图/文案(ezmodel)'}余额耗尽，已有用户生成被中止并退款。请尽快充值。`);
+        throw new Error(`${what}没额度了，请联系管理员充值。本次积分已自动退还。`);
+      }
       throw new Error(`${what}暂时不可用，已中止生成。请稍后重试或联系管理员处理，本次积分已自动退还。`);
     }
     clearVideoBreaker(); // 走到这=本次视频引擎正常出片 → 解除熔断（充值后自愈）

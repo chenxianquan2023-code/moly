@@ -839,7 +839,15 @@ app.get('/api/health', async (_req, res) => {
     engines.llm = llm.isConfigured?.() || false;     // 导演/文案（ezmodel）
     engines.gemini = gemini.isConfigured?.() || false; // 识别/解析/出图（ezmodel）
   } catch (e) { engines.error = String(e.message || e).slice(0, 80); }
-  res.json({ ok: true, rev: BUILD_REV, engines });
+  // 运营状态：视频引擎熔断(余额耗尽)与最近一条预警，便于管理员一眼看出是否欠费
+  let ops = {};
+  try {
+    const [{ isVideoEngineExhausted }, { getLastAlert, isAlertWebhookConfigured }] = await Promise.all([
+      import('./replica/pipeline.js'), import('./lib/alert.js'),
+    ]);
+    ops = { videoEngineExhausted: isVideoEngineExhausted?.() || false, alertWebhook: isAlertWebhookConfigured?.() || false, lastAlert: getLastAlert?.() || null };
+  } catch { /* 忽略，不影响 health */ }
+  res.json({ ok: true, rev: BUILD_REV, engines, ops });
 });
 
 // 爆款视频复刻 MVP API
