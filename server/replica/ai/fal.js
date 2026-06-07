@@ -5,7 +5,7 @@
  * 鉴权：Authorization: Key <FAL_KEY>（id:secret 格式整串）。密钥只从 env 读，绝不入库/入码。
  */
 const FAL_KEY = process.env.FAL_KEY || '';
-const MODEL = process.env.FAL_VIDEO_MODEL || 'bytedance/seedance-2.0/image-to-video'; // Seedance 2.0 国际版(fal)：真人脸不封、全身动态写实，对标 creatok
+const MODEL = process.env.FAL_VIDEO_MODEL || 'bytedance/seedance-2.0/fast/image-to-video'; // Seedance 2.0 Fast 档(720p)：同画质、比 Standard 省~20%、更快；真人脸不封，对标 creatok
 const BASE = process.env.FAL_BASE_URL || 'https://queue.fal.run';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
