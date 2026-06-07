@@ -566,8 +566,8 @@ export async function runReplicaPipeline(task, ctx) {
 
     const urlOf = async (id) => (id ? (await getById('assets', id))?.file_url || null : null);
     const productUrl = await urlOf(assets.product_image_id);
-    const modelUrl = await urlOf(assets.model_image_id);
-    const baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
+    let modelUrl = await urlOf(assets.model_image_id); // 可被"自动虚拟模特"重赋值
+    let baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
 
     // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款
     if (!fal.isConfigured() && !kling.isConfigured()) {
@@ -620,6 +620,24 @@ export async function runReplicaPipeline(task, ctx) {
       }
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
     await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
+
+    // ── 1.5 自动虚拟模特 ──
+    // 没上传模特图、但"源视频真人出镜"或"商品是穿戴类" → 自动造一个全新虚拟模特(参考源人物气质、长相必须不同)，
+    // 设为 modelUrl 走正常模特链路(各镜引用同一张→一致)。否则服装类会变成"没人穿的衣服平铺/腾空"。纯商品源不触发。
+    if (!regen && !modelUrl) {
+      const srcHasPerson = Array.isArray(analysis?.shots) && analysis.shots.some((s) => s.hasPerson && String(s.hasPerson) !== 'none');
+      const wearable = /衣|裙|裤|鞋|靴|包|帽|袜|内衣|文胸|外套|上衣|连衣|服[装饰]|穿戴|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|fashion|dress|shirt|wear/i.test([product.name, productDesc].filter(Boolean).join(' '));
+      if (srcHasPerson || wearable) {
+        try {
+          const vmRefs = [productUrl, ...sourceStyleFrames.slice(0, 1)].filter(Boolean);
+          const vmPrompt = '电商时装/带货竖版大片(9:16)：生成一位真实自然的模特，正在自然穿着或展示参考的这件商品，全身或3/4身、构图高级、专业布光、真实肌肤与材质质感、生活化不僵硬。【硬性】这是一个全新虚构的模特：五官长相必须与任何参考图里的真实人物明显不同、绝不雷同，只借鉴气质/身形/穿搭风格，绝不复制脸；画面干净、无任何文字水印。';
+          const vm = await image.generate(vmPrompt, vmRefs, { aspectRatio: '9:16', provider: opts.models?.image });
+          modelUrl = await uploadBuffer(makePath(task.user_email, 'virtual-model', 'vm.png'), vm.buffer, vm.mimeType);
+          baseImageUrl = modelUrl || baseImageUrl;
+          notes.push('未上传模特：已自动生成虚拟模特(全新人物)');
+        } catch (e) { notes.push('虚拟模特生成失败，降级纯商品: ' + String(e.message || e).split('\n')[0].slice(0, 60)); }
+      }
+    }
 
     // ── 2. 导演分镜脚本（口播 + 画面 + 运动 + 是否出模特）──
     await setStep(1, { status: 'running' });
