@@ -308,6 +308,7 @@ const DEFAULT_PRICING = {
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },
+    { id: 'seedream', label: '高级 · Seedream 4.5', price: 15, desc: '字节顶级出图，与 Seedance 同门，细节/一致性最佳' },
     { id: 'openai', label: '高清 · GPT Image', price: 10, desc: '更精细的细节与质感(略慢)' },
   ],
 };

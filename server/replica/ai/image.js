@@ -5,6 +5,7 @@
  * 统一返回 { buffer, mimeType }。为「用户选模型、不同定价」预留：换 provider 即可。
  */
 import * as gemini from './gemini.js';
+import * as seedream from './seedream.js';
 
 const EZ_KEY = process.env.EZMODEL_API_KEY || process.env.GEMINI_API_KEY || '';
 const EZ_BASE = process.env.EZMODEL_BASE_URL || process.env.GEMINI_BASE_URL || 'https://www.ezmodel.cloud';
@@ -58,6 +59,7 @@ async function openaiImage(prompt, refs = [], { model = 'gpt-image-2', size = '1
 
 const PROVIDERS = {
   gemini: geminiImage,
+  seedream: (prompt, refs, opts) => seedream.generateImage(prompt, refs, opts), // Seedream 4.5（fal 国际版，带参考图编辑、人脸不封）
   openai: openaiImage, // gpt-image-2
 };
 
