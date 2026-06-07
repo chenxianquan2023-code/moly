@@ -939,9 +939,19 @@ export async function runReplicaPipeline(task, ctx) {
             ? '【最高优先级·一致性】以参考图(基准图)为准：保持同一个人(长相/发型/肤色全一致)、同一件商品(款式/颜色/印花/细节全一致)完全不变，只把画面改成下面描述的姿势/景别/角度/背景，绝不换人、绝不换衣服款式或颜色。'
             : '【最高优先级·一致性】以参考商品图为准：商品的款式/颜色/印花/logo/细节完全一致，只改背景/角度/景别。';
           const prompt = `${anchorRule}\n本镜画面：${s.visual}。${styleCue}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          // 贴帧复刻(可选)：用源视频该镜的画面帧当"构图/姿势/道具"基准，只换模特+商品 → 尽量贴源(像 creatok"凳子一样、动作一样")
+          let genPrompt = prompt, genRefs = refs;
+          if (opts.replicaMode === 'faithful' && sourceStyleFrames.length) {
+            const fi = Math.max(0, Math.min(sourceStyleFrames.length - 1, Math.round(((s.sourceShotIndex ?? i) / Math.max(1, scenes.length - 1)) * (sourceStyleFrames.length - 1))));
+            const srcFrame = sourceStyleFrames[fi] || sourceStyleFrames[0];
+            if (srcFrame) {
+              genRefs = [srcFrame, ...assetRefs].filter(Boolean); // 第1张=源帧(构图基准)；后面=基准图/商品(身份)
+              genPrompt = `【贴帧复刻·最高优先级】第1张参考图是要复刻的源镜画面：严格保留它的构图、机位、人物姿势与动作、景别、道具(椅子/包等)、场景与背景，尽量一模一样。只替换两样：${isModelScene ? '①人物换成与后面参考图同一位模特(长相/发型一致)；' : ''}②身上的服装/手中或台面的商品换成参考商品图里的这一件(同款式/颜色/印花/logo/细节)。除此之外姿势、构图、道具、背景全部和第1张保持一致，绝不改成别的场景或姿势。${noSrcTextRule}${garmentRule}${qualityCue}。`;
+            }
+          }
           let c;
           try {
-            c = await image.generate(prompt, refs, { aspectRatio: '9:16', provider: opts.models?.image });
+            c = await image.generate(genPrompt, genRefs, { aspectRatio: '9:16', provider: opts.models?.image });
           } catch (e1) {
             const m1 = String(e1.message || e1);
             // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次

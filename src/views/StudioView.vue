@@ -96,6 +96,13 @@
           <div class="card">
             <div class="card-title"><span class="num">3</span>复刻设置</div>
             <div class="model-opts" v-if="pricing">
+              <div class="model-row" v-if="sourceVideoAsset || refInspiration">
+                <span class="model-label">复刻方式</span>
+                <div class="seg">
+                  <button type="button" :class="{ active: replicaMode === 'smart' }" @click="replicaMode = 'smart'" title="智能复刻：参考源视频的风格/节奏，生成全新场景。任意商品都适用、更灵活。">智能</button>
+                  <button type="button" :class="{ active: replicaMode === 'faithful' }" @click="replicaMode = 'faithful'" title="贴帧复刻：尽量贴源视频的构图/姿势/道具，只把商品和模特换成你的。服装等同类商品效果最佳，最像源视频。">贴帧·像源</button>
+                </div>
+              </div>
               <div class="model-row" v-if="pricing.video && pricing.video.length > 1">
                 <span class="model-label">视频引擎</span>
                 <div class="seg">
@@ -321,6 +328,7 @@ const pricing = ref<any>(DEFAULT_PRICING);
 const packages = ref<any[]>(DEFAULT_PACKAGES);
 const videoModel = ref('seedance'); // 默认 Seedance 2.0（fal 国际版，真人脸不封、全身最自然）
 const imageModel = ref('gemini');
+const replicaMode = ref('smart'); // smart=智能复刻(默认,生成新场景)；faithful=贴帧复刻(贴源构图/姿势/道具)
 const showRecharge = ref(false);
 const rechargeMsg = ref('');
 const recharging = ref('');
@@ -523,7 +531,7 @@ function buildGenBody(sourceVideoId: any) {
     userEmail: auth.email, sourceVideoId,
     assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value },
+    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, replicaMode: replicaMode.value },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
