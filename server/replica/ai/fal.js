@@ -5,7 +5,7 @@
  * 鉴权：Authorization: Key <FAL_KEY>（id:secret 格式整串）。密钥只从 env 读，绝不入库/入码。
  */
 const FAL_KEY = process.env.FAL_KEY || '';
-const MODEL = process.env.FAL_VIDEO_MODEL || 'fal-ai/minimax/hailuo-02/standard/image-to-video';
+const MODEL = process.env.FAL_VIDEO_MODEL || 'bytedance/seedance-2.0/image-to-video'; // Seedance 2.0 国际版(fal)：真人脸不封、全身动态写实，对标 creatok
 const BASE = process.env.FAL_BASE_URL || 'https://queue.fal.run';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,9 +38,18 @@ export async function imageToVideo(image, prompt = '', {
 } = {}) {
   if (!FAL_KEY) throw new Error('缺少 FAL_KEY');
   const image_url = toImageUrl(image);
-  // 海螺时长枚举只有 "6"/"10"；按需要的秒数就近取
-  const dur = Number(duration) > 6 ? '10' : '6';
-  const input = { prompt: prompt || '画面自然真实地动起来', image_url, duration: dur, resolution, prompt_optimizer: true };
+  // 按模型构造入参：Seedance 2.0(国际版/fal) vs 海螺 Hailuo-02，参数不同
+  let input;
+  if (/seedance/i.test(model)) {
+    // Seedance 2.0：duration 4–15 秒(数字)、resolution 480p/720p/1080p、aspect_ratio；
+    // 关掉自带音频(成片由我们后期统一配音/背景乐，否则两路声音打架)
+    const sec = Math.min(15, Math.max(4, Math.round(Number(duration) || 5)));
+    input = { prompt: prompt || '画面自然真实地动起来', image_url, duration: sec, resolution: process.env.FAL_RESOLUTION || '720p', aspect_ratio: '9:16', generate_audio: false };
+  } else {
+    // 海螺 Hailuo-02：duration "6"/"10"、resolution 768P、prompt_optimizer
+    const dur = Number(duration) > 6 ? '10' : '6';
+    input = { prompt: prompt || '画面自然真实地动起来', image_url, duration: dur, resolution, prompt_optimizer: true };
+  }
   const auth = { Authorization: `Key ${FAL_KEY}` };
 
   // 1) 提交到队列
