@@ -5,6 +5,9 @@
 import ffmpegPath from 'ffmpeg-static';
 import ffprobeStatic from 'ffprobe-static';
 import { spawn, execSync } from 'node:child_process';
+import { readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 // 二进制解析优先级：环境变量 > 系统 PATH(本地 brew) > ffmpeg-static(Railway 等无系统 ffmpeg 的环境)
 // 说明：Apple Silicon 上 ffmpeg-static 的二进制可能因签名问题报 EBADARCH(-86)，优先用系统 ffmpeg 规避。
@@ -34,6 +37,38 @@ function exec(bin, args, opts = {}) {
 
 /** 直接跑 ffmpeg，args 为参数数组；opts.cwd 可设工作目录 */
 export const ffmpeg = (args, opts) => exec(FFMPEG, args, opts);
+
+/**
+ * 检测音乐节拍点(返回秒数组)。原理：取 RMS 能量包络(每50ms一窗) → 正向能量差(起音强度)
+ * → 超过 mean+std 的局部峰 = 拍点(相邻≥0.22s)。纯能量法，对有鼓点/强拍音乐有效；
+ * ambient/弱拍音乐返回很少拍点 → 上层优雅降级(不卡点)。失败返回 []。
+ */
+export async function detectBeats(input, { maxSec = 60, hop = 0.05 } = {}) {
+  const tmp = join(tmpdir(), `moly-beats-${Date.now()}-${Math.floor(Math.random() * 1e6)}.txt`);
+  try {
+    await ffmpeg(['-v', 'error', '-t', String(maxSec), '-i', input, '-map', '0:a',
+      '-af', `aresample=22050,asetnsamples=1102:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=${tmp}`,
+      '-f', 'null', '-']);
+    const rms = [];
+    for (const l of readFileSync(tmp, 'utf8').split('\n')) {
+      const m = l.match(/RMS_level=(-?[0-9.]+|-inf)/);
+      if (m) rms.push(m[1] === '-inf' ? 0 : Math.pow(10, parseFloat(m[1]) / 20));
+    }
+    if (rms.length < 8) return [];
+    const flux = rms.map((v, i) => (i ? Math.max(0, v - rms[i - 1]) : 0));
+    const mean = flux.reduce((a, b) => a + b, 0) / flux.length;
+    const std = Math.sqrt(flux.reduce((a, b) => a + (b - mean) ** 2, 0) / flux.length) || 1e-6;
+    const thr = mean + std;
+    const beats = []; let last = -10;
+    for (let i = 1; i < flux.length - 1; i++) {
+      if (flux[i] > thr && flux[i] >= flux[i - 1] && flux[i] >= flux[i + 1] && (i - last) * hop >= 0.22) {
+        beats.push(+(i * hop).toFixed(3)); last = i;
+      }
+    }
+    return beats;
+  } catch { return []; }
+  finally { try { rmSync(tmp, { force: true }); } catch { /* ignore */ } }
+}
 
 /** 探测视频元信息：时长(秒)/宽/高 */
 export async function probe(input) {

@@ -3,7 +3,7 @@
  * 用法: node test/replica-offline.mjs
  * 覆盖: ① computeSceneDurations 各场景不出"首幕过长/总长超源被砍尾" ② 背景乐循环铺底，-shortest 不砍画面。
  */
-import { computeSceneDurations, composeVideo } from '../server/replica/pipeline.js';
+import { computeSceneDurations, composeVideo, snapToBeats } from '../server/replica/pipeline.js';
 import { ffmpeg, probe, concatVideo, addAudio } from '../server/replica/ai/ffmpeg.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -145,6 +145,23 @@ console.log('\n═══ Part 4: 换单镜 swap-重合成 回归（换掉中间�
     ok(Math.abs(dur1 - dur2) < 0.5, '换单镜前后成片时长稳定（换一镜不改变整片节奏）');
   } catch (e) { fail++; console.log('  ✗ 换单镜重合成异常:', String(e.message || e).slice(0, 160)); }
   finally { try { rmSync(d3, { recursive: true, force: true }); } catch { /* ignore */ } }
+}
+
+console.log('\n═══ Part 5: snapToBeats 卡点（纯逻辑）═══');
+{
+  const beats = Array.from({ length: 19 }, (_, i) => i + 1); // 每 1s 一拍
+  const durations = [4.7, 5.3, 4.6, 5.4]; // 总 20s，切点 4.7 / 10.0 / 14.6（不在拍上）
+  const snapped = snapToBeats(durations, beats, {});
+  const total = snapped.reduce((a, b) => a + b, 0);
+  const cuts = []; let acc = 0; for (let i = 0; i < snapped.length - 1; i++) { acc += snapped[i]; cuts.push(+acc.toFixed(2)); }
+  console.log(`  原切点 4.7/10/14.6 → 吸附后 ${cuts.join('/')}（总 ${total.toFixed(1)}s）`);
+  ok(Math.abs(total - 20) < 0.02, 'snapToBeats 保持总时长不变');
+  ok(cuts.every((c) => beats.some((b) => Math.abs(b - c) < 0.06)), 'snapToBeats 切点都吸附到拍点上');
+  ok(snapped.every((d) => d >= 1.4), 'snapToBeats 每幕不过短');
+  ok(JSON.stringify(snapToBeats([4, 4, 4], [])) === JSON.stringify([4, 4, 4]), '无拍点 → 原样返回(不硬卡)');
+  // 配音约束：某幕配音很长时，不会被吸附到比配音还短
+  const withVoice = snapToBeats([5, 5, 5, 5], beats, { audioDurs: [4.8, 0, 0, 0] });
+  ok(withVoice[0] >= 4.8, 'snapToBeats 不把有长配音的幕切短于其配音');
 }
 
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);

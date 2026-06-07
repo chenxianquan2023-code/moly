@@ -418,6 +418,36 @@ export function computeSceneDurations(scenes, sceneAudios, sourceDurationSec = 0
 }
 
 /**
+ * 卡点：把分镜切点吸附到最近的音乐拍点（纯函数、可单测）。
+ * 保持总时长不变；每幕 ≥ minScene、≥ 各自配音时长；tolerance 内有拍点才吸附，否则保留原切点(不硬卡)。
+ * @param {number[]} durations 每镜时长  @param {number[]} beats 拍点(秒)  @returns {number[]} 吸附后的每镜时长
+ */
+export function snapToBeats(durations, beats, { minScene = 1.8, tolerance = 0.5, audioDurs = [] } = {}) {
+  const n = durations.length;
+  if (n < 2 || !Array.isArray(beats) || beats.length < 2) return durations.slice();
+  const total = durations.reduce((a, b) => a + b, 0);
+  const sorted = beats.filter((b) => b > 0.3 && b < total - 0.3).sort((a, b) => a - b);
+  if (!sorted.length) return durations.slice();
+  const cuts = []; let acc = 0;
+  for (let i = 0; i < n - 1; i++) { acc += durations[i]; cuts.push(acc); }
+  let prev = 0;
+  const snapped = cuts.map((c, i) => {
+    let best = c, bd = Infinity;
+    for (const b of sorted) { const d = Math.abs(b - c); if (d < bd) { bd = d; best = b; } }
+    let nc = bd <= tolerance + 1e-6 ? best : c; // +epsilon 容浮点误差
+    const minThis = Math.max(minScene, audioDurs[i] || 0);
+    nc = Math.max(nc, prev + minThis);                  // 该幕不短于下限/配音
+    nc = Math.min(nc, total - minScene * (n - 1 - i));   // 给后面每幕留够 minScene
+    prev = nc;
+    return nc;
+  });
+  const out = []; let lastCut = 0;
+  for (const c of snapped) { out.push(+(c - lastCut).toFixed(3)); lastCut = c; }
+  out.push(+(total - lastCut).toFixed(3));
+  return out;
+}
+
+/**
  * 合成成片：纯 ffmpeg（裁剪+拼接+字幕+背景乐+配音+淡出+封面），不含 AI、不上传。
  * 返回本地路径，便于离线测试 + 复用于"换单镜/重做"的重新合成。
  * @returns {{finalPath:string, coverPath:string, srtPath:string, duration:number}}
@@ -789,9 +819,24 @@ export async function runReplicaPipeline(task, ctx) {
 
     const { durations: computedDurations, note: durNote } = computeSceneDurations(scenes, sceneAudios, analysis?.durationSec, Number(opts.targetDurationSec) || 0);
     // 换单镜：复用原片每镜时长，确保新生成的目标镜与其余缓存镜在拼接/字幕时间轴上严格对齐
-    const sceneDurations = (regen && Array.isArray(regen.sceneDurations) && regen.sceneDurations.length === scenes.length)
+    let sceneDurations = (regen && Array.isArray(regen.sceneDurations) && regen.sceneDurations.length === scenes.length)
       ? regen.sceneDurations : computedDurations;
     if (durNote && !regen) notes.push(durNote);
+    // 卡点：用源视频音乐做背景乐时，检测拍点，把分镜切换吸附到音乐节拍上(节奏跟拍、更像人手剪)
+    if (!regen && opts.generate_music !== false && existsSync(join(work, 'src.mp4'))) {
+      try {
+        const beats = await ff.detectBeats(join(work, 'src.mp4'), { maxSec: SOURCE_VIDEO_REFERENCE_MAX_SEC });
+        if (beats.length >= 3) {
+          const audioDurs = sceneAudios.map((a) => (a?.path ? Math.max(1.2, a.duration || 0) : 0));
+          const snapped = snapToBeats(sceneDurations, beats, { audioDurs });
+          const t0 = sceneDurations.reduce((a, b) => a + b, 0), t1 = snapped.reduce((a, b) => a + b, 0);
+          if (snapped.every((d) => d >= 1.4) && Math.abs(t1 - t0) < 0.6) {
+            sceneDurations = snapped;
+            notes.push(`卡点：切换对齐音乐拍点(${beats.length}拍)`);
+          }
+        }
+      } catch (e) { notes.push('卡点降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
+    }
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
