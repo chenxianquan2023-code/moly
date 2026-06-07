@@ -953,8 +953,20 @@ export async function runReplicaPipeline(task, ctx) {
     const VIDEO_CONCURRENCY = 6;
     const sceneVideos = new Array(scenes.length);
     let nextScene = 0;
+    let videosDone = 0;
     await Promise.all(Array.from({ length: Math.min(VIDEO_CONCURRENCY, scenes.length) }, async () => {
-      while (nextScene < scenes.length) { const i = nextScene++; sceneVideos[i] = await makeSceneVideo(i, animBases[i]); }
+      while (nextScene < scenes.length) {
+        const i = nextScene++;
+        sceneVideos[i] = await makeSceneVideo(i, animBases[i]);
+        videosDone++;
+        // 视频步占进度 60%→80%：按已完成镜数实时上涨 + 更新步注，避免整段卡 60%（这步最慢、最像卡死）。
+        // 直接改 steps + setProgress，不走 setStep（setStep 会按"已完成步数"把进度重算回 60%）。
+        try {
+          steps[3] = { ...steps[3], status: 'running', note: `生成画面 ${videosDone}/${scenes.length} 镜` };
+          await ctx.setSteps([...steps]);
+          await ctx.setProgress(60 + Math.round((videosDone / scenes.length) * 20));
+        } catch { /* 进度更新失败不影响生成 */ }
+      }
     }));
     // 部分镜头可灵失败（常见于可灵临时变慢）→ 串行逐个补打一次，给第二次机会、且不增并发负载。
     // 全失败=可灵挂了，不补打（白耗时间），直接走下面的退款逻辑。
