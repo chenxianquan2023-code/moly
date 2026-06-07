@@ -5,7 +5,7 @@
  * - 内测白名单：仅受邀账号 + 测试账号可注册/登录，其余一律拒绝（防"无限注册薅体验额度"）
  * 可用环境变量覆盖：FREE_CREDITS / TEST_EMAIL / BETA_ALLOWLIST
  */
-export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 320);
+export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 800);
 export const TEST_EMAIL = String(process.env.TEST_EMAIL || 'tester@moly.app').trim().toLowerCase();
 
 /** 是否为可无限充值的测试账号 */
@@ -32,6 +32,9 @@ const DEFAULT_ALLOW = [
   '8618091730950',
   'demo@moly.test',
   'pipe@test.com',
+  // 内测分发账号 beta01~beta10@moly.app（各 800 积分，密码不入码、仅存 DB）
+  'beta01@moly.app', 'beta02@moly.app', 'beta03@moly.app', 'beta04@moly.app', 'beta05@moly.app',
+  'beta06@moly.app', 'beta07@moly.app', 'beta08@moly.app', 'beta09@moly.app', 'beta10@moly.app',
 ];
 const ALLOWSET = new Set(
   [...DEFAULT_ALLOW, ...String(process.env.BETA_ALLOWLIST || '').split(',')]
