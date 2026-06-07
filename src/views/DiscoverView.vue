@@ -300,7 +300,7 @@ async function search() {
   searching.value = true; searched.value = false; notes.value = [];
   res.tiktok = []; res.amazon = [];
   try {
-    const r = await fetch('/api/discover/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw, platforms }) });
+    const r = await fetch('/api/discover/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, keyword: kw, platforms }) });
     const j = await r.json();
     if (j.success) { res.tiktok = j.results.tiktok || []; res.amazon = j.results.amazon || []; notes.value = j.notes || []; }
     else notes.value = [j.message || '搜索失败'];

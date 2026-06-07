@@ -9,15 +9,18 @@ import { deductPoints, addPoints } from '../lib/points.js';
 import { uploadFromUrl, makePath } from '../lib/storage.js';
 import { insertRow, selectOne } from '../lib/supabase.js';
 import { DOWNLOAD_COST, IMPORT_COST } from './pricing.js';
+import { isAllowed } from '../lib/access.js';
 
 export const discoverRouter = Router();
 
 const CACHE_DAYS = 3;
+const BETA_DENY = '内测阶段仅向受邀账号开放，如需试用请联系管理员开通。';
 
 function getEmail(req, res) {
   const email = String(req.body?.userEmail || req.query?.userEmail || req.headers['x-user-email'] || '')
     .trim().toLowerCase();
   if (!email) { res.status(401).json({ success: false, message: '缺少用户标识 userEmail' }); return null; }
+  if (!isAllowed(email)) { res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY }); return null; }
   return email;
 }
 
@@ -38,6 +41,7 @@ async function writeCache(keyword, platform, results) {
 // POST /api/discover/search  { keyword, platforms:['tiktok','amazon'] } —— 抓取免费
 discoverRouter.post('/discover/search', async (req, res) => {
   try {
+    const email = getEmail(req, res); if (!email) return; // 找爆款搜索走 Apify 花钱，须受邀账号
     const keyword = String(req.body?.keyword || '').trim();
     const platforms = Array.isArray(req.body?.platforms) && req.body.platforms.length
       ? req.body.platforms : ['tiktok'];

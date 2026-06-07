@@ -493,6 +493,8 @@ const AMAZON_MARKET_DOMAINS = {
 
 // POST /api/amazon/fetch-markdown   body: { asin, market? }
 app.post('/api/amazon/fetch-markdown', async (req, res) => {
+  const _e = String(req.body?.userEmail || req.headers['x-user-email'] || '').trim().toLowerCase();
+  if (!isAllowed(_e)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   const { asin, market } = req.body || {};
   if (!asin || !/^[A-Z0-9]{10}$/i.test(String(asin).trim())) {
     return res.status(400).json({ success: false, message: '无效的 ASIN' });
@@ -657,6 +659,8 @@ function parseAmazonHtml(html) {
 
 // POST /api/amazon/fetch-listing   body: { asin, market? }
 app.post('/api/amazon/fetch-listing', async (req, res) => {
+  const _e = String(req.body?.userEmail || req.headers['x-user-email'] || '').trim().toLowerCase();
+  if (!isAllowed(_e)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   const { asin, market } = req.body || {};
   if (!asin || !/^[A-Z0-9]{10}$/i.test(String(asin).trim())) {
     return res.status(400).json({ success: false, message: '无效的 ASIN' });

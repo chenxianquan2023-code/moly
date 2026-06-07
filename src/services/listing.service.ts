@@ -122,11 +122,12 @@ class ListingService {
    */
   async fetchListing(asin: string, market: string = 'us'): Promise<FetchedListing | null> {
     const API_BASE = import.meta.env.VITE_API_BASE || ''
+    const userEmail = (() => { try { return JSON.parse(localStorage.getItem('omni_gen_auth') || '{}').email || '' } catch { return '' } })()
     try {
       const res = await fetch(`${API_BASE}/api/amazon/fetch-listing`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asin, market }),
+        body: JSON.stringify({ asin, market, userEmail }),
       })
       const data = await res.json()
       if (data.success && data.listing) {

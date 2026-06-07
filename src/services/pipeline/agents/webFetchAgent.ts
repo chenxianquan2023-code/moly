@@ -39,10 +39,11 @@ export async function webFetchAgent(
 
     try {
       const endpoint = `${API_BASE}/api/amazon/fetch-markdown`
+      const userEmail = (() => { try { return JSON.parse(localStorage.getItem('omni_gen_auth') || '{}').email || '' } catch { return '' } })()
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asin: input.asin, market: input.market }),
+        body: JSON.stringify({ asin: input.asin, market: input.market, userEmail }),
       })
       const contentType = res.headers.get('content-type') || ''
       const isJson = contentType.includes('application/json')

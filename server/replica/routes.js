@@ -27,6 +27,8 @@ function getEmail(req, res) {
   const email = String(req.body?.userEmail || req.query?.userEmail || req.headers['x-user-email'] || '')
     .trim().toLowerCase();
   if (!email) { res.status(401).json({ success: false, message: '缺少用户标识 userEmail' }); return null; }
+  // 内测白名单：非受邀账号一律拒绝（覆盖所有走 getEmail 的接口：上传/生成/换单镜/积分/找爆款等）
+  if (!isAllowed(email)) { res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY }); return null; }
   return email;
 }
 
@@ -117,8 +119,7 @@ replicaRouter.get('/source-videos/:id/analysis', async (req, res) => {
 // POST /api/replica/generate
 replicaRouter.post('/replica/generate', async (req, res) => {
   try {
-    const email = getEmail(req, res); if (!email) return;
-    if (!isAllowed(email)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY });
+    const email = getEmail(req, res); if (!email) return; // getEmail 已含白名单校验
     const { sourceVideoId = null, options = {}, assets = {}, language = 'en-US', aspectRatio = '9:16', previewUrl = '', product = {}, scriptText = '', models = {} } = req.body || {};
     const mergedOptions = { ...options, language, aspectRatio, models };
 
@@ -162,8 +163,7 @@ replicaRouter.post('/replica/generate', async (req, res) => {
 // POST /api/replica/regenerate-scene  body: { taskId, sceneIndex } —— 换单镜：只重生某一镜，复用其余镜的缓存
 replicaRouter.post('/replica/regenerate-scene', async (req, res) => {
   try {
-    const email = getEmail(req, res); if (!email) return;
-    if (!isAllowed(email)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY });
+    const email = getEmail(req, res); if (!email) return; // getEmail 已含白名单校验
     const { taskId, sceneIndex } = req.body || {};
     if (!taskId || !Number.isInteger(sceneIndex)) return res.status(400).json({ success: false, message: '缺少 taskId 或 sceneIndex' });
 
