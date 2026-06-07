@@ -96,6 +96,15 @@
           <div class="card">
             <div class="card-title"><span class="num">3</span>复刻设置</div>
             <div class="model-opts" v-if="pricing">
+              <div class="model-row" v-if="pricing.video && pricing.video.length > 1">
+                <span class="model-label">视频引擎</span>
+                <div class="seg">
+                  <button v-for="vm in pricing.video" :key="vm.id" type="button"
+                    :class="{ active: videoModel === vm.id }" @click="videoModel = vm.id" :title="vm.desc">
+                    {{ vm.label }}<em>{{ vm.price ? '+' + vm.price : '含' }}</em>
+                  </button>
+                </div>
+              </div>
               <div class="model-row">
                 <span class="model-label">画面质量</span>
                 <div class="seg">
@@ -294,7 +303,8 @@ const MAX_SOURCE_VIDEO_SECONDS = 60;
 const DEFAULT_PRICING = {
   base: 20,
   video: [
-    { id: 'kling', label: '可灵', price: 50, desc: '支持完整真人脸，模特动作自然灵动' },
+    { id: 'seedance', label: '高级 · Seedance 2.0', price: 80, desc: '真人/全身最自然真实（推荐）' },
+    { id: 'kling', label: '标准 · 可灵', price: 50, desc: '真人脸自然、性价比高' },
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },
@@ -308,7 +318,7 @@ const DEFAULT_PACKAGES = [
 ];
 const pricing = ref<any>(DEFAULT_PRICING);
 const packages = ref<any[]>(DEFAULT_PACKAGES);
-const videoModel = ref('kling'); // 视频引擎固定为可灵（Seedance 已下线）
+const videoModel = ref('seedance'); // 默认 Seedance 2.0（fal 国际版，真人脸不封、全身最自然）
 const imageModel = ref('gemini');
 const showRecharge = ref(false);
 const rechargeMsg = ref('');

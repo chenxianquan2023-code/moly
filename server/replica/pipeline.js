@@ -253,30 +253,11 @@ export function applySeedancePersonPolicy(scenes, {
   notes = [],
 } = {}) {
   if (!Array.isArray(scenes)) return [];
-  let anonymized = false;
-  return scenes.map((scene, i) => {
+  // 现役视频引擎(fal Seedance 2.0 / 可灵)都支持真人脸，不再做旧版"匿名禁脸"处理；仅按 withModel 归一 personMode
+  return scenes.map((scene) => {
     const s = { ...scene };
-    const idx = Number.isFinite(Number(s.sourceShotIndex)) ? Number(s.sourceShotIndex) : i;
-    const sourceShot = sourceShots[Math.min(sourceShots.length - 1, Math.max(0, idx))] || sourceShots[i] || null;
-
-    if (videoModel === 'seedance') {
-      if (hasModel && shouldKeepAnonymousUsage(s, sourceShot, productText)) {
-        s.withModel = true;
-        s.personMode = 'anonymous';
-        s.visual = anonymousUsageVisual(s, sourceShot, productText);
-        anonymized = true;
-      } else {
-        s.withModel = false;
-        s.personMode = 'none';
-      }
-      return s;
-    }
-
     s.personMode = s.withModel ? (s.personMode || 'identifiable') : 'none';
     return s;
-  }).map((scene, i, arr) => {
-    if (i === arr.length - 1 && anonymized) notes.push('Seedance 匿名试用：保留人物试用意图，但隐藏/裁切可识别真人脸');
-    return scene;
   });
 }
 
@@ -668,9 +649,8 @@ export async function runReplicaPipeline(task, ctx) {
         const copyRule = `文案语气严格匹配${hasSrc ? `源视频基调【${tone}】` : '【活泼种草】'}：${formal ? '专业可信、干净利落、有说服力' : '口语化、有网感、像真人博主安利'}。每句口播极简短(${lenHint}，约3-5秒念完)，且必须与该镜 visual 强相关(说画面里看得到的东西)，绝不答非所问、绝不生硬广告腔。`;
         // 融入 ai-creative-ad-engine 的爆款文案规律（用所选语言的地道表达，不堆砌、不失真）
         const punchRule = `【爆款文案张力】(a) hook(第1句)必须强钩子——用好奇/反差/痛点共鸣抓住前3秒，让人停止划走，绝不平铺直叙介绍商品；(b) 适度用「${langName}」里地道的情绪/网感词(如英文 obsessed/game-changer/trust me，中文 绝了/真香/谁懂啊)，激发"想分享"，但每句最多1个、不堆砌、不浮夸失真；(c) proof 句给一个可信的"为什么"(数字/对比/真实使用感)；(d) cta 句给明确行动指令+轻微紧迫感(别太硬)；(e) 始终遵守上面的"只说画面演得出的状态"铁律。`;
-        const seedanceFaceRule = opts.models?.video === 'seedance'
-          ? `\n【Seedance 人物限制】当前视频引擎不能出现可识别真人脸，但可以出现匿名模特：手部、身体局部、肩颈、背影、侧身、被面膜/商品遮挡的脸、被裁切到不可识别的脸。若源视频是人物试用，且用户上传了模特/商品，请保留"人在试用商品"这个核心，不要改成纯包装图；personMode 用 "anonymous"，visual 明确写清"脸被遮挡/裁切/背影/手部局部，不可识别"。`
-          : `\n【人物模式】若模特完整出镜且可识别，personMode 用 "identifiable"；纯商品用 "none"；只拍手部/身体局部/背影/遮脸试用用 "anonymous"。`;
+        // 现役引擎(fal Seedance 2.0 / 可灵)都支持真人脸，不再限制；统一正常人物模式
+        const seedanceFaceRule = `\n【人物模式】若模特完整出镜且可识别，personMode 用 "identifiable"；纯商品用 "none"；只拍手部/身体局部/背影/遮脸试用用 "anonymous"。`;
         // 只让导演输出必填字段（景别/构图/光线/色调/字幕/转场出图时自动取源分镜，不必导演重复写）——输出越短越不容易被截断
         const fmt = `输出 JSON 数组，每项只含这些字段：{"sourceShotIndex":源分镜i数字(从1开始,无源可省略),"durationRatio":沿用源镜头时长占比0-1,"type":"hook|demo|proof|cta","text":"口播文案(必须用${langName}！极简短一句,与visual强相关)","visual":"这一镜要拍的有说服力的状态/画面(具体中文,主角是本商品)","motion":"轻运镜描述","withModel":true或false,"personMode":"none|anonymous|identifiable"}。直接只输出 JSON 数组，不要任何解释或 markdown 说明。`;
         let prompt;
@@ -803,7 +783,10 @@ export async function runReplicaPipeline(task, ctx) {
       kling: kling.isConfigured() ? { name: 'Kling', run: (img, p, d) => kling.imageToVideo(img, p, { duration: String(d) }) } : null,
     };
     // 默认走 fal(海螺等海外多模型，喂 URL 不跨境上传)；可灵退居兜底(仍可用)。都失败再走 Ken Burns。
-    const videoProviders = [provDefs.fal, provDefs.kling].filter(Boolean);
+    // 用户选的引擎做主、另一个兜底。'kling'→可灵优先；否则(seedance 默认)→fal(国际版 Seedance 2.0)优先
+    const videoProviders = (opts.models?.video === 'kling'
+      ? [provDefs.kling, provDefs.fal]
+      : [provDefs.fal, provDefs.kling]).filter(Boolean);
     let usedAI = false, usedProvider = '', aiImagesOk = 0;
     const animatedScenes = new Set(); // 哪些镜头真用可灵动起来了——用于"部分失败逐个重试"
 
