@@ -13,7 +13,9 @@ import { estimateCost, estimateRegenCost, pricingTable, RECHARGE_PACKAGES } from
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import { getPoints, addPoints, deductPoints } from '../lib/points.js';
-import { isTester } from '../lib/access.js';
+import { isTester, isAllowed } from '../lib/access.js';
+
+const BETA_DENY = '内测阶段仅向受邀账号开放，如需试用请联系管理员开通。';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // PRD: ≤200MB
 
@@ -116,6 +118,7 @@ replicaRouter.get('/source-videos/:id/analysis', async (req, res) => {
 replicaRouter.post('/replica/generate', async (req, res) => {
   try {
     const email = getEmail(req, res); if (!email) return;
+    if (!isAllowed(email)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY });
     const { sourceVideoId = null, options = {}, assets = {}, language = 'en-US', aspectRatio = '9:16', previewUrl = '', product = {}, scriptText = '', models = {} } = req.body || {};
     const mergedOptions = { ...options, language, aspectRatio, models };
 
@@ -160,6 +163,7 @@ replicaRouter.post('/replica/generate', async (req, res) => {
 replicaRouter.post('/replica/regenerate-scene', async (req, res) => {
   try {
     const email = getEmail(req, res); if (!email) return;
+    if (!isAllowed(email)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY });
     const { taskId, sceneIndex } = req.body || {};
     if (!taskId || !Number.isInteger(sceneIndex)) return res.status(400).json({ success: false, message: '缺少 taskId 或 sceneIndex' });
 

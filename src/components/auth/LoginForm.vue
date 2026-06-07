@@ -184,7 +184,7 @@ async function sendPhoneCode() {
       codeError.value = msg === '请输入正确的邮箱' ? '请输入正确的手机号' : msg;
     }
   } catch (e: unknown) {
-    codeError.value = '网络错误，请稍后重试';
+    codeError.value = (e as { message?: string })?.message || '网络错误，请稍后重试';
     console.error('发送验证码失败:', e);
   }
 }
@@ -226,8 +226,8 @@ async function handleSubmit() {
       } else {
         submitError.value = res.message || '登录失败';
       }
-    } catch {
-      submitError.value = '网络错误';
+    } catch (e: any) {
+      submitError.value = e?.message || '网络错误';
     } finally {
       submitting.value = false;
     }
@@ -257,8 +257,8 @@ async function handleSubmit() {
     } else {
       submitError.value = res.message || '登录失败';
     }
-  } catch {
-    submitError.value = '网络错误';
+  } catch (e: any) {
+    submitError.value = e?.message || '网络错误';
   } finally {
     submitting.value = false;
   }

@@ -62,12 +62,15 @@ async function request<T>(
       
       // 处理 HTTP 错误
       if (!response.ok) {
+        // 读取后端返回的具体提示（如"内测阶段仅向受邀账号开放"），别只丢一个 HTTP xxx
+        let bodyMsg = ''
+        try { const b: any = await response.json(); bodyMsg = b?.message || b?.error?.message || '' } catch { /* 非 JSON 响应 */ }
         throw createError(
           response.status === 429 ? 'RATE_LIMIT' :
           response.status === 401 ? 'AUTH_ERROR' :
           response.status >= 500 ? 'NETWORK_ERROR' :
           'UNKNOWN',
-          `HTTP ${response.status}: ${response.statusText}`,
+          bodyMsg || `HTTP ${response.status}: ${response.statusText}`,
           { retryable: response.status >= 500 || response.status === 429 }
         )
       }

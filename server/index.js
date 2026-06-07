@@ -19,7 +19,10 @@ import { WebSocketServer } from 'ws';
 import https from 'https';
 import { replicaRouter } from './replica/routes.js';
 import { discoverRouter } from './replica/discover.js';
-import { FREE_CREDITS } from './lib/access.js';
+import { FREE_CREDITS, isAllowed, allowlistSize } from './lib/access.js';
+
+// 内测期：仅白名单账号可注册/登录，其余拒绝（防无限注册薅体验额度）
+const BETA_DENY_MSG = '内测阶段仅向受邀账号开放，如需试用请联系管理员开通。';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = join(__dirname, 'uploads');
@@ -259,6 +262,9 @@ app.post('/api/auth/send-code', async (req, res) => {
   } else {
     return res.status(400).json({ success: false, message: '请提供邮箱或手机号' });
   }
+  // 内测白名单：非受邀账号不发验证码（从源头挡住注册/登录）
+  const checkAcct = key.startsWith('phone:') ? key.slice(6) : key;
+  if (!isAllowed(checkAcct)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   const code = randomCode();
   codes.set(key, { code, expiresAt: Date.now() + CODE_TTL_MS });
   let sendError = null;
@@ -289,6 +295,7 @@ app.post('/api/auth/register', async (req, res) => {
   if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     return res.status(400).json({ success: false, message: '请输入正确的邮箱' });
   }
+  if (!isAllowed(trimmed)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   if (!password || String(password).length < 6) {
     return res.status(400).json({ success: false, message: '密码至少 6 位' });
   }
@@ -319,6 +326,7 @@ app.post('/api/auth/login', async (req, res) => {
   if (!acc || !pw) {
     return res.status(400).json({ success: false, message: '请输入账号和密码' });
   }
+  if (!isAllowed(acc)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   try {
     const user = await findUserByEmail(acc);
     if (!user || user.password !== hashPw(pw)) {
@@ -342,6 +350,7 @@ app.post('/api/auth/login-by-code', async (req, res) => {
   if (!acc || !c || !/^\d{6}$/.test(c)) {
     return res.status(400).json({ success: false, message: '请输入账号和验证码' });
   }
+  if (!isAllowed(acc)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   // 手机号(纯数字)验证码存储 key 带 phone: 前缀（与 send-code 对齐）；邮箱用原值
   const isPhone = /^\d{6,}$/.test(acc);
   const codeKey = isPhone ? `phone:${acc}` : acc;
@@ -377,6 +386,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     return res.status(400).json({ success: false, message: '请输入正确的邮箱' });
   }
+  if (!isAllowed(trimmed)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
   try {
     const user = await findUserByEmail(trimmed);
     if (!user) return res.status(404).json({ success: false, message: '该邮箱未注册' });
@@ -845,7 +855,7 @@ app.get('/api/health', async (_req, res) => {
     const [{ isVideoEngineExhausted }, { getLastAlert, isAlertWebhookConfigured }] = await Promise.all([
       import('./replica/pipeline.js'), import('./lib/alert.js'),
     ]);
-    ops = { videoEngineExhausted: isVideoEngineExhausted?.() || false, alertWebhook: isAlertWebhookConfigured?.() || false, lastAlert: getLastAlert?.() || null };
+    ops = { videoEngineExhausted: isVideoEngineExhausted?.() || false, alertWebhook: isAlertWebhookConfigured?.() || false, lastAlert: getLastAlert?.() || null, betaAllowlist: allowlistSize() };
   } catch { /* 忽略，不影响 health */ }
   res.json({ ok: true, rev: BUILD_REV, engines, ops });
 });

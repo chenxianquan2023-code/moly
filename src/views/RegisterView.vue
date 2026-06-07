@@ -141,8 +141,8 @@ async function sendCode() {
         if (res.devCode) devCode.value = res.devCode;
         startCooldown();
       } else errors.value.code = res.message ?? '发送失败';
-    } catch {
-      errors.value.submit = '网络错误，请确认已启动认证服务（npm run dev:server）';
+    } catch (e: any) {
+      errors.value.submit = e?.message || '网络错误，请确认已启动认证服务（npm run dev:server）';
     }
     return;
   }
@@ -157,8 +157,8 @@ async function sendCode() {
       if (res.devCode) devCode.value = res.devCode;
       startCooldown();
     } else errors.value.code = res.message ?? '发送失败';
-  } catch {
-    errors.value.submit = '网络错误，请确认已启动认证服务（npm run dev:server）';
+  } catch (e: any) {
+    errors.value.submit = e?.message || '网络错误，请确认已启动认证服务（npm run dev:server）';
   }
 }
 
@@ -211,8 +211,8 @@ async function handleSubmit() {
     } else {
       errors.value.submit = res.message ?? '注册失败';
     }
-  } catch {
-    errors.value.submit = '网络错误，请稍后重试';
+  } catch (e: any) {
+    errors.value.submit = e?.message || '网络错误，请稍后重试';
   } finally {
     submitting.value = false;
   }
