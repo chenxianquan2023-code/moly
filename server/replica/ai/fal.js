@@ -87,5 +87,28 @@ export async function imageToVideo(image, prompt = '', {
   }
 }
 
+// 复探：fal 是否在接受请求(有余额)。给"视频引擎熔断器"自愈用——充值后立即解封，不傻等。
+// 提交一个最小请求看是否被接受(返回 request_id)；接受=有钱，并尽量取消这次探测(省费用)。60s 缓存避免狂探。
+let _probe = { at: 0, ok: null };
+export async function probeBalance() {
+  if (!FAL_KEY) return false;
+  const now = Date.now();
+  if (now - _probe.at < 60000) return _probe.ok; // 60s 缓存
+  try {
+    const r = await fetch(`${BASE}/${MODEL}`, {
+      method: 'POST', headers: { Authorization: `Key ${FAL_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'x', image_url: 'https://storage.googleapis.com/falserverless/model_tests/video_models/robot.png', duration: 5, resolution: '720p', aspect_ratio: '9:16', generate_audio: false }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = await r.json().catch(() => ({}));
+    const ok = !!(r.ok && j.request_id);
+    _probe = { at: now, ok };
+    if (ok && j.request_id) { // 取消探测请求，避免白扣费(尽力而为)
+      try { fetch(`${BASE}/${MODEL}/requests/${j.request_id}/cancel`, { method: 'PUT', headers: { Authorization: `Key ${FAL_KEY}` } }).catch(() => {}); } catch { /* ignore */ }
+    }
+    return ok;
+  } catch { return null; } // 网络异常→未知，不阻断
+}
+
 export const isConfigured = () => !!FAL_KEY;
 export { MODEL };

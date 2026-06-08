@@ -351,7 +351,7 @@ function looksLikeNoBalance(s) {
 // 之后的生成请求在 preflight 处被秒拒（不建任务/不扣费/不让用户白等十几分钟），提示充值。
 // 下次成功出片或熔断到期后自动恢复（充值后≤10分钟自愈）。
 let _videoExhaustedUntil = 0;
-const VIDEO_BREAKER_MS = 10 * 60 * 1000;
+const VIDEO_BREAKER_MS = 5 * 60 * 1000;
 export const isVideoEngineExhausted = () => Date.now() < _videoExhaustedUntil;
 export const tripVideoBreaker = () => { _videoExhaustedUntil = Date.now() + VIDEO_BREAKER_MS; };
 export const clearVideoBreaker = () => { _videoExhaustedUntil = 0; };
@@ -362,7 +362,13 @@ export const clearVideoBreaker = () => { _videoExhaustedUntil = 0; };
  */
 export async function preflightAIHealth() {
   if (!fal.isConfigured() && !kling.isConfigured()) return { ok: false, reason: '视频引擎(fal/可灵)未配置' };
-  if (isVideoEngineExhausted()) return { ok: false, reason: '视频模型没额度了，请联系管理员充值' };
+  if (isVideoEngineExhausted()) {
+    // 熔断中：主动复探 fal——充值后立即解封，不傻等到窗口结束(根治"充了钱还报没额度")
+    const ok = await fal.probeBalance?.();
+    if (ok) clearVideoBreaker();
+    else if (ok === false) return { ok: false, reason: '视频模型没额度了，请联系管理员充值' };
+    // ok === null(探测网络异常) → 不阻断，放行让正式流程处理
+  }
   if (!llm.isConfigured() && !gemini.isConfigured()) return { ok: false, reason: 'AI 文案/出图服务未配置' };
   // 轻量探一次 ezmodel 额度（导演/识别/出图共用同一中转账户）
   try {
