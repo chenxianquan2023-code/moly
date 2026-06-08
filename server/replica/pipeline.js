@@ -76,13 +76,13 @@ function normalizeAnalysis(raw, durationSec = 0) {
       index: Number.isFinite(Number(shot.index)) ? Number(shot.index) : index + 1,
       durationSec: duration,
       durationRatio,
-      shotType: compactText(shot.shotType, 80),
+      shotType: softenExtremeFraming(compactText(shot.shotType, 80)),
       camera: compactText(shot.camera, 120),
-      framing: compactText(shot.framing || shot.shotType, 120),
-      composition: compactText(shot.composition, 160),
+      framing: softenExtremeFraming(compactText(shot.framing || shot.shotType, 120)),
+      composition: softenExtremeFraming(compactText(shot.composition, 160)),
       lighting: compactText(shot.lighting, 120),
       color: compactText(shot.color || shot.colorPalette, 120),
-      visualStyle: compactText(shot.visualStyle || shot.style, 180),
+      visualStyle: softenExtremeFraming(compactText(shot.visualStyle || shot.style, 180)),
       captionStyle: compactText(shot.captionStyle || shot.caption, 160),
       transition: compactText(shot.transition, 120),
       role: compactText(shot.role, 60),
@@ -149,6 +149,29 @@ function styleFingerprint(analysis, shot) {
     shot?.visualStyle && `本镜视觉：${shot.visualStyle}`,
     shot?.captionStyle && `本镜字幕：${shot.captionStyle}`,
   ].filter(Boolean).join('；');
+}
+
+// 景别下限(纯代码兜底)：带货视频从不怼到五官微距——眼球/睫毛/唇部/毛孔放大就暴露 AI。
+// 在导演输出上做确定性改写，把极端微距景别降级成"自然脸部特写"。不靠提示词求模型听话。
+export function softenExtremeFraming(text) {
+  const t = String(text || '');
+  if (!t) return t;
+  return t
+    // 眼/睫/唇/鼻/毛孔 + 微距/特写/近景 → 自然脸部特写
+    .replace(/(眼球|眼睛|眼部|瞳孔|睫毛|嘴唇|唇部|鼻[孔尖]|毛孔)\s*(的)?\s*(微距|超?大?特写|超?近景|close[\s-]?up)/gi, '自然脸部特写')
+    .replace(/微距(镜头|特写|拍摄|视角)?/gi, '特写')
+    .replace(/extreme\s*close[\s-]?up|\bECU\b|超大特写|超特写|极特写/gi, '脸部特写');
+}
+
+// 统一环境描述：从源解析抽"场景/背景/布光/色调"，喂给 hero 基准图，确立全片同一处拍摄环境。
+// 根治"背景跳变/结尾突然换底"——靠 hero 那张图把环境带上(图钉死)，配合各镜"保持基准图背景"。
+function sceneEnvironment(analysis) {
+  if (!analysis) return '';
+  return [
+    analysis.styleBrief && `整体场景：${analysis.styleBrief}`,
+    analysis.colorPalette && `背景色调：${analysis.colorPalette}`,
+    analysis.lighting && `布光：${analysis.lighting}`,
+  ].filter(Boolean).join('；').slice(0, 220);
 }
 
 function assText(text) {
@@ -661,6 +684,9 @@ export async function runReplicaPipeline(task, ctx) {
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
     await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
 
+    // 统一拍摄环境(从源解析抽场景/背景/布光)：喂给 hero/虚拟模特，确立全片同一处环境，根治背景跳变
+    const sceneEnv = sceneEnvironment(analysis);
+
     // ── 1.5 自动虚拟模特 ──
     // 没上传模特图、但"源视频真人出镜"或"商品是穿戴类" → 自动造一个全新虚拟模特(参考源人物气质、长相必须不同)，
     // 设为 modelUrl 走正常模特链路(各镜引用同一张→一致)。否则服装类会变成"没人穿的衣服平铺/腾空"。纯商品源不触发。
@@ -670,7 +696,7 @@ export async function runReplicaPipeline(task, ctx) {
       if (srcHasPerson || wearable) {
         try {
           const vmRefs = [productUrl, ...sourceStyleFrames.slice(0, 1)].filter(Boolean);
-          const vmPrompt = '电商时装/带货竖版大片(9:16)：生成一位真实自然的模特，正在自然穿着或展示参考的这件商品，全身或3/4身、构图高级、专业布光、真实肌肤与材质质感、生活化不僵硬。【硬性】这是一个全新虚构的模特：五官长相必须与任何参考图里的真实人物明显不同、绝不雷同，只借鉴气质/身形/穿搭风格，绝不复制脸；画面干净、无任何文字水印。';
+          const vmPrompt = `电商时装/带货竖版大片(9:16)：生成一位真实自然的模特，正在自然穿着或展示参考的这件商品，全身或3/4身、构图高级、专业布光、真实肌肤与材质质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光参考源视频环境——' + sceneEnv + '；这张图确立全片统一拍摄环境(同一处空间、同一背景、同一种光)。' : ''}【硬性】这是一个全新虚构的模特：五官长相必须与任何参考图里的真实人物明显不同、绝不雷同，只借鉴气质/身形/穿搭风格，绝不复制脸；画面干净、无任何文字水印。`;
           const vm = await image.generate(vmPrompt, vmRefs, { aspectRatio: '9:16', provider: opts.models?.image });
           modelUrl = await uploadBuffer(makePath(task.user_email, 'virtual-model', 'vm.png'), vm.buffer, vm.mimeType);
           baseImageUrl = modelUrl || baseImageUrl;
@@ -689,7 +715,7 @@ export async function runReplicaPipeline(task, ctx) {
       else if (modelUrl && productUrl) {
         try {
           const hero = await image.generate(
-            '电商带货竖版基准图(9:16)：让参考图里这位模特，自然地穿着/手持参考图里的这件商品，全身或大半身、构图干净、专业布光、真实质感、生活化不僵硬。模特长相严格以模特参考图为准；商品的款式/颜色/印花/logo/细节严格以商品参考图为准、不得改动；画面干净无文字水印。',
+            `电商带货竖版基准图(9:16)：让参考图里这位模特，自然地穿着/手持参考图里的这件商品，全身或大半身、专业布光、真实质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光严格还原源视频环境——' + sceneEnv + '；这张图确立全片统一的拍摄环境(同一处空间、同一背景与光)，后续每镜都沿用它的环境。' : '背景干净统一、专业棚拍质感，确立全片统一环境。'}模特长相严格以模特参考图为准；商品的款式/颜色/印花/logo/细节严格以商品参考图为准、不得改动；画面干净无文字水印。`,
             [modelUrl, productUrl], { aspectRatio: '9:16', provider: opts.models?.image });
           heroUrl = await uploadBuffer(makePath(task.user_email, 'hero', 'hero.png'), hero.buffer, hero.mimeType);
           notes.push('已生成基准图(模特穿商品)，逐镜锚定');
@@ -770,14 +796,14 @@ export async function runReplicaPipeline(task, ctx) {
       return {
         type: s.type || sourceShot?.role || 'demo',
         text: String(s.text || ''),
-        visual: String(s.visual || s.text || sourceShot?.action || ''),
+        visual: softenExtremeFraming(String(s.visual || s.text || sourceShot?.action || '')),
         motion: String(s.motion || sourceShot?.camera || ''),
         withModel: !!s.withModel,
         personMode: compactText(s.personMode, 40),
         sourceShotIndex,
         durationRatio: clampNumber(s.durationRatio ?? sourceShot?.durationRatio, 0, 1, sourceShot?.durationRatio || 0),
-        framing: compactText(s.framing || sourceShot?.framing || sourceShot?.shotType, 120),
-        composition: compactText(s.composition || sourceShot?.composition, 160),
+        framing: softenExtremeFraming(compactText(s.framing || sourceShot?.framing || sourceShot?.shotType, 120)),
+        composition: softenExtremeFraming(compactText(s.composition || sourceShot?.composition, 160)),
         lighting: compactText(s.lighting || sourceShot?.lighting, 120),
         color: compactText(s.color || sourceShot?.color, 120),
         captionStyle: compactText(s.captionStyle || sourceShot?.captionStyle || analysis?.captionStyle, 160),
@@ -917,7 +943,7 @@ export async function runReplicaPipeline(task, ctx) {
             : '光线明亮、背景干净有层次、电商质感。';
           const referenceRule = isAnonymous
             ? '参考图说明：参考图就是本片基准——商品(款式/颜色/印花/细节)必须与参考图严格一致；人物只作为肤色/发型/身形/气质参考，绝不暴露可识别正脸。'
-            : '参考图说明：参考图(基准图)就是本片的基准——画面里的人物必须是参考图里的同一个人(长相/发型/肤色一致)、商品必须是参考图里的同一件(款式/颜色/印花/logo/细节一致)，只改姿势/景别/角度/背景，绝不换人、绝不换衣换款。';
+            : '参考图说明：参考图(基准图)就是本片的基准——画面里的人物必须是参考图里的同一个人(长相/发型/肤色一致)、商品必须是参考图里的同一件(款式/颜色/印花/logo/细节一致)；只改姿势/景别/角度，背景/场景/布光与基准图保持同一处环境(同一空间、同一背景、同一种光)、不要换到别的背景或棚；绝不换人、绝不换衣换款。';
           // 物理可信：商品必须落地或被握持，杜绝"悬浮在纯色背景"——这是图生视频"凭空起飞/漂浮"的根因
           const groundRule = (s.withModel && modelUrl)
             ? '模特自然手持或使用该商品，商品与手部接触真实、比例协调'
@@ -942,7 +968,7 @@ export async function runReplicaPipeline(task, ctx) {
             : '';
           // 锚定基准图"编辑"：把"保持参考图人+商品完全一致"放最前、最高优先级——治本一致性
           const anchorRule = isModelScene
-            ? '【最高优先级·一致性】以参考图(基准图)为准：保持同一个人(长相/发型/肤色全一致)、同一件商品(款式/颜色/印花/细节全一致)完全不变，只把画面改成下面描述的姿势/景别/角度/背景，绝不换人、绝不换衣服款式或颜色。'
+            ? '【最高优先级·一致性】以参考图(基准图)为准：保持同一个人(长相/发型/肤色全一致)、同一件商品(款式/颜色/印花/细节全一致)完全不变，只把画面改成下面描述的姿势/景别/角度；背景/场景/布光与基准图保持同一处环境(同一空间、同一背景、同一种光)、不要换背景；绝不换人、绝不换衣服款式或颜色。'
             : '【最高优先级·一致性】以参考商品图为准：商品的款式/颜色/印花/logo/细节完全一致，只改背景/角度/景别。';
           const prompt = `${anchorRule}\n本镜画面：${s.visual}。${styleCue}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           // 贴帧复刻(可选)：用源视频该镜的画面帧当"构图/姿势/道具"基准，只换模特+商品 → 尽量贴源(像 creatok"凳子一样、动作一样")
@@ -952,7 +978,7 @@ export async function runReplicaPipeline(task, ctx) {
             const srcFrame = sourceStyleFrames[fi] || sourceStyleFrames[0];
             if (srcFrame) {
               genRefs = [srcFrame, ...assetRefs].filter(Boolean); // 第1张=源帧(构图基准)；后面=基准图/商品(身份)
-              genPrompt = `【贴帧复刻·最高优先级】第1张参考图是要复刻的源镜画面：严格保留它的构图、机位、人物姿势与动作、景别、道具(椅子/包等)、场景与背景，尽量一模一样。只替换两样：${isModelScene ? '①人物换成与后面参考图同一位模特(长相/发型一致)；' : ''}②身上的服装/手中或台面的商品换成参考商品图里的这一件(同款式/颜色/印花/logo/细节)。除此之外姿势、构图、道具、背景全部和第1张保持一致，绝不改成别的场景或姿势。${noSrcTextRule}${garmentRule}${qualityCue}。`;
+              genPrompt = `【贴帧复刻·最高优先级】第1张参考图是要复刻的源镜画面：严格保留它的构图、机位、人物姿势与动作、景别、道具(椅子/包等)、场景与背景，尽量一模一样。（唯一例外：若源帧是眼球/睫毛/唇部等极端微距特写，改用自然脸部特写——下巴到发际线，不要怼到五官微距。）只替换两样：${isModelScene ? '①人物换成与后面参考图同一位模特(长相/发型一致)；' : ''}②身上的服装/手中或台面的商品换成参考商品图里的这一件(同款式/颜色/印花/logo/细节)。除此之外姿势、构图、道具、背景全部和第1张保持一致，绝不改成别的场景或姿势。${noSrcTextRule}${garmentRule}${qualityCue}。`;
             }
           }
           let c;

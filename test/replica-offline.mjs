@@ -3,7 +3,7 @@
  * 用法: node test/replica-offline.mjs
  * 覆盖: ① computeSceneDurations 各场景不出"首幕过长/总长超源被砍尾" ② 背景乐循环铺底，-shortest 不砍画面。
  */
-import { computeSceneDurations, composeVideo, snapToBeats } from '../server/replica/pipeline.js';
+import { computeSceneDurations, composeVideo, snapToBeats, softenExtremeFraming } from '../server/replica/pipeline.js';
 import { ffmpeg, probe, concatVideo, addAudio } from '../server/replica/ai/ffmpeg.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -162,6 +162,22 @@ console.log('\n═══ Part 5: snapToBeats 卡点（纯逻辑）═══');
   // 配音约束：某幕配音很长时，不会被吸附到比配音还短
   const withVoice = snapToBeats([5, 5, 5, 5], beats, { audioDurs: [4.8, 0, 0, 0] });
   ok(withVoice[0] >= 4.8, 'snapToBeats 不把有长配音的幕切短于其配音');
+}
+
+console.log('\n═══ Part 6: softenExtremeFraming 景别下限（纯代码，杜绝眼球微距）═══');
+{
+  // 极端微距景别 → 降级成自然脸部特写
+  ok(!/眼球|微距/.test(softenExtremeFraming('眼球微距，睫毛纤毫毕现')), '眼球微距 → 降级(不再含眼球/微距)');
+  ok(softenExtremeFraming('眼睛特写').includes('自然脸部特写'), '眼睛特写 → 自然脸部特写');
+  ok(softenExtremeFraming('唇部大特写').includes('自然脸部特写'), '唇部大特写 → 自然脸部特写');
+  ok(!/微距/.test(softenExtremeFraming('微距镜头怼脸')), '微距镜头 → 特写');
+  ok(softenExtremeFraming('extreme close-up of the eye').toLowerCase().includes('脸部特写') || !/extreme/i.test(softenExtremeFraming('extreme close-up of the eye')), 'extreme close-up → 脸部特写');
+  ok(softenExtremeFraming('超大特写') === '脸部特写', '超大特写 → 脸部特写');
+  // 正常景别不被误伤
+  ok(softenExtremeFraming('面部特写，从下巴到发际线') === '面部特写，从下巴到发际线', '正常面部特写不被改写');
+  ok(softenExtremeFraming('商品特写，突出质感') === '商品特写，突出质感', '商品特写不被误伤(只拦五官微距)');
+  ok(softenExtremeFraming('全身走位，模特坐在木椅上') === '全身走位，模特坐在木椅上', '全身/中景原样保留');
+  ok(softenExtremeFraming('') === '' && softenExtremeFraming(null) === '', '空输入安全返回');
 }
 
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);
