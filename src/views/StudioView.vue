@@ -108,7 +108,7 @@
                 <div class="seg">
                   <button v-for="vm in pricing.video" :key="vm.id" type="button"
                     :class="{ active: videoModel === vm.id }" @click="videoModel = vm.id" :title="vm.desc">
-                    {{ vm.label }}<em>{{ vm.price ? '+' + vm.price : '含' }}</em>
+                    {{ vm.label }}<em>{{ vm.perSec ? vm.perSec + '/秒' : (vm.price ? '+' + vm.price : '含') }}</em>
                   </button>
                 </div>
               </div>
@@ -134,6 +134,7 @@
                 <button v-for="d in DURATIONS" :key="d.v" type="button" :class="{ active: targetDuration === d.v }" @click="targetDuration = d.v">{{ d.label }}</button>
               </div>
             </div>
+            <p v-if="targetDuration === 0 && sourceDuration > 0" class="voice-hint">跟源时长：源视频约 {{ Math.round(sourceDuration) }} 秒，成片按 {{ outputSeconds }} 秒计费（约 {{ estimatedCredits }} 积分）。</p>
             <div class="switches">
               <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
               <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
@@ -309,9 +310,10 @@ const MAX_SOURCE_VIDEO_SECONDS = 60;
 // 默认定价兜底：拉不到 /pricing 时也能渲染选项（服务端生成时仍权威校验价格）
 const DEFAULT_PRICING = {
   base: 20,
+  outputMaxSec: 45,
   video: [
-    { id: 'seedance', label: '高级 · Seedance 2.0', price: 80, desc: '真人/全身最自然真实（推荐）' },
-    { id: 'kling', label: '标准 · 可灵', price: 50, desc: '真人脸自然、性价比高' },
+    { id: 'seedance', label: '高级 · Seedance 2.0', perSec: 20, desc: '真人/全身最自然真实（推荐）· 约¥2/秒' },
+    { id: 'kling', label: '标准 · 可灵', perSec: 12, desc: '真人脸自然、性价比高 · 约¥1.2/秒' },
   ],
   image: [
     { id: 'gemini', label: '标准 · Gemini', price: 0, desc: '出图快，质感好' },
@@ -336,6 +338,7 @@ const recharging = ref('');
 const productAsset = ref<any>(null);
 const modelAsset = ref<any>(null);
 const sourceVideoAsset = ref<any>(null);
+const sourceDuration = ref(0); // 上传源视频的时长(秒)，用于"跟源"按时长计费
 const refInspiration = ref<any>(null); // 找爆款「用它复刻」带入的封面+文案参考（不下载原视频）
 const previewVideo = ref<string>(''); // 点击参考视频缩略图 → 弹层播放
 const uploading = ref('');
@@ -344,7 +347,7 @@ const uploading = ref('');
 function clearAsset(slot: string) {
   if (slot === 'product') productAsset.value = null;
   else if (slot === 'model') modelAsset.value = null;
-  else if (slot === 'source') sourceVideoAsset.value = null;
+  else if (slot === 'source') { sourceVideoAsset.value = null; sourceDuration.value = 0; }
   else if (slot === 'inspiration') refInspiration.value = null;
 }
 
@@ -442,11 +445,16 @@ function stopProgressUx() {
   if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
 }
 
+// 成片秒数：选了固定时长用它；否则(跟源)用上传源视频时长，封顶 outputMaxSec
+const outputSeconds = computed(() => {
+  const maxSec = pricing.value?.outputMaxSec || 45;
+  return targetDuration.value > 0 ? targetDuration.value : Math.min(maxSec, Math.round(sourceDuration.value) || 12);
+});
 const estimatedCredits = computed(() => {
-  if (!pricing.value) return 50;
-  const v = pricing.value.video.find((x: any) => x.id === videoModel.value)?.price || 0;
+  if (!pricing.value) return 240;
+  const perSec = pricing.value.video.find((x: any) => x.id === videoModel.value)?.perSec || 12;
   const im = pricing.value.image.find((x: any) => x.id === imageModel.value)?.price || 0;
-  return (pricing.value.base || 0) + v + im;
+  return (pricing.value.base || 0) + Math.round(perSec * outputSeconds.value) + im;
 });
 const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && !generating.value);
 
@@ -502,6 +510,7 @@ async function onFile(e: Event, assetType: string, slot: string) {
         input.value = '';
         return;
       }
+      sourceDuration.value = duration; // 记下源视频时长 → "跟源"按时长计费
     }
     uploading.value = slot;
     const asset = await uploadAsset(file, assetType);
@@ -531,7 +540,7 @@ function buildGenBody(sourceVideoId: any) {
     userEmail: auth.email, sourceVideoId,
     assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, replicaMode: replicaMode.value },
+    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };

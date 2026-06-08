@@ -9,10 +9,13 @@ export const REGEN_SCENE_COST = 15; // 换单镜：只重生一镜（复用其�
 export const DOWNLOAD_COST = 5; // 找爆款·下载原视频每条扣费（很低，覆盖 Apify 下载成本）
 export const IMPORT_COST = 2; // 找爆款·「用它复刻」把爆款封面+文案带入工作台的导入费（很低）
 
-// 视频引擎：用户可选。Seedance 2.0 走 fal 国际版(真人脸不封、全身写实最强)；可灵性价比高。
+// 成片时长上限(秒)，与 pipeline 的 OUTPUT_VIDEO_MAX_SEC 对齐
+export const OUTPUT_MAX_SEC = 45;
+// 视频引擎：按成片秒数计费(perSec=每秒积分)。当前充值价 ~¥0.1/积分 → Seedance 20/秒≈¥2/秒(15秒≈¥30、45秒≈¥90)。
+// 想改价就改这两个 perSec。
 export const VIDEO_MODELS = {
-  seedance: { id: 'seedance', label: '高级 · Seedance 2.0', price: 80, desc: '真人/全身最自然真实，对标头部产品（推荐）' },
-  kling: { id: 'kling', label: '标准 · 可灵', price: 50, desc: '真人脸自然、动作灵动，性价比高' },
+  seedance: { id: 'seedance', label: '高级 · Seedance 2.0', perSec: 20, desc: '真人/全身最自然真实，对标头部产品（推荐）。约 ¥2/秒' },
+  kling: { id: 'kling', label: '标准 · 可灵', perSec: 12, desc: '真人脸自然、动作灵动，性价比高。约 ¥1.2/秒' },
 };
 
 // 画面生成模型：配图精细度不同
@@ -24,16 +27,21 @@ export const IMAGE_MODELS = {
 
 const pick = (table, id, def) => (table[id] ? id : def);
 
-/** 估算一次生成的积分价（不扣费），返回 {cost, breakdown} */
-export function estimateCost(options = {}) {
+/** 估算一次生成的积分价（按成片秒数计费，不扣费），返回 {cost, breakdown} */
+export function estimateCost(options = {}, outputSec = 12) {
   const m = options.models || {};
   const video = pick(VIDEO_MODELS, m.video, 'seedance');
   const image = pick(IMAGE_MODELS, m.image, 'gemini');
-  const cost = BASE_COST + VIDEO_MODELS[video].price + IMAGE_MODELS[image].price;
+  const sec = Math.max(4, Math.min(OUTPUT_MAX_SEC, Math.round(Number(outputSec) || 12)));
+  const videoCost = Math.round(VIDEO_MODELS[video].perSec * sec);
+  const cost = BASE_COST + videoCost + IMAGE_MODELS[image].price;
   return {
     cost,
     breakdown: {
       base: BASE_COST,
+      seconds: sec,
+      videoPerSec: VIDEO_MODELS[video].perSec,
+      videoCost,
       video: VIDEO_MODELS[video],
       image: IMAGE_MODELS[image],
     },
@@ -47,7 +55,7 @@ export function estimateRegenCost() {
 
 /** 给前端渲染定价/选项用 */
 export function pricingTable() {
-  return { base: BASE_COST, video: Object.values(VIDEO_MODELS), image: Object.values(IMAGE_MODELS) };
+  return { base: BASE_COST, outputMaxSec: OUTPUT_MAX_SEC, video: Object.values(VIDEO_MODELS), image: Object.values(IMAGE_MODELS) };
 }
 
 // 充值套餐（MVP：支付网关待接入，下单后体验直充）

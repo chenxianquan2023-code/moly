@@ -123,8 +123,12 @@ replicaRouter.post('/replica/generate', async (req, res) => {
     const { sourceVideoId = null, options = {}, assets = {}, language = 'en-US', aspectRatio = '9:16', previewUrl = '', product = {}, scriptText = '', models = {} } = req.body || {};
     const mergedOptions = { ...options, language, aspectRatio, models };
 
-    // 按所选模型估价
-    const { cost, breakdown } = estimateCost(mergedOptions);
+    // 成片秒数：用户选了固定时长用它；否则(跟源)用源视频时长(前端读取上传视频得到)，封顶 45s
+    const outputSec = Number(mergedOptions.targetDurationSec) > 0
+      ? Number(mergedOptions.targetDurationSec)
+      : Math.min(45, Number(mergedOptions.sourceDurationSec) || 12);
+    // 按成片秒数 + 所选模型估价
+    const { cost, breakdown } = estimateCost(mergedOptions, outputSec);
 
     // 余额预检（用户不存在/积分不足直接拦截，不建任务）
     const balance = await getPoints(email);
@@ -245,9 +249,11 @@ replicaRouter.get('/replica/voice-sample', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// POST /api/replica/estimate  body: { models } —— 预估价（不扣费）
+// POST /api/replica/estimate  body: { models, targetDurationSec, sourceDurationSec } —— 预估价（不扣费）
 replicaRouter.post('/replica/estimate', (req, res) => {
-  const { cost, breakdown } = estimateCost({ models: req.body?.models || {} });
+  const b = req.body || {};
+  const outputSec = Number(b.targetDurationSec) > 0 ? Number(b.targetDurationSec) : Math.min(45, Number(b.sourceDurationSec) || 12);
+  const { cost, breakdown } = estimateCost({ models: b.models || {} }, outputSec);
   res.json({ success: true, cost, breakdown });
 });
 
