@@ -981,7 +981,9 @@ export async function runReplicaPipeline(task, ctx) {
     const makeSceneVideo = async (i, animBase) => {
       const s = scenes[i];
       const dur = Math.max(2, Math.ceil(sceneDurations[i] || sceneAudios[i].duration));
-      const d = dur > 5 ? 10 : 5;
+      // 按"实际需要的时长"生成(Seedance 支持任意 4-15s)，不再统一生成 10s 再裁掉——省钱、零画质损失。
+      // 可灵只支持 5/10，会在 kling.js 内部就近向上取整。clamp 到 [4,10](留一点裕量给裁剪对齐)。
+      const d = Math.max(4, Math.min(10, dur));
       const vp = join(work, `v_${i}.mp4`);
       // 换单镜：非目标镜下载原片缓存动画片复用（不重跑可灵/海螺）；下载失败再落到下面重新生成
       if (regen && i !== regen.sceneIndex && regen.sceneClips[i]) {

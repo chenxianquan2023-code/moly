@@ -46,8 +46,10 @@ export async function imageToVideo(image, prompt = '', {
   maxPollingMs = 260000, pollIntervalMs = 5000,
 } = {}) {
   const img = await toBase64(image);
+  // 可灵只支持 5/10 秒：把任意时长就近向上取整(clip 不能短于该镜，否则拼接对不齐)
+  const kdur = Number(duration) > 5 ? '10' : '5';
   // cfg_scale 越高=自由度越低、越贴合输入图(更少乱动)；配合 negative_prompt 压制漂浮/起飞/变形
-  const body = { model_name: model, image: img, duration, mode, cfg_scale: cfgScale };
+  const body = { model_name: model, image: img, duration: kdur, mode, cfg_scale: cfgScale };
   if (prompt) body.prompt = prompt;
   if (negativePrompt) body.negative_prompt = negativePrompt;
 
