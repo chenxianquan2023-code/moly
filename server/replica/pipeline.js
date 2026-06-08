@@ -384,7 +384,7 @@ export const clearVideoBreaker = () => { _videoExhaustedUntil = 0; };
  * 让前端在「不扣费、不建任务」前提下直接拦下，提示联系管理员。
  */
 export async function preflightAIHealth() {
-  if (!fal.isConfigured() && !kling.isConfigured()) return { ok: false, reason: '视频引擎(fal/可灵)未配置' };
+  if (!fal.isConfigured()) return { ok: false, reason: '视频引擎(fal)未配置' }; // Seedance/可灵都走 fal
   if (isVideoEngineExhausted()) {
     // 熔断中：主动复探 fal——充值后立即解封，不傻等到窗口结束(根治"充了钱还报没额度")
     const ok = await fal.probeBalance?.();
@@ -630,8 +630,8 @@ export async function runReplicaPipeline(task, ctx) {
     let virtualModel = false; // 是否自动生成了虚拟模特
     let heroUrl = null;       // 基准图(模特穿着商品)：后续每镜的一致性锚，从它"编辑"出各镜，不重画
 
-    // 前置硬校验：没有可用视频引擎(可灵)就别白跑——直接失败并触发自动退款
-    if (!fal.isConfigured() && !kling.isConfigured()) {
+    // 前置硬校验：没有可用视频引擎(fal：Seedance/可灵都走它)就别白跑——直接失败并触发自动退款
+    if (!fal.isConfigured()) {
       throw new Error('视频生成服务暂时不可用（视频引擎未配置）。请联系管理员处理，本次积分已自动退还。');
     }
 
@@ -894,16 +894,16 @@ export async function runReplicaPipeline(task, ctx) {
 
     // ── 4. 逐镜生成画面：每镜生成"演示该商品"的图 → animate ──
     await setStep(3, { status: 'running' });
+    // 两个引擎都走 fal（同一个 FAL_KEY/余额，喂公网 URL 不跨境上传）：Seedance 2.0 与 可灵 2.1。
+    // 弃用没钱的可灵北京账户——可灵改走 fal($0.056/秒，比 Seedance 还便宜)，永不再"余额不足"。
     const provDefs = {
-      fal: fal.isConfigured() ? { name: 'Fal', run: (img, p, d) => fal.imageToVideo(img, p, { duration: String(d) }) } : null,
-      seedance: seedance.isConfigured() ? { name: 'Seedance', run: (img, p, d) => seedance.imageToVideo(img, p, { duration: d }) } : null,
-      kling: kling.isConfigured() ? { name: 'Kling', run: (img, p, d) => kling.imageToVideo(img, p, { duration: String(d) }) } : null,
+      seedanceFal: fal.isConfigured() ? { name: 'Seedance', run: (img, p, d) => fal.imageToVideo(img, p, { model: fal.MODEL, duration: String(d) }) } : null,
+      klingFal: fal.isConfigured() ? { name: '可灵', run: (img, p, d) => fal.imageToVideo(img, p, { model: fal.KLING_MODEL, duration: String(d) }) } : null,
     };
-    // 默认走 fal(海螺等海外多模型，喂 URL 不跨境上传)；可灵退居兜底(仍可用)。都失败再走 Ken Burns。
-    // 用户选的引擎做主、另一个兜底。'kling'→可灵优先；否则(seedance 默认)→fal(国际版 Seedance 2.0)优先
+    // 用户选谁谁做主、另一个走 fal 兜底；都失败再走 Ken Burns。'kling'→可灵优先；否则(seedance 默认)→Seedance 优先
     const videoProviders = (opts.models?.video === 'kling'
-      ? [provDefs.kling, provDefs.fal]
-      : [provDefs.fal, provDefs.kling]).filter(Boolean);
+      ? [provDefs.klingFal, provDefs.seedanceFal]
+      : [provDefs.seedanceFal, provDefs.klingFal]).filter(Boolean);
     let usedAI = false, usedProvider = '', aiImagesOk = 0;
     const animatedScenes = new Set(); // 哪些镜头真用可灵动起来了——用于"部分失败逐个重试"
 
@@ -1035,26 +1035,11 @@ export async function runReplicaPipeline(task, ctx) {
         // 衣服不乱动不穿模 + 道具保持完整（治"模特弄衣服/穿模"和"吸管消失/杯子缺口"）
         const propStableRule = '模特的衣服自然贴身、不要去整理/拉扯/掀动衣物，衣物始终贴合身体、不穿模不穿帮；画面中的杯子、餐具、吸管等道具全程保持完整稳定，不变形、不增减、不消失、不无故出现。';
         const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 620);
-        // Railway(海外) → 可灵(北京) 上传 2.5MB 大图极易超时：把底图重压成小 JPEG(同分辨率)再喂可灵，
-        // 上传体积砍到 ~1/6，远不易超时（成片清晰度由可灵自身渲染决定，输入压一点几乎无感）。
-        // fal 直接喂公网 URL（海外自取、不跨境上传）；可灵兜底才需要压缩图，懒压一次缓存
-        let klingInput = null;
-        const getKlingInput = async () => {
-          if (klingInput) return klingInput;
-          try {
-            const kdl = join(work, `kdl_${i}.jpg`);
-            await download(animBase, kdl);
-            const ksm = join(work, `ksm_${i}.jpg`);
-            await ff.ffmpeg(['-y', '-i', kdl, '-q:v', '7', ksm]);
-            klingInput = readFileSync(ksm);
-          } catch { klingInput = animBase; }
-          return klingInput;
-        };
-        // fal 优先 → 可灵兜底；都失败再走 Ken Burns
+        // Seedance/可灵都走 fal：直接喂公网 URL（fal 海外自取、不跨境上传），无需旧的压图兜底。
+        // 主引擎 → 另一引擎兜底；都失败再走 Ken Burns
         for (const prov of videoProviders) {
           try {
-            const img = prov.name === 'Kling' ? await getKlingInput() : animBase;
-            const url = await prov.run(img, motionPrompt, d);
+            const url = await prov.run(animBase, motionPrompt, d);
             await download(url, vp);
             usedAI = true; usedProvider = prov.name; animatedScenes.add(i);
             return vp;

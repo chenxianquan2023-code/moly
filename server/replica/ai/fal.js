@@ -6,6 +6,8 @@
  */
 const FAL_KEY = process.env.FAL_KEY || '';
 const MODEL = process.env.FAL_VIDEO_MODEL || 'bytedance/seedance-2.0/fast/image-to-video'; // Seedance 2.0 Fast 档(720p)：同画质、比 Standard 省~20%、更快；真人脸不封，对标 creatok
+// 可灵也走 fal（同一个 FAL_KEY/余额）→ 弃用没钱的可灵北京账户。2.1 标准档 ~$0.056/秒，比 Seedance 还便宜，适合主力或兜底。
+const KLING_MODEL = process.env.FAL_KLING_MODEL || 'fal-ai/kling-video/v2.1/standard/image-to-video';
 const BASE = process.env.FAL_BASE_URL || 'https://queue.fal.run';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -45,6 +47,10 @@ export async function imageToVideo(image, prompt = '', {
     // 关掉自带音频(成片由我们后期统一配音/背景乐，否则两路声音打架)
     const sec = Math.min(15, Math.max(4, Math.round(Number(duration) || 5)));
     input = { prompt: prompt || '画面自然真实地动起来', image_url, duration: sec, resolution: process.env.FAL_RESOLUTION || '720p', aspect_ratio: '9:16', generate_audio: false };
+  } else if (/kling/i.test(model)) {
+    // 可灵(走 fal)：duration 枚举 "5"/"10"(就近向上取整)、aspect_ratio、cfg_scale 默认0.5(越高越贴输入图、少乱动)、negative_prompt 压漂浮/畸形
+    const kdur = Number(duration) > 5 ? '10' : '5';
+    input = { prompt: prompt || '画面自然真实地动起来', image_url, duration: kdur, aspect_ratio: '9:16', cfg_scale: 0.5, negative_prompt: '漂浮, 悬浮, 起飞, 失重, 变形, 扭曲, 抖动, 畸变, 物体无故移动或飞行, 凭空出现多余物体, 多手, 六指, 畸形手, 飞舞的小虫或碎屑' };
   } else {
     // 海螺 Hailuo-02：duration "6"/"10"、resolution 768P、prompt_optimizer
     const dur = Number(duration) > 6 ? '10' : '6';
@@ -111,4 +117,4 @@ export async function probeBalance() {
 }
 
 export const isConfigured = () => !!FAL_KEY;
-export { MODEL };
+export { MODEL, KLING_MODEL };
