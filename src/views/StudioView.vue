@@ -88,92 +88,123 @@
           <!-- 2 商品信息 -->
           <div class="card">
             <div class="card-title"><span class="num">2</span>商品信息</div>
-            <input class="field" v-model="productName" placeholder="商品名称，如：多功能切菜神器" />
-            <input class="field" v-model="sellingPoints" placeholder="卖点（逗号分隔）：省时, 锋利, 安全" />
-            <textarea
-              class="field textarea-field"
-              v-model="creativePrompt"
-              maxlength="800"
-              rows="3"
-              placeholder="生成提示词（必填）：比如保留参考视频的粉紫棚景和椅子，模特从左侧入画后坐下展示黄色包"
-            />
-            <p class="prompt-required" :class="{ ok: promptReady }">{{ promptReady ? '已填写生成提示词，AI 会优先按这里的拍摄要求执行。' : promptRequiredMessage }}</p>
-            <textarea
-              class="field textarea-field compact"
-              v-model="negativePrompt"
-              maxlength="500"
-              rows="2"
-              placeholder="不要出现（选填）：比如不要裸露、不要换包、不要多手、不要白底海报"
-            />
-            <div class="prompt-guide-row">
-              <button type="button" class="prompt-guide-btn" :disabled="guidingPrompt || !auth.isLoggedIn || (!productAsset && !sourceVideoAsset)" @click="generatePromptGuide">
-                <span v-if="guidingPrompt" class="mini-spin" />
-                {{ guidingPrompt ? 'AI 分析中…' : 'AI 填写建议' }}
+            <div class="product-fields">
+              <input class="field" v-model="productName" placeholder="商品名称，如：多功能切菜神器" />
+              <input class="field" v-model="sellingPoints" placeholder="卖点：省时，锋利，安全" />
+            </div>
+
+            <div class="prompt-composer" :class="{ ready: promptReady }">
+              <div class="prompt-composer-head">
+                <div>
+                  <span class="prompt-kicker">生成提示词</span>
+                  <b>描述你想生成的视频</b>
+                </div>
+                <button type="button" class="prompt-guide-btn" :disabled="guidingPrompt || !auth.isLoggedIn || (!productAsset && !sourceVideoAsset)" @click="generatePromptGuide">
+                  <span v-if="guidingPrompt" class="mini-spin" />
+                  {{ guidingPrompt ? 'AI 分析中…' : 'AI 填写建议' }}
+                </button>
+              </div>
+              <textarea
+                class="prompt-main"
+                v-model="creativePrompt"
+                maxlength="800"
+                rows="5"
+                placeholder="例如：模特在浴室敷面膜试用，保留参考视频的自拍感，展示包装和上脸效果"
+              />
+              <div class="prompt-composer-foot">
+                <span class="prompt-required" :class="{ ok: promptReady }">{{ promptReady ? '已填写，AI 会优先按这里执行。' : promptRequiredMessage }}</span>
+                <button type="button" class="advanced-toggle" @click="showAdvancedPrompt = !showAdvancedPrompt">
+                  {{ showAdvancedPrompt ? '收起高级避免项' : '高级避免项' }}
+                  <span>{{ showAdvancedPrompt ? '-' : '+' }}</span>
+                </button>
+              </div>
+              <div v-if="showAdvancedPrompt" class="advanced-negative">
+                <label>避免出现</label>
+                <textarea
+                  class="negative-field"
+                  v-model="negativePrompt"
+                  maxlength="500"
+                  rows="2"
+                  placeholder="例如：不要裸露、不要换商品、不要多手、不要白底海报"
+                />
+              </div>
+              <button v-else type="button" class="negative-summary" @click="showAdvancedPrompt = true">
+                避免项：{{ negativePrompt || '未填写' }}
               </button>
-              <span>根据商品图和参考视频生成，可再手动修改</span>
             </div>
           </div>
 
           <!-- 3 复刻方式 -->
           <div class="card">
             <div class="card-title"><span class="num">3</span>复刻设置</div>
-            <div class="model-opts" v-if="pricing">
-              <div class="model-row" v-if="sourceVideoAsset || refInspiration">
-                <span class="model-label">复刻方式</span>
+            <div class="quick-settings">
+              <div class="model-row">
+                <span class="model-label">时长<em class="ml-note">成片总时长</em></span>
                 <div class="seg">
-                  <button type="button" :class="{ active: replicaMode === 'smart' }" @click="replicaMode = 'smart'" title="智能复刻：参考源视频的风格/节奏，生成全新场景。任意商品都适用、更灵活。">智能</button>
-                  <button type="button" :class="{ active: replicaMode === 'faithful' }" @click="replicaMode = 'faithful'" title="贴帧复刻：尽量贴源视频的构图/姿势/道具，只把商品和模特换成你的。服装等同类商品效果最佳，最像源视频。">贴帧·像源</button>
-                </div>
-              </div>
-              <div class="model-row" v-if="pricing.video && pricing.video.length > 1">
-                <span class="model-label">视频引擎</span>
-                <div class="seg">
-                  <button v-for="vm in pricing.video" :key="vm.id" type="button"
-                    :class="{ active: videoModel === vm.id }" @click="videoModel = vm.id" :title="vm.desc">
-                    {{ vm.label }}<em>{{ vm.perSec ? vm.perSec + '/秒' : (vm.price ? '+' + vm.price : '含') }}</em>
-                  </button>
+                  <button v-for="d in DURATIONS" :key="d.v" type="button" :class="{ active: targetDuration === d.v }" @click="targetDuration = d.v">{{ d.label }}</button>
                 </div>
               </div>
               <div class="model-row">
-                <span class="model-label">画面质量</span>
+                <span class="model-label">语言<em class="ml-note">口播 + 字幕</em></span>
                 <div class="seg">
-                  <button v-for="im in pricing.image" :key="im.id" type="button"
-                    :class="{ active: imageModel === im.id }" @click="imageModel = im.id" :title="im.desc">
-                    {{ im.label }}<em>{{ im.price ? '+' + im.price : '含' }}</em>
-                  </button>
+                  <button v-for="l in LANGS" :key="l.code" type="button" :class="{ active: language === l.code }" @click="language = l.code">{{ l.label }}</button>
                 </div>
               </div>
             </div>
-            <div class="model-row lang-row">
-              <span class="model-label">语言<em class="ml-note">口播 + 字幕都用此语言</em></span>
-              <div class="seg">
-                <button v-for="l in LANGS" :key="l.code" type="button" :class="{ active: language === l.code }" @click="language = l.code">{{ l.label }}</button>
-              </div>
-            </div>
-            <div class="model-row lang-row">
-              <span class="model-label">时长<em class="ml-note">成片总时长，自动按比例分到各幕</em></span>
-              <div class="seg">
-                <button v-for="d in DURATIONS" :key="d.v" type="button" :class="{ active: targetDuration === d.v }" @click="targetDuration = d.v">{{ d.label }}</button>
-              </div>
-            </div>
             <p v-if="targetDuration === 0 && sourceDuration > 0" class="voice-hint">跟源时长：源视频约 {{ Math.round(sourceDuration) }} 秒，成片按 {{ outputSeconds }} 秒计费（约 {{ estimatedCredits }} 积分）。</p>
-            <div class="switches">
-              <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
-              <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
-              <label class="switch" :class="{ disabled: generateVoice }"><input type="checkbox" v-model="generateMusic" :disabled="generateVoice" /><span />复刻源视频背景乐</label>
-            </div>
-            <p v-if="generateVoice" class="voice-hint">已开启 AI 配音：成片采用 AI 人声，不叠加参考视频原声，避免声音重叠。</p>
-            <p v-else-if="generateMusic" class="voice-hint">成片采用参考视频的背景音乐（需上传参考视频），不含 AI 配音。</p>
-            <p v-else class="voice-hint">成片不含音频，仅保留画面与字幕脚本，可自行后期配音、配乐。</p>
-            <div v-if="generateVoice && voices.length" class="voice-pick">
-              <span class="model-label">配音音色</span>
-              <button type="button" class="voice-trigger" @click="openVoicePicker">
-                <span class="vt-dot" :class="currentVoice?.gender === '男' ? 'm' : 'f'"></span>
-                <span class="vt-name">{{ currentVoice?.label || '选择音色' }}</span>
-                <span v-if="currentVoice?.desc" class="vt-desc">{{ currentVoice.desc }}</span>
-                <span class="vt-play" title="试听当前音色" @click.stop="currentVoice && auditionVoice(currentVoice)">▶</span>
-                <span class="vt-more">换音色 ▾</span>
-              </button>
+
+            <button type="button" class="settings-toggle" @click="showAdvancedSettings = !showAdvancedSettings">
+              <span>高级生成设置</span>
+              <em>{{ settingsSummary }}</em>
+              <b>{{ showAdvancedSettings ? '-' : '+' }}</b>
+            </button>
+
+            <div v-if="showAdvancedSettings" class="advanced-settings">
+              <div class="model-opts" v-if="pricing">
+                <div class="model-row" v-if="sourceVideoAsset || refInspiration">
+                  <span class="model-label">复刻方式</span>
+                  <div class="seg">
+                    <button type="button" :class="{ active: replicaMode === 'smart' }" @click="replicaMode = 'smart'" title="智能复刻：参考源视频的风格/节奏，生成全新场景。任意商品都适用、更灵活。">智能</button>
+                    <button type="button" :class="{ active: replicaMode === 'faithful' }" @click="replicaMode = 'faithful'" title="贴帧复刻：尽量贴源视频的构图/姿势/道具，只把商品和模特换成你的。服装等同类商品效果最佳，最像源视频。">贴帧·像源</button>
+                  </div>
+                </div>
+                <div class="model-row" v-if="pricing.video && pricing.video.length > 1">
+                  <span class="model-label">视频引擎</span>
+                  <div class="seg">
+                    <button v-for="vm in pricing.video" :key="vm.id" type="button"
+                      :class="{ active: videoModel === vm.id }" @click="videoModel = vm.id" :title="vm.desc">
+                      {{ vm.label }}<em>{{ vm.perSec ? vm.perSec + '/秒' : (vm.price ? '+' + vm.price : '含') }}</em>
+                    </button>
+                  </div>
+                </div>
+                <div class="model-row">
+                  <span class="model-label">画面质量</span>
+                  <div class="seg">
+                    <button v-for="im in pricing.image" :key="im.id" type="button"
+                      :class="{ active: imageModel === im.id }" @click="imageModel = im.id" :title="im.desc">
+                      {{ im.label }}<em>{{ im.price ? '+' + im.price : '含' }}</em>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="switches">
+                <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
+                <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
+                <label class="switch" :class="{ disabled: generateVoice }"><input type="checkbox" v-model="generateMusic" :disabled="generateVoice" /><span />复刻源视频背景乐</label>
+              </div>
+              <p v-if="generateVoice" class="voice-hint">已开启 AI 配音：成片采用 AI 人声，不叠加参考视频原声，避免声音重叠。</p>
+              <p v-else-if="generateMusic" class="voice-hint">成片采用参考视频的背景音乐（需上传参考视频），不含 AI 配音。</p>
+              <p v-else class="voice-hint">成片不含音频，仅保留画面与字幕脚本，可自行后期配音、配乐。</p>
+              <div v-if="generateVoice && voices.length" class="voice-pick">
+                <span class="model-label">配音音色</span>
+                <button type="button" class="voice-trigger" @click="openVoicePicker">
+                  <span class="vt-dot" :class="currentVoice?.gender === '男' ? 'm' : 'f'"></span>
+                  <span class="vt-name">{{ currentVoice?.label || '选择音色' }}</span>
+                  <span v-if="currentVoice?.desc" class="vt-desc">{{ currentVoice.desc }}</span>
+                  <span class="vt-play" title="试听当前音色" @click.stop="currentVoice && auditionVoice(currentVoice)">▶</span>
+                  <span class="vt-more">换音色 ▾</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -378,8 +409,11 @@ function clearAsset(slot: string) {
 const productName = ref('');
 const sellingPoints = ref('');
 const creativePrompt = ref('');
-const negativePrompt = ref('');
+const DEFAULT_NEGATIVE_PROMPT = '不要裸露、不要换商品、不要多手、不要畸形手指、不要白底海报、不要无关人物或商品';
+const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT);
 const guidingPrompt = ref(false);
+const showAdvancedPrompt = ref(false);
+const showAdvancedSettings = ref(false);
 const creativePromptText = computed(() => creativePrompt.value.replace(/\s+/g, ' ').trim());
 const promptReady = computed(() => creativePromptText.value.length >= MIN_CREATIVE_PROMPT_LENGTH);
 const promptRequiredMessage = `生成前必须填写提示词（至少 ${MIN_CREATIVE_PROMPT_LENGTH} 个字），可手写或点「AI 填写建议」。`;
@@ -485,6 +519,14 @@ const estimatedCredits = computed(() => {
   const perSec = pricing.value.video.find((x: any) => x.id === videoModel.value)?.perSec || 12;
   const im = pricing.value.image.find((x: any) => x.id === imageModel.value)?.price || 0;
   return (pricing.value.base || 0) + Math.round(perSec * outputSeconds.value) + im;
+});
+const settingsSummary = computed(() => {
+  const videoFallback: Record<string, string> = { seedance: 'Seedance', kling: '可灵' };
+  const imageFallback: Record<string, string> = { gemini: 'Gemini', seedream: 'Seedream', openai: 'GPT Image' };
+  const vm = (pricing.value?.video?.find((x: any) => x.id === videoModel.value)?.label || videoFallback[videoModel.value] || videoModel.value).replace(/^(高级|标准)\s*·\s*/, '');
+  const im = (pricing.value?.image?.find((x: any) => x.id === imageModel.value)?.label || imageFallback[imageModel.value] || imageModel.value).replace(/^(高级|标准|高清)\s*·\s*/, '');
+  const sound = generateVoice.value ? 'AI配音' : (generateMusic.value ? '源视频背景乐' : '无音频');
+  return `${vm} · ${im} · ${sound}`;
 });
 const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && promptReady.value && !generating.value);
 
@@ -957,15 +999,40 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 }
 .upload-note { margin:12px 0 0; color:#64748b; font-size:12px; line-height:1.7; }
 
-.field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
-.textarea-field { min-height:78px; resize:vertical; line-height:1.55; font-family:inherit; &.compact { min-height:58px; } }
-.prompt-required { margin:-4px 0 10px; font-size:12px; line-height:1.5; color:#b45309;
-  &.ok { color:#047857; }
+.product-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; background:rgba(255,255,255,.82); transition: all var(--transition-fast); &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
+.prompt-composer { border:1px solid rgba(148,163,184,.28); border-radius:18px; background:rgba(255,255,255,.82); box-shadow:0 16px 34px -28px rgba(15,23,42,.5); overflow:hidden; transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  &:focus-within { border-color:#93c5fd; box-shadow:0 16px 36px -24px rgba(37,99,235,.45), 0 0 0 3px rgba(37,99,235,.08); background:#fff; }
+  &.ready { border-color:rgba(34,197,94,.36); }
 }
-.prompt-guide-row { display:flex; align-items:center; gap:10px; color:#64748b; font-size:12px; line-height:1.5; }
-.prompt-guide-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid #bfdbfe; border-radius: var(--radius-md); background:#eff6ff; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease;
+.prompt-composer-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 16px 10px; border-bottom:1px solid rgba(226,232,240,.8);
+  div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  b { font-size:16px; color:#0f172a; line-height:1.3; }
+}
+.prompt-kicker { font-size:11px; font-weight:800; color:#2563eb; letter-spacing:0; }
+.prompt-guide-btn { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease;
   &:not(:disabled):hover { background:#dbeafe; border-color:#93c5fd; }
   &:disabled { opacity:.55; cursor:not-allowed; }
+}
+.prompt-main { display:block; width:100%; min-height:142px; padding:16px; border:0; resize:vertical; background:transparent; color:#0f172a; font-size:15px; line-height:1.65; font-family:inherit; outline:none;
+  &::placeholder { color:#94a3b8; }
+}
+.prompt-composer-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px 12px 16px; border-top:1px solid rgba(226,232,240,.72); background:rgba(248,250,252,.72); }
+.prompt-required { margin:0; font-size:12px; line-height:1.5; color:#b45309; min-width:0;
+  &.ok { color:#047857; }
+}
+.advanced-toggle { flex-shrink:0; display:inline-flex; align-items:center; gap:7px; min-height:30px; padding:0 10px; border:1px solid rgba(148,163,184,.35); border-radius:999px; background:#fff; color:#475569; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s ease;
+  span { width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#e2e8f0; color:#334155; line-height:1; }
+  &:hover { border-color:#93c5fd; color:#2563eb; }
+}
+.advanced-negative { padding:12px 16px 16px; border-top:1px solid rgba(226,232,240,.72); background:#fff;
+  label { display:block; margin-bottom:7px; color:#475569; font-size:12px; font-weight:800; }
+}
+.negative-field { width:100%; min-height:62px; padding:11px 12px; border:1px solid var(--color-border); border-radius:12px; resize:vertical; font-family:inherit; font-size:13px; line-height:1.55; outline:none; background:#f8fafc;
+  &:focus { border-color:#93c5fd; box-shadow:0 0 0 3px rgba(37,99,235,.08); background:#fff; }
+}
+.negative-summary { width:100%; padding:9px 16px 13px; border:0; border-top:1px solid rgba(226,232,240,.72); background:rgba(248,250,252,.72); color:#64748b; font-size:12px; line-height:1.45; text-align:left; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  &:hover { color:#2563eb; background:#eff6ff; }
 }
 .mini-spin { width:13px; height:13px; border:2px solid rgba(37,99,235,.22); border-top-color:#2563eb; border-radius:50%; animation: spin .8s linear infinite; }
 
@@ -1072,7 +1139,8 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 
 .credits-plus { margin-left:7px; padding-left:8px; border-left:1px solid var(--color-border-light); color:var(--color-primary); font-weight:700; }
 
-.model-opts { display:flex; flex-direction:column; gap:14px; margin-bottom:16px; }
+.quick-settings { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.model-opts { display:flex; flex-direction:column; gap:14px; margin-bottom:14px; }
 .model-row { display:flex; flex-direction:column; gap:8px; }
 .model-label { font-size:13px; font-weight:600; color:var(--color-text-secondary); }
 .model-hint { margin:-2px 0 0; font-size:12px; line-height:1.5; color:#b45309; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.25); padding:7px 10px; border-radius:8px;
@@ -1080,6 +1148,13 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .ml-note { font-style:normal; font-weight:400; font-size:11px; color:var(--color-text-tertiary); margin-left:6px; }
 .lang-row { margin-bottom:20px; }
 .switches { margin-bottom:4px; }
+.settings-toggle { width:100%; margin-top:12px; padding:12px 13px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; border:1px solid rgba(148,163,184,.3); border-radius:14px; background:rgba(248,250,252,.78); color:#0f172a; cursor:pointer; transition:all .15s ease; text-align:left;
+  span { font-size:13px; font-weight:800; }
+  em { min-width:0; font-style:normal; color:#64748b; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  b { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#e2e8f0; color:#334155; font-size:13px; line-height:1; }
+  &:hover { border-color:#93c5fd; background:#eff6ff; }
+}
+.advanced-settings { margin-top:12px; padding:14px; border:1px solid rgba(226,232,240,.9); border-radius:16px; background:rgba(255,255,255,.72); }
 .seg { display:flex; gap:8px; }
 .seg button { flex:1; padding:11px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.8); font-size:13px; font-weight:600; color:var(--color-text-secondary); cursor:pointer; transition:all var(--transition-fast); display:flex; flex-direction:column; align-items:center; gap:3px; line-height:1.2;
   em { font-style:normal; font-size:11px; font-weight:500; color:var(--color-text-tertiary); }
@@ -1172,6 +1247,10 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .card { padding: 18px 16px; }
   .uploads { gap:10px; }
   .upload { min-width:0; }
+  .product-fields { grid-template-columns:1fr; }
+  .quick-settings { grid-template-columns:1fr; }
+  .prompt-composer-head, .prompt-composer-foot { align-items:flex-start; flex-direction:column; }
+  .prompt-guide-btn, .advanced-toggle { width:100%; }
   .hero { margin-bottom: 24px; h1 { font-size: clamp(22px, 6vw, 30px); } p { font-size: 14px; } }
 }
 /* 参考视频播放弹层 */
