@@ -195,6 +195,57 @@ function assCaptionConfig(analysis = {}) {
 const FACE_COVER_USE_RE = /面膜|facial\s*mask|sheet\s*mask|skincare|护肤|墨镜|太阳镜|眼镜|护目镜|眼罩|sunglasses|eyewear|goggles|口罩|medical\s*mask|respirator|防晒面罩|防晒口罩|护脸|遮脸|遮面|面罩|面具|头盔|帽盔|骑行盔|滑雪面罩|防风面罩|防尘面罩|face\s*mask|face\s*cover|face\s*shield|sun\s*mask|ski\s*mask|balaclava|neck\s*gaiter|visor|helmet/i;
 const ANONYMOUS_USE_RE = new RegExp(`${FACE_COVER_USE_RE.source}|乳贴|nipple|pasties|bra|抹胸|tube\\s*top|服饰|穿搭|试穿|wear|try\\s*on`, 'i');
 const PERSON_RE = /模特|女生|女性|人物|真人|手|肩颈|身体|背影|侧身|佩戴|试用|敷|戴|穿|woman|girl|model|hand|body|wear|try/i;
+const GARMENT_RE = /衣|裙|裤|内衣|文胸|外套|上衣|连衣|睡衣|吊带|抹胸|短袖|长袖|衬衫|卫衣|毛衣|夹克|大衣|风衣|西装|套装|泳衣|bra|dress|shirt|skirt|pants|trousers|jeans|coat|jacket|hoodie|sweater|lingerie|underwear|swimsuit|bikini|tube\s*top/i;
+const BAG_RE = /包|手袋|托特|单肩|斜挎|背包|钱包|卡包|提包|链条包|hobo|bag|handbag|purse|tote|backpack|wallet|satchel|crossbody/i;
+const ACCESSORY_RE = /鞋|靴|帽|袜|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|鞋履|sneaker|shoe|boot|hat|cap|sock|jewelry|necklace|watch|bracelet|ring|earring|glasses|sunglasses|scarf|belt|accessory/i;
+
+export function classifyReplicaProduct(text = '') {
+  const value = String(text || '');
+  const isBag = BAG_RE.test(value);
+  const isGarment = GARMENT_RE.test(value) && !isBag;
+  const isAccessory = isBag || ACCESSORY_RE.test(value);
+  return {
+    isGarment,
+    isBag,
+    isAccessory,
+    isFaceCover: FACE_COVER_USE_RE.test(value),
+    isWearable: isGarment || isAccessory,
+  };
+}
+
+export function buildReplicaSafetyRule({ hasPerson = false } = {}) {
+  if (!hasPerson) {
+    return '画面不得凭空出现裸露人体、内衣/泳装模特或与商品无关的性感摆拍。';
+  }
+  return '【人物安全硬性要求】人物必须完整穿着得体服装，衣物覆盖胸部、腰腹、臀部和私密区域；不得裸露、不得生成裸身/裸背裸腰、不得内衣/泳装/透视装/性暗示姿势，不能把商品当作遮挡身体的唯一衣物。';
+}
+
+export function buildReplicaUserDirection({ creativePrompt = '', negativePrompt = '' } = {}) {
+  const creative = compactText(creativePrompt, 1200);
+  const negative = compactText(negativePrompt, 800);
+  return [
+    creative && `【用户创意要求】${creative}`,
+    negative && `【用户禁止事项】${negative}`,
+  ].filter(Boolean).join('\n');
+}
+
+export function buildFaithfulFramePrompt({
+  isModelScene = false,
+  productClass = classifyReplicaProduct(''),
+  noSrcTextRule = '',
+  garmentRule = '',
+  safetyRule = '',
+  qualityCue = '',
+  userDirection = '',
+} = {}) {
+  const safeRule = safetyRule || buildReplicaSafetyRule({ hasPerson: isModelScene, productClass });
+  const personRule = !isModelScene
+    ? ''
+    : productClass.isGarment
+      ? '人物的长相、发型、以及身上的整套穿搭，一律以后面那张基准图为准——全片只有同一个模特、同一身穿搭；即使第1张源帧里模特穿了别的颜色/款式的衣服，也忽略它、严格保持基准图这一身，绝不换装。'
+      : '人物的长相、发型、肤色以基准图/用户模特图为准；但源帧里的服装覆盖程度、穿搭风格、姿势、身体朝向、场景道具要保留，沿用源视频穿搭而不是重画成内衣、泳装或裸身。商品作为包/配饰自然被手持、佩戴或放置，只替换/强化商品本体，不改变人物衣服。';
+  return `【贴帧复刻·最高优先级】第1张参考图是要复刻的源镜画面：严格保留它的构图、机位、人物姿势与动作、景别、家具道具(椅子/桌子等)、场景与背景，尽量一模一样。（唯一例外：若源帧是眼球/睫毛/唇部等极端微距特写，改用自然脸部特写——下巴到发际线，不要怼到五官微距。）${personRule}参考商品就是基准图/商品参考图里的这一件(同款式/颜色/印花/logo/细节)，按它本来的用法自然出现(该穿的穿在身上、该拎的拎在手里、该戴的戴在对应位置)，全片自始至终是同一个商品。除人物姿势/构图/机位/景别/家具道具/背景跟随第1张源帧外，模特身份和商品都严格保持上述一致。${noSrcTextRule}${garmentRule}${safeRule}${userDirection}${qualityCue}。`;
+}
 
 function sourceHasPerson(shot) {
   const value = String(shot?.hasPerson || '').toLowerCase();
@@ -276,9 +327,16 @@ export function applySeedancePersonPolicy(scenes, {
   notes = [],
 } = {}) {
   if (!Array.isArray(scenes)) return [];
-  // 现役视频引擎(fal Seedance 2.0 / 可灵)都支持真人脸，不再做旧版"匿名禁脸"处理；仅按 withModel 归一 personMode
   return scenes.map((scene) => {
     const s = { ...scene };
+    const sourceShot = sourceShotFor({ shots: sourceShots }, s.sourceShotIndex ?? 0);
+    if (hasModel && shouldKeepAnonymousUsage(s, sourceShot, productText)) {
+      s.withModel = true;
+      s.personMode = 'anonymous';
+      s.visual = anonymousUsageVisual(s, sourceShot, productText);
+      if (Array.isArray(notes)) notes.push(`匿名试用: ${s.type || 'scene'}`);
+      return s;
+    }
     s.personMode = s.withModel ? (s.personMode || 'identifiable') : 'none';
     return s;
   });
@@ -644,8 +702,11 @@ export async function runReplicaPipeline(task, ctx) {
     } catch (e) { notes.push('商品识别降级: ' + String(e.message || e).split('\n')[0]); }
     // 商品文字线索（名称+识别描述+卖点）——匿名镜的出图规则会用到，必须在 makeScene 作用域可见
     const productText = [product.name, productDesc, ...(product.sellingPoints || [])].filter(Boolean).join(' ');
-    // 商品是否"穿在身上"的(服装/鞋包/配饰)——决定是否做"服装锁"+ 出图时不喂源风格帧(防把源里别款穿搭画进来)
-    const productIsWearable = /衣|裙|裤|鞋|靴|包|帽|袜|内衣|文胸|外套|上衣|连衣|睡衣|吊带|服[装饰]|穿戴|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|fashion|dress|shirt|skirt|wear/i.test(productText);
+    const productClass = classifyReplicaProduct(productText);
+    const userDirection = buildReplicaUserDirection({
+      creativePrompt: opts.creativePrompt || opts.userPrompt || opts.prompt || '',
+      negativePrompt: opts.negativePrompt || opts.avoidPrompt || '',
+    });
 
     // ── 1. 解析爆款视频（有源视频时分析其分镜结构，供导演参考）──
     await setStep(0, { status: 'running' });
@@ -692,11 +753,10 @@ export async function runReplicaPipeline(task, ctx) {
     // 设为 modelUrl 走正常模特链路(各镜引用同一张→一致)。否则服装类会变成"没人穿的衣服平铺/腾空"。纯商品源不触发。
     if (!regen && !modelUrl) {
       const srcHasPerson = Array.isArray(analysis?.shots) && analysis.shots.some((s) => s.hasPerson && String(s.hasPerson) !== 'none');
-      const wearable = /衣|裙|裤|鞋|靴|包|帽|袜|内衣|文胸|外套|上衣|连衣|服[装饰]|穿戴|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|fashion|dress|shirt|wear/i.test([product.name, productDesc].filter(Boolean).join(' '));
-      if (srcHasPerson || wearable) {
+      if (srcHasPerson || productClass.isWearable) {
         try {
           const vmRefs = [productUrl, ...sourceStyleFrames.slice(0, 1)].filter(Boolean);
-          const vmPrompt = `电商时装/带货竖版大片(9:16)：生成一位真实自然的模特，正在自然穿着或展示参考的这件商品，全身或3/4身、构图高级、专业布光、真实肌肤与材质质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光参考源视频环境——' + sceneEnv + '；这张图确立全片统一拍摄环境(同一处空间、同一背景、同一种光)。' : ''}【硬性】这是一个全新虚构的模特：五官长相必须与任何参考图里的真实人物明显不同、绝不雷同，只借鉴气质/身形/穿搭风格，绝不复制脸；画面干净、无任何文字水印。`;
+          const vmPrompt = `电商时装/带货竖版大片(9:16)：生成一位真实自然的模特，正在自然穿着或展示参考的这件商品，全身或3/4身、构图高级、专业布光、真实肌肤与材质质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光参考源视频环境——' + sceneEnv + '；这张图确立全片统一拍摄环境(同一处空间、同一背景、同一种光)。' : ''}${buildReplicaSafetyRule({ hasPerson: true, productClass })}${productClass.isAccessory && !productClass.isGarment ? '若商品是包/首饰/墨镜/鞋帽等配饰，人物服装应沿用源视频的得体穿搭风格，只让商品作为配饰出现，绝不把配饰当衣服遮挡身体。' : ''}【硬性】这是一个全新虚构的模特：五官长相必须与任何参考图里的真实人物明显不同、绝不雷同，只借鉴气质/身形/穿搭风格，绝不复制脸；画面干净、无任何文字水印。${userDirection}`;
           const vm = await image.generate(vmPrompt, vmRefs, { aspectRatio: '9:16', provider: opts.models?.image });
           modelUrl = await uploadBuffer(makePath(task.user_email, 'virtual-model', 'vm.png'), vm.buffer, vm.mimeType);
           baseImageUrl = modelUrl || baseImageUrl;
@@ -715,7 +775,7 @@ export async function runReplicaPipeline(task, ctx) {
       else if (modelUrl && productUrl) {
         try {
           const hero = await image.generate(
-            `电商带货竖版基准图(9:16)：让参考图里这位模特，自然地穿着/手持参考图里的这件商品，全身或大半身、专业布光、真实质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光严格还原源视频环境——' + sceneEnv + '；这张图确立全片统一的拍摄环境(同一处空间、同一背景与光)，后续每镜都沿用它的环境。' : '背景干净统一、专业棚拍质感，确立全片统一环境。'}模特长相严格以模特参考图为准；商品的款式/颜色/印花/logo/细节严格以商品参考图为准、不得改动；画面干净无文字水印。`,
+            `电商带货竖版基准图(9:16)：让参考图里这位模特，自然地穿着/手持参考图里的这件商品，全身或大半身、专业布光、真实质感、生活化不僵硬。${sceneEnv ? '场景/背景/布光严格还原源视频环境——' + sceneEnv + '；这张图确立全片统一的拍摄环境(同一空间、同一背景与光)，后续每镜都沿用它的环境。' : '背景干净统一、专业棚拍质感，确立全片统一环境。'}${buildReplicaSafetyRule({ hasPerson: true, productClass })}${productClass.isAccessory && !productClass.isGarment ? '若商品是包/首饰/墨镜/鞋帽等配饰，人物保持得体完整穿搭，商品只作为配饰被手持/佩戴/放置，不要把配饰画成衣服或用来遮挡裸身。' : ''}模特长相严格以模特参考图为准；商品的款式/颜色/印花/logo/细节严格以商品参考图为准、不得改动；画面干净无文字水印。${userDirection}`,
             [modelUrl, productUrl], { aspectRatio: '9:16', provider: opts.models?.image });
           heroUrl = await uploadBuffer(makePath(task.user_email, 'hero', 'hero.png'), hero.buffer, hero.mimeType);
           notes.push('已生成基准图(模特穿商品)，逐镜锚定');
@@ -731,7 +791,7 @@ export async function runReplicaPipeline(task, ctx) {
         const hasSrc = Array.isArray(analysis?.shots) && analysis.shots.length;
         const tone = (hasSrc && analysis.tone) ? String(analysis.tone) : '活泼种草';
         const formal = /正式|专业/.test(tone);
-        const common = `${langRule}\n商品：${product.name ? product.name + '；' : ''}${productDesc || '(见参考图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${modelUrl ? '\n用户已上传模特图：可安排模特出镜镜头(withModel=true)，模特长相只以模特图为准。' : '\n用户未上传模特图：所有镜头都用纯商品(withModel=false、personMode=none)，绝不安排真人/模特/手部出镜的镜头。'}`;
+        const common = `${langRule}\n商品：${product.name ? product.name + '；' : ''}${productDesc || '(见参考图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${modelUrl ? '\n用户已上传模特图：可安排模特出镜镜头(withModel=true)，模特长相只以模特图为准。' : '\n用户未上传模特图：所有镜头都用纯商品(withModel=false、personMode=none)，绝不安排真人/模特/手部出镜的镜头。'}${userDirection ? `\n${userDirection}` : ''}`;
         const sourceStyle = hasSrc ? styleFingerprint(analysis, null) : '';
         // 只给导演最关键的结构字段（构图/光线/色调/字幕等细节出图时再从源分镜取）——prompt 太大会让 LLM 只吐一个"["
         const sourceShots = hasSrc
@@ -963,14 +1023,15 @@ export async function runReplicaPipeline(task, ctx) {
           // 商品唯一性·硬性：根治"串品类"（耳挂式被额外画成头戴式大耳机挂脖、源视频里别款同类产品被复刻进来）
           const productLockRule = '【商品唯一性·硬性】全片只能出现参考商品图里的这一个商品本体，严格保持它的品类与佩戴/使用方式（参考图是耳挂式就始终耳挂式、入耳式就始终入耳式、头戴式才头戴式）；绝不额外生成第二个、也绝不换成不同款式或不同品类的同类商品——例如不得把耳挂/入耳耳机画成头戴式大耳机，不得在脖子上/头上/画面角落另加一个耳机或同类产品；即便源视频镜头里出现别的款式同类产品，也只画我们参考图这一款、不复刻源视频里的别款产品。';
           // 服装锁：穿戴类商品全片必须是参考商品图里的这一件，绝不被源里的别款穿搭带偏(根治"好几个镜不是同一条裙子")
-          const garmentRule = productIsWearable
+          const garmentRule = productClass.isGarment
             ? '【服装锁·硬性】人物身上穿/戴的必须是参考商品图里的这一件(同款式、同颜色、同印花、同面料、同领型、同长短、同细节)，全片每一镜都是这一件，绝不画成别的衣服/别的款式/别的颜色；源参考图里若出现别的穿搭，一律忽略其服装，只借鉴背景、光线、构图。'
             : '';
+          const safetyRule = buildReplicaSafetyRule({ hasPerson: isModelScene, productClass });
           // 锚定基准图"编辑"：把"保持参考图人+商品完全一致"放最前、最高优先级——治本一致性
           const anchorRule = isModelScene
             ? '【最高优先级·一致性】以参考图(基准图)为准：保持同一个人(长相/发型/肤色全一致)、同一件商品(款式/颜色/印花/细节全一致)完全不变，只把画面改成下面描述的姿势/景别/角度；背景/场景/布光与基准图保持同一处环境(同一空间、同一背景、同一种光)、不要换背景；绝不换人、绝不换衣服款式或颜色。'
             : '【最高优先级·一致性】以参考商品图为准：商品的款式/颜色/印花/logo/细节完全一致，只改背景/角度/景别。';
-          const prompt = `${anchorRule}\n本镜画面：${s.visual}。${styleCue}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${propRule}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
+          const prompt = `${anchorRule}\n本镜画面：${s.visual}。${styleCue}。${noSrcTextRule}${referenceRule}${subjectRule}。${styleRule}${groundRule}。${productLockRule}${garmentRule}${safetyRule}${propRule}${userDirection}画面不要出现飞舞的蚊虫/灰尘/碎屑等微小动态主体（会糊成漂浮斑点）。${qualityCue}。${textRule}`;
           // 贴帧复刻(可选)：用源视频该镜的画面帧当"构图/姿势/道具"基准，只换模特+商品 → 尽量贴源(像 creatok"凳子一样、动作一样")
           let genPrompt = prompt, genRefs = refs;
           if (opts.replicaMode === 'faithful' && sourceStyleFrames.length) {
@@ -978,7 +1039,15 @@ export async function runReplicaPipeline(task, ctx) {
             const srcFrame = sourceStyleFrames[fi] || sourceStyleFrames[0];
             if (srcFrame) {
               genRefs = [srcFrame, ...assetRefs].filter(Boolean); // 第1张=源帧(构图基准)；后面=基准图/商品(身份)
-              genPrompt = `【贴帧复刻·最高优先级】第1张参考图是要复刻的源镜画面：严格保留它的构图、机位、人物姿势与动作、景别、家具道具(椅子/桌子等)、场景与背景，尽量一模一样。（唯一例外：若源帧是眼球/睫毛/唇部等极端微距特写，改用自然脸部特写——下巴到发际线，不要怼到五官微距。）${isModelScene ? '人物的长相、发型、以及身上的整套穿搭，一律以后面那张基准图为准——全片只有同一个模特、同一身穿搭；即使第1张源帧里模特穿了别的颜色/款式的衣服，也忽略它、严格保持基准图这一身，绝不换装。' : ''}参考商品就是基准图/商品参考图里的这一件(同款式/颜色/印花/logo/细节)，按它本来的用法自然出现(该穿的穿在身上、该拎的拎在手里)，全片自始至终是同一个商品。除人物姿势/构图/机位/景别/家具道具/背景跟随第1张源帧外，模特的脸与整套穿搭、以及商品，都严格保持上述一致，绝不跟随源帧换衣服、换人或换场景。${noSrcTextRule}${garmentRule}${qualityCue}。`;
+              genPrompt = buildFaithfulFramePrompt({
+                isModelScene,
+                productClass,
+                noSrcTextRule,
+                garmentRule,
+                safetyRule,
+                qualityCue,
+                userDirection,
+              });
             }
           }
           let c;
@@ -1018,11 +1087,11 @@ export async function runReplicaPipeline(task, ctx) {
       }
       // 4.2 animate（运动按 motion；可灵 → 失败兜底 Ken Burns）
       if (animBase) {
-        // 只动镜头、不动主体：根除"商品自己起飞/漂浮/变形"的图生视频幻觉
+        // 人物镜：放开运动，让模特真的"动起来"(对标 creatok 真拍感)；纯商品镜仍只动镜头防漂浮
         const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
         const sceneStyle = s.sourceStyle || styleFingerprint(analysis, sourceShot);
         const rhythmCue = sceneStyle
-          ? `按源爆款第${(s.sourceShotIndex ?? i) + 1}镜的节奏做轻运镜：${s.motion || sourceShot?.camera || '保持源镜头运动感'}；剪辑节奏：${analysis?.editingRhythm || analysis?.pacing || '贴近源视频'}；转场倾向：${s.transition || analysis?.transitionStyle || '贴近源视频'}。`
+          ? `镜头运动严格跟随源爆款第${(s.sourceShotIndex ?? i) + 1}镜的运镜：${s.motion || sourceShot?.camera || '保持源镜头的运镜与动势'}；复刻它的运镜幅度与节奏(该推则推、该跟则跟、该摇则摇，不要凭空压成静止)，剪辑节奏贴近源视频(${analysis?.editingRhythm || analysis?.pacing || '自然真实'})。`
           : `镜头运动：${String(s.motion || '缓慢推近').slice(0, 80)}。`;
         const anonymityMotionRule = s.personMode === 'anonymous'
           ? '全程保持匿名，不出现清晰可识别正脸；若是面膜/墨镜/口罩/防晒面罩等面部遮挡商品，保留真实头部、眼鼻口位置或自然脸部轮廓，不能变成空白脸、无脸人或假人面具；'
@@ -1030,7 +1099,7 @@ export async function runReplicaPipeline(task, ctx) {
         // 有人物的镜头：让模特/人物自然灵动地动起来（像源爆款那样）；纯产品镜才保持静止防漂浮
         const hasPerson = s.withModel || s.personMode === 'anonymous';
         const subjectMotionRule = hasPerson
-          ? '画面里的人物要自然地动起来——以微笑、眨眼、说话口型、点头、转头、身体轻微律动等表情和头部动作为主，像真实带货博主出镜般生动鲜活；手部动作要少而小、五指始终保持正常、绝不多出一只手或手臂，不要快速或复杂的手部动作（手是最容易画崩的部位）；同时商品保持清晰、不变形；镜头可轻微跟随。切忌人物僵硬不动、像一张静止照片。'
+          ? '画面里的人物像真人出镜一样自然地动起来：可以走动/迈步/转身/坐下或起身/重心转移/侧身回眸，配合自然的表情(微笑、眨眼、说话口型、点头转头)与轻柔的手臂摆动、裙摆和头发的自然飘动，动作流畅、有真实拍摄的生活感，绝不是一张僵硬的静止照片。硬性底线：双手解剖正确、五指自然、绝不多出第三只手或手臂、不做快速复杂的手部小动作；手持或佩戴的商品始终清晰、形状与 logo 不变形、不漂浮、不无故消失或移动。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；商品的形状、logo/标志、按钮等细节全程保持一致、不变样不丢失；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         // 衣服不乱动不穿模 + 道具保持完整（治"模特弄衣服/穿模"和"吸管消失/杯子缺口"）
         const propStableRule = '模特的衣服自然贴身、不要去整理/拉扯/掀动衣物，衣物始终贴合身体、不穿模不穿帮；画面中的杯子、餐具、吸管等道具全程保持完整稳定，不变形、不增减、不消失、不无故出现。';

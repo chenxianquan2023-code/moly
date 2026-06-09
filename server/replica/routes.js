@@ -5,6 +5,9 @@
  */
 import { Router } from 'express';
 import multer from 'multer';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { insertRow, getById, selectOne, selectRows, updateById } from '../lib/supabase.js';
 import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
@@ -12,6 +15,8 @@ import { runReplicaPipeline, preflightAIHealth } from './pipeline.js';
 import { estimateCost, estimateRegenCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
+import * as gemini from './ai/gemini.js';
+import * as ff from './ai/ffmpeg.js';
 import { getPoints, addPoints, deductPoints } from '../lib/points.js';
 import { isTester, isAllowed } from '../lib/access.js';
 
@@ -22,6 +27,13 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200
 const ASSET_TYPES = ['product_image', 'outfit_image', 'model_image', 'face_image', 'pose_reference', 'source_video'];
 
 export const replicaRouter = Router();
+
+async function downloadToFile(url, dest) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(90000) });
+  if (!r.ok) throw new Error(`下载失败 ${r.status}`);
+  writeFileSync(dest, Buffer.from(await r.arrayBuffer()));
+  return dest;
+}
 
 function getEmail(req, res) {
   const email = String(req.body?.userEmail || req.query?.userEmail || req.headers['x-user-email'] || '')
@@ -113,6 +125,53 @@ replicaRouter.get('/source-videos/:id/analysis', async (req, res) => {
     if (!row) return res.status(404).json({ success: false, message: '尚无解析结果' });
     res.json({ success: true, analysis: row });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST /api/replica/prompt-guide
+// 用商品图 + 参考视频关键帧生成可编辑提示词建议；失败不影响主生成流程。
+replicaRouter.post('/replica/prompt-guide', async (req, res) => {
+  let work = '';
+  try {
+    const email = getEmail(req, res); if (!email) return;
+    if (!gemini.isConfigured()) return res.status(503).json({ success: false, message: 'AI 分析服务暂时不可用' });
+    const { productImageId = null, sourceVideoAssetId = null, product = {}, language = 'zh-CN' } = req.body || {};
+    const productAsset = productImageId ? await getById('assets', productImageId) : null;
+    const sourceAsset = sourceVideoAssetId ? await getById('assets', sourceVideoAssetId) : null;
+    if (!productAsset?.file_url && !sourceAsset?.file_url) {
+      return res.status(400).json({ success: false, message: '请先上传商品图或参考视频' });
+    }
+
+    const images = [];
+    if (productAsset?.file_url) images.push(productAsset.file_url);
+    if (sourceAsset?.file_url) {
+      work = mkdtempSync(join(tmpdir(), 'moly-prompt-guide-'));
+      const vpath = await downloadToFile(sourceAsset.file_url, join(work, 'src.mp4'));
+      const meta = await ff.probe(vpath);
+      const dur = Math.min(20, Math.max(4, meta.duration || 12));
+      const fps = Math.min(1, Math.max(0.25, 6 / dur));
+      await ff.extractFrames(vpath, join(work, 'f_%03d.jpg'), fps, dur);
+      const frames = readdirSync(work).filter((f) => f.startsWith('f_')).sort().slice(0, 6);
+      for (const f of frames) images.push(readFileSync(join(work, f)));
+    }
+
+    const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份用户可编辑的生成提示词建议。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"creativePrompt":"一段给用户看的拍摄/画面/动作要求，80-180字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}`;
+    const txt = await gemini.analyzeImages(prompt, images, { temperature: 0.3 });
+    const guide = gemini.parseJson(txt);
+    res.json({
+      success: true,
+      guide: {
+        productName: String(guide.productName || '').slice(0, 120),
+        category: String(guide.category || '').slice(0, 80),
+        sellingPoints: Array.isArray(guide.sellingPoints) ? guide.sellingPoints.map((x) => String(x).slice(0, 80)).slice(0, 5) : [],
+        creativePrompt: String(guide.creativePrompt || '').slice(0, 800),
+        negativePrompt: String(guide.negativePrompt || '').slice(0, 500),
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message || '提示词建议生成失败' });
+  } finally {
+    if (work) { try { rmSync(work, { recursive: true, force: true }); } catch { /* ignore */ } }
+  }
 });
 
 // ── 一键复刻 ──────────────────────────────────────────────────

@@ -90,6 +90,27 @@
             <div class="card-title"><span class="num">2</span>商品信息</div>
             <input class="field" v-model="productName" placeholder="商品名称，如：多功能切菜神器" />
             <input class="field" v-model="sellingPoints" placeholder="卖点（逗号分隔）：省时, 锋利, 安全" />
+            <textarea
+              class="field textarea-field"
+              v-model="creativePrompt"
+              maxlength="800"
+              rows="3"
+              placeholder="创意要求（选填）：比如保留参考视频的粉紫棚景和椅子，模特从左侧入画后坐下展示黄色包"
+            />
+            <textarea
+              class="field textarea-field compact"
+              v-model="negativePrompt"
+              maxlength="500"
+              rows="2"
+              placeholder="不要出现（选填）：比如不要裸露、不要换包、不要多手、不要白底海报"
+            />
+            <div class="prompt-guide-row">
+              <button type="button" class="prompt-guide-btn" :disabled="guidingPrompt || !auth.isLoggedIn || (!productAsset && !sourceVideoAsset)" @click="generatePromptGuide">
+                <span v-if="guidingPrompt" class="mini-spin" />
+                {{ guidingPrompt ? 'AI 分析中…' : 'AI 填写建议' }}
+              </button>
+              <span>根据商品图和参考视频生成，可再手动修改</span>
+            </div>
           </div>
 
           <!-- 3 复刻方式 -->
@@ -353,6 +374,9 @@ function clearAsset(slot: string) {
 
 const productName = ref('');
 const sellingPoints = ref('');
+const creativePrompt = ref('');
+const negativePrompt = ref('');
+const guidingPrompt = ref(false);
 
 const generateVoice = ref(true);
 const generateSubtitle = ref(true);
@@ -458,6 +482,39 @@ const estimatedCredits = computed(() => {
 });
 const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && !generating.value);
 
+async function generatePromptGuide() {
+  if (!auth.isLoggedIn) { alert('请先登录'); return; }
+  if (!productAsset.value && !sourceVideoAsset.value) { alert('请先上传商品图或参考视频'); return; }
+  guidingPrompt.value = true;
+  try {
+    const r = await fetch('/api/replica/prompt-guide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail: auth.email,
+        productImageId: productAsset.value?.id || null,
+        sourceVideoAssetId: sourceVideoAsset.value?.id || null,
+        product: {
+          name: productName.value,
+          sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+        },
+        language: language.value,
+      }),
+    });
+    const j = await r.json();
+    if (!j.success) throw new Error(j.message || 'AI 建议生成失败');
+    const g = j.guide || {};
+    if (g.productName && (!productName.value || productName.value === '本商品')) productName.value = g.productName;
+    if (Array.isArray(g.sellingPoints) && g.sellingPoints.length) sellingPoints.value = g.sellingPoints.join('，');
+    if (g.creativePrompt) creativePrompt.value = g.creativePrompt;
+    if (g.negativePrompt) negativePrompt.value = g.negativePrompt;
+  } catch (e: any) {
+    alert(e.message || 'AI 建议生成失败，请手动填写');
+  } finally {
+    guidingPrompt.value = false;
+  }
+}
+
 // 把内部降级/报错 notes 转成对用户友好的一句提示（绝不暴露原始 API 报错码）
 const genNote = computed(() => {
   const notes = result.value?.notes || [];
@@ -540,7 +597,7 @@ function buildGenBody(sourceVideoId: any) {
     userEmail: auth.email, sourceVideoId,
     assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value },
+    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePrompt.value.trim(), negativePrompt: negativePrompt.value.trim() },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
@@ -819,6 +876,8 @@ async function useSample(s: { id: string; name: string; points: string; url: str
     productAsset.value = await uploadAsset(file, 'product_image');
     productName.value = s.name;
     sellingPoints.value = s.points;
+    creativePrompt.value = '';
+    negativePrompt.value = '';
   } catch (e: any) { alert('加载示例失败：' + e.message); }
   finally { uploading.value = ''; }
 }
@@ -893,6 +952,13 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .upload-note { margin:12px 0 0; color:#64748b; font-size:12px; line-height:1.7; }
 
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
+.textarea-field { min-height:78px; resize:vertical; line-height:1.55; font-family:inherit; &.compact { min-height:58px; } }
+.prompt-guide-row { display:flex; align-items:center; gap:10px; color:#64748b; font-size:12px; line-height:1.5; }
+.prompt-guide-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid #bfdbfe; border-radius: var(--radius-md); background:#eff6ff; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease;
+  &:not(:disabled):hover { background:#dbeafe; border-color:#93c5fd; }
+  &:disabled { opacity:.55; cursor:not-allowed; }
+}
+.mini-spin { width:13px; height:13px; border:2px solid rgba(37,99,235,.22); border-top-color:#2563eb; border-radius:50%; animation: spin .8s linear infinite; }
 
 .switches { display:flex; align-items:center; gap:18px; }
 .switch.disabled { opacity:.42; cursor:not-allowed; }

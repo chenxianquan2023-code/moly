@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applySeedancePersonPolicy, anonymousSubjectRule, fallbackScenesForSource, sourceStyleRefsForScene } from './pipeline.js';
+import {
+  applySeedancePersonPolicy,
+  anonymousSubjectRule,
+  classifyReplicaProduct,
+  fallbackScenesForSource,
+  sourceStyleRefsForScene,
+  buildReplicaSafetyRule,
+  buildReplicaUserDirection,
+  buildFaithfulFramePrompt,
+} from './pipeline.js';
 
 test('Seedance keeps face-mask demos as anonymous model usage instead of product-only shots', () => {
   const notes = [];
@@ -170,4 +179,62 @@ test('fallback scenes preserve source person usage instead of generic English CT
   assert.equal(scenes[1].withModel, true);
   assert.match(scenes[1].visual, /使用|试用|魔法面膜/);
   assert.doesNotMatch(scenes[1].text, /Stop scrolling|Tap the link/i);
+});
+
+test('bags are accessories, not garments, so faithful replica preserves source outfit', () => {
+  const cls = classifyReplicaProduct('Miu Miu 黄色刺绣褶皱手提包 luxury handbag purse');
+
+  assert.equal(cls.isAccessory, true);
+  assert.equal(cls.isBag, true);
+  assert.equal(cls.isGarment, false);
+  assert.equal(cls.isWearable, true);
+
+  const prompt = buildFaithfulFramePrompt({
+    isModelScene: true,
+    productClass: cls,
+    noSrcTextRule: '',
+    qualityCue: '',
+  });
+
+  assert.match(prompt, /保留.*源.*穿搭|沿用.*源.*穿搭/);
+  assert.match(prompt, /完整穿着|不得裸露|不得生成裸身/);
+  assert.doesNotMatch(prompt, /人物的长相、发型、以及身上的整套穿搭，一律以后面那张基准图为准/);
+});
+
+test('garment products replace source outfit but still forbid nudity', () => {
+  const cls = classifyReplicaProduct('Miu Miu 白色刺绣吊带连衣裙 dress');
+
+  assert.equal(cls.isGarment, true);
+  assert.equal(cls.isAccessory, false);
+
+  const prompt = buildFaithfulFramePrompt({
+    isModelScene: true,
+    productClass: cls,
+    noSrcTextRule: '',
+    qualityCue: '',
+  });
+
+  assert.match(prompt, /身上的整套穿搭.*基准图为准|严格保持基准图这一身/);
+  assert.match(prompt, /完整穿着|不得裸露|不得生成裸身/);
+});
+
+test('replica safety rule blocks nudity for model scenes across product categories', () => {
+  const rule = buildReplicaSafetyRule({ hasPerson: true, productClass: classifyReplicaProduct('黄色手提包') });
+
+  assert.match(rule, /完整穿着/);
+  assert.match(rule, /不得裸露/);
+  assert.match(rule, /不得生成裸身/);
+  assert.match(rule, /内衣|泳装|裸背/);
+});
+
+test('user prompt directions preserve creative instructions and negative constraints', () => {
+  const direction = buildReplicaUserDirection({
+    creativePrompt: '保留高级秀场感，模特从左侧入画后坐下展示黄色包',
+    negativePrompt: '不要裸露，不要换成白色包，不要多手',
+  });
+
+  assert.match(direction, /用户创意要求/);
+  assert.match(direction, /高级秀场感/);
+  assert.match(direction, /用户禁止事项/);
+  assert.match(direction, /不要裸露/);
 });
