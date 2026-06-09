@@ -1142,7 +1142,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .login-link { font-weight:600; color:#2563eb; }
 }
 
-.canvas { flex:1; width:100%; max-width: 1080px; margin: 0 auto; padding: 26px 28px 52px; }
+.canvas { flex:1; width:100%; max-width: 1480px; margin: 0 auto; padding: 40px 40px 56px; }
 
 .hero { text-align:center; margin-bottom: 32px; animation: fadeUp .6s ease both;
   .hero-badge { display:inline-flex; align-items:center; gap:7px; padding:5px 13px; margin-bottom:16px; font-size:12px; font-weight:600; color:#2563eb; background:rgba(37,99,235,.08); border:1px solid rgba(37,99,235,.18); border-radius:999px;
@@ -1155,7 +1155,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   span { padding:6px 11px; border-radius:999px; background:rgba(255,255,255,.74); border:1px solid rgba(148,163,184,.24); color:#64748b; font-size:12px; font-weight:600; }
 }
 
-.workspace { display:grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 24px; align-items:start; }
+.workspace { display:grid; grid-template-columns: minmax(0, 1fr) 500px; gap: 28px; align-items:start; }
 .workspace.has-output { grid-template-columns: minmax(0, .92fr) minmax(460px, 560px); }
 
 .card { background:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding: 22px; margin-bottom:18px; box-shadow: 0 10px 34px -20px rgba(15,23,42,.28); backdrop-filter: blur(10px); transition: box-shadow .3s ease;
@@ -1166,7 +1166,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 
 .uploads { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; }
 .upload {
-  position:relative; aspect-ratio: 1/1; border:1.5px dashed var(--color-border-muted); border-radius: var(--radius-lg);
+  position:relative; aspect-ratio: 3/4; border:1.5px dashed var(--color-border-muted); border-radius: var(--radius-lg);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
   background: rgba(248,250,252,.7); transition: all var(--transition-fast); overflow:hidden;
   &:hover { border-color: var(--color-primary); background: var(--color-primary-light); transform: translateY(-2px); }
@@ -1250,7 +1250,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
 .hint.warn { color:#b45309; }
 
-.preview { position:sticky; top:88px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.72); border-radius: var(--radius-2xl); padding:18px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 380px; display:flex; flex-direction:column; scroll-margin-top:88px;
+.preview { position:sticky; top:88px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.72); border-radius: var(--radius-2xl); padding:18px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 560px; display:flex; flex-direction:column; scroll-margin-top:88px;
   &.has-output { border-color:rgba(37,99,235,.24); box-shadow:0 28px 70px -32px rgba(37,99,235,.52); }
 }
 .preview-headline { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:3px 2px 15px; margin-bottom:15px; border-bottom:1px solid rgba(226,232,240,.85);
