@@ -25,6 +25,7 @@ const BETA_DENY = '内测阶段仅向受邀账号开放，如需试用请联系�
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // PRD: ≤200MB
 
 const ASSET_TYPES = ['product_image', 'outfit_image', 'model_image', 'face_image', 'pose_reference', 'source_video'];
+const MIN_CREATIVE_PROMPT_LENGTH = 6;
 
 export const replicaRouter = Router();
 
@@ -42,6 +43,18 @@ function getEmail(req, res) {
   // 内测白名单：非受邀账号一律拒绝（覆盖所有走 getEmail 的接口：上传/生成/换单镜/积分/找爆款等）
   if (!isAllowed(email)) { res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY }); return null; }
   return email;
+}
+
+export function validateRequiredCreativePrompt(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length < MIN_CREATIVE_PROMPT_LENGTH) {
+    return {
+      ok: false,
+      value: text,
+      message: `请先填写生成提示词（至少 ${MIN_CREATIVE_PROMPT_LENGTH} 个字），也可以点「AI 填写建议」后再修改。`,
+    };
+  }
+  return { ok: true, value: text, message: '' };
 }
 
 // ── 素材 ──────────────────────────────────────────────────────
@@ -180,7 +193,9 @@ replicaRouter.post('/replica/generate', async (req, res) => {
   try {
     const email = getEmail(req, res); if (!email) return; // getEmail 已含白名单校验
     const { sourceVideoId = null, options = {}, assets = {}, language = 'en-US', aspectRatio = '9:16', previewUrl = '', product = {}, scriptText = '', models = {} } = req.body || {};
-    const mergedOptions = { ...options, language, aspectRatio, models };
+    const promptCheck = validateRequiredCreativePrompt(options.creativePrompt || options.userPrompt || options.prompt || '');
+    if (!promptCheck.ok) return res.status(400).json({ success: false, code: 'PROMPT_REQUIRED', message: promptCheck.message });
+    const mergedOptions = { ...options, creativePrompt: promptCheck.value, language, aspectRatio, models };
 
     // 成片秒数：用户选了固定时长用它；否则(跟源)用源视频时长(前端读取上传视频得到)，封顶 45s
     const outputSec = Number(mergedOptions.targetDurationSec) > 0

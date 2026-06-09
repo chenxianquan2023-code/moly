@@ -95,8 +95,9 @@
               v-model="creativePrompt"
               maxlength="800"
               rows="3"
-              placeholder="创意要求（选填）：比如保留参考视频的粉紫棚景和椅子，模特从左侧入画后坐下展示黄色包"
+              placeholder="生成提示词（必填）：比如保留参考视频的粉紫棚景和椅子，模特从左侧入画后坐下展示黄色包"
             />
+            <p class="prompt-required" :class="{ ok: promptReady }">{{ promptReady ? '已填写生成提示词，AI 会优先按这里的拍摄要求执行。' : promptRequiredMessage }}</p>
             <textarea
               class="field textarea-field compact"
               v-model="negativePrompt"
@@ -184,6 +185,7 @@
             ✌️ 出 2 版供挑 · 约 {{ estimatedCredits * 2 }} 积分
           </button>
           <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
+          <p v-if="auth.isLoggedIn && productAsset && !promptReady" class="hint warn">{{ promptRequiredMessage }}</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
         </div>
 
@@ -327,6 +329,7 @@ import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 const MAX_SOURCE_VIDEO_SECONDS = 60;
+const MIN_CREATIVE_PROMPT_LENGTH = 6;
 
 // 默认定价兜底：拉不到 /pricing 时也能渲染选项（服务端生成时仍权威校验价格）
 const DEFAULT_PRICING = {
@@ -377,6 +380,9 @@ const sellingPoints = ref('');
 const creativePrompt = ref('');
 const negativePrompt = ref('');
 const guidingPrompt = ref(false);
+const creativePromptText = computed(() => creativePrompt.value.replace(/\s+/g, ' ').trim());
+const promptReady = computed(() => creativePromptText.value.length >= MIN_CREATIVE_PROMPT_LENGTH);
+const promptRequiredMessage = `生成前必须填写提示词（至少 ${MIN_CREATIVE_PROMPT_LENGTH} 个字），可手写或点「AI 填写建议」。`;
 
 const generateVoice = ref(true);
 const generateSubtitle = ref(true);
@@ -480,7 +486,7 @@ const estimatedCredits = computed(() => {
   const im = pricing.value.image.find((x: any) => x.id === imageModel.value)?.price || 0;
   return (pricing.value.base || 0) + Math.round(perSec * outputSeconds.value) + im;
 });
-const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && !generating.value);
+const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && promptReady.value && !generating.value);
 
 async function generatePromptGuide() {
   if (!auth.isLoggedIn) { alert('请先登录'); return; }
@@ -597,7 +603,7 @@ function buildGenBody(sourceVideoId: any) {
     userEmail: auth.email, sourceVideoId,
     assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePrompt.value.trim(), negativePrompt: negativePrompt.value.trim() },
+    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
@@ -953,6 +959,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; margin-bottom:10px; background:rgba(255,255,255,.8); transition: all var(--transition-fast); &:last-child{margin-bottom:0;} &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
 .textarea-field { min-height:78px; resize:vertical; line-height:1.55; font-family:inherit; &.compact { min-height:58px; } }
+.prompt-required { margin:-4px 0 10px; font-size:12px; line-height:1.5; color:#b45309;
+  &.ok { color:#047857; }
+}
 .prompt-guide-row { display:flex; align-items:center; gap:10px; color:#64748b; font-size:12px; line-height:1.5; }
 .prompt-guide-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid #bfdbfe; border-radius: var(--radius-md); background:#eff6ff; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease;
   &:not(:disabled):hover { background:#dbeafe; border-color:#93c5fd; }
@@ -983,6 +992,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 }
 .duration-note { text-align:center; font-size:12px; line-height:1.6; color:#64748b; margin:10px 0 0; }
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
+.hint.warn { color:#b45309; }
 
 .preview { position:sticky; top:88px; background:rgba(255,255,255,.78); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding:20px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 540px; display:flex; flex-direction:column; }
 .preview-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; color: var(--color-text-tertiary);
