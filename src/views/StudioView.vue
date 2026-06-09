@@ -112,7 +112,7 @@
                 placeholder="例如：模特在浴室敷面膜试用，保留参考视频的自拍感，展示包装和上脸效果"
               />
               <div class="prompt-composer-foot">
-                <span class="prompt-required" :class="{ ok: promptReady }">{{ promptReady ? '已填写，AI 会优先按这里执行。' : promptRequiredMessage }}</span>
+                <span class="prompt-required" :class="{ ok: promptReady }">{{ promptReady ? (promptAutoFilled ? 'AI 已自动写好提示词，可直接生成，或在上面改成你想要的。' : '已填写，AI 会优先按这里执行。') : (guidingPrompt ? 'AI 正在根据你的素材自动写提示词…' : promptRequiredMessage) }}</span>
                 <button type="button" class="advanced-toggle" @click="showAdvancedPrompt = !showAdvancedPrompt">
                   {{ showAdvancedPrompt ? '收起高级避免项' : '高级避免项' }}
                   <span>{{ showAdvancedPrompt ? '-' : '+' }}</span>
@@ -495,6 +495,7 @@ const sellingPoints = ref('');
 const creativePrompt = ref('');
 const DEFAULT_NEGATIVE_PROMPT = '不要裸露、不要换商品、不要多手、不要畸形手指、不要白底海报、不要无关人物或商品';
 const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT);
+const promptAutoFilled = ref(false); // AI 是否已自动写好提示词（用户可改）；用于"上传即自动填、不挡路、不空跑"
 const guidingPrompt = ref(false);
 const showAdvancedPrompt = ref(false);
 const showAdvancedSettings = ref(false);
@@ -702,6 +703,48 @@ function closePromptGuide() {
   showPromptGuide.value = false;
 }
 
+// 上传素材后：自动让 AI 写好提示词并填进输入框（可见、可改）。
+// 这样"提示词门槛"自动满足——既不强制用户手填(无阻力)，又绝不拿空提示词去生成(质量有保障、AI 不裸奔)。
+async function autoFillPromptSilently() {
+  if (!auth.isLoggedIn) return;
+  if (!productAsset.value && !sourceVideoAsset.value) return;
+  if (creativePromptText.value.length >= MIN_CREATIVE_PROMPT_LENGTH) return; // 用户已写，绝不覆盖
+  if (guidingPrompt.value) return;
+  guidingPrompt.value = true;
+  try {
+    const r = await fetch('/api/replica/prompt-guide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail: auth.email,
+        productImageId: productAsset.value?.id || null,
+        sourceVideoAssetId: sourceVideoAsset.value?.id || null,
+        product: { name: productName.value, sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
+        language: language.value,
+      }),
+    });
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) return; // 后端没接好就静默放弃，用户仍可手动点「AI 填写建议」
+    const j = await r.json();
+    if (!j.success) return;
+    const g = j.guide || {};
+    promptGuide.value = g;
+    selectedGuideScenario.value = 0;
+    guideFinalPrompt.value = (Array.isArray(g.scenarios) && g.scenarios[0]?.prompt) || g.creativePrompt || '';
+    guideNegativePrompt.value = g.negativePrompt || DEFAULT_NEGATIVE_PROMPT;
+    if (g.productName && (!productName.value || productName.value === '本商品')) productName.value = g.productName;
+    if (Array.isArray(g.sellingPoints) && g.sellingPoints.length && !sellingPoints.value.trim()) sellingPoints.value = g.sellingPoints.join('，');
+    if (guideFinalPrompt.value.trim() && !creativePrompt.value.trim()) {
+      creativePrompt.value = guideFinalPrompt.value.trim();
+      promptAutoFilled.value = true;
+    }
+    if (guideNegativePrompt.value.trim() && (!negativePrompt.value.trim() || negativePrompt.value === DEFAULT_NEGATIVE_PROMPT)) {
+      negativePrompt.value = guideNegativePrompt.value.trim();
+    }
+  } catch { /* 静默失败：不打扰用户，仍可手动点「AI 填写建议」 */ }
+  finally { guidingPrompt.value = false; }
+}
+
 // 把内部降级/报错 notes 转成对用户友好的一句提示（绝不暴露原始 API 报错码）
 const genNote = computed(() => {
   const notes = result.value?.notes || [];
@@ -761,6 +804,8 @@ async function onFile(e: Event, assetType: string, slot: string) {
       if (slot === 'product') productAsset.value = asset;
       else if (slot === 'model') modelAsset.value = asset;
       else sourceVideoAsset.value = asset;
+      // 传完商品/参考视频 → 自动让 AI 写好提示词（后台跑、不阻塞上传；空着才填，不覆盖用户已写的）
+      if (slot === 'product' || slot === 'source') autoFillPromptSilently();
   } catch (err: any) {
     alert(err.message || '上传失败');
   } finally {
@@ -1097,7 +1142,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .login-link { font-weight:600; color:#2563eb; }
 }
 
-.canvas { flex:1; width:100%; max-width: 1080px; margin: 0 auto; padding: 44px 28px 64px; }
+.canvas { flex:1; width:100%; max-width: 1080px; margin: 0 auto; padding: 26px 28px 52px; }
 
 .hero { text-align:center; margin-bottom: 32px; animation: fadeUp .6s ease both;
   .hero-badge { display:inline-flex; align-items:center; gap:7px; padding:5px 13px; margin-bottom:16px; font-size:12px; font-weight:600; color:#2563eb; background:rgba(37,99,235,.08); border:1px solid rgba(37,99,235,.18); border-radius:999px;
@@ -1121,7 +1166,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 
 .uploads { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; }
 .upload {
-  position:relative; aspect-ratio: 3/4; border:1.5px dashed var(--color-border-muted); border-radius: var(--radius-lg);
+  position:relative; aspect-ratio: 1/1; border:1.5px dashed var(--color-border-muted); border-radius: var(--radius-lg);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; cursor:pointer;
   background: rgba(248,250,252,.7); transition: all var(--transition-fast); overflow:hidden;
   &:hover { border-color: var(--color-primary); background: var(--color-primary-light); transform: translateY(-2px); }
@@ -1205,7 +1250,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
 .hint.warn { color:#b45309; }
 
-.preview { position:sticky; top:88px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.72); border-radius: var(--radius-2xl); padding:18px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 540px; display:flex; flex-direction:column; scroll-margin-top:88px;
+.preview { position:sticky; top:88px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.72); border-radius: var(--radius-2xl); padding:18px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 380px; display:flex; flex-direction:column; scroll-margin-top:88px;
   &.has-output { border-color:rgba(37,99,235,.24); box-shadow:0 28px 70px -32px rgba(37,99,235,.52); }
 }
 .preview-headline { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:3px 2px 15px; margin-bottom:15px; border-bottom:1px solid rgba(226,232,240,.85);
