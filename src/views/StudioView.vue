@@ -24,7 +24,7 @@
         <span v-else class="login-hint">演示账号已预填，直接点登录</span>
       </section>
 
-      <div class="workspace">
+      <div class="workspace" :class="{ 'has-output': hasGeneratedResult }">
         <!-- 左：配置 -->
         <div class="config">
           <!-- 1 素材 -->
@@ -216,12 +216,21 @@
             ✌️ 出 2 版供挑 · 约 {{ estimatedCredits * 2 }} 积分
           </button>
           <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
+          <button v-if="hasGeneratedResult" type="button" class="result-jump" @click="scrollResultIntoView">查看生成结果</button>
           <p v-if="auth.isLoggedIn && productAsset && !promptReady" class="hint warn">{{ promptRequiredMessage }}</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
         </div>
 
         <!-- 右：进度 / 结果 -->
-        <div class="preview">
+        <div ref="previewPanel" class="preview" :class="{ 'has-output': hasGeneratedResult, running: generating }">
+          <div class="preview-headline">
+            <div>
+              <span>生成结果</span>
+              <b>{{ previewTitle }}</b>
+            </div>
+            <em>{{ previewSubtitle }}</em>
+          </div>
+
           <div v-if="variants.length" class="preview-variants">
             <div class="pv-head">
               <b>出 2 版 · 挑你更满意的</b>
@@ -430,7 +439,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
@@ -555,12 +564,30 @@ const task = ref<any>(null);
 const result = ref<any>(null);
 const generating = ref(false);
 const variants = ref<any[]>([]); // 出2版：[{ taskId, task, result, startFailed }]
+const previewPanel = ref<HTMLElement | null>(null);
 let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
 type GenerationStep = { status?: string; label?: string };
 function sceneIndex(i: string | number) { return Number(i) || 0; }
 function runningStepLabel(steps?: GenerationStep[]) {
   return (steps || []).find((s) => s.status === 'running')?.label || '排队中…';
+}
+const hasGeneratedResult = computed(() => !!result.value || variants.value.some((v: any) => !!v.result));
+const previewTitle = computed(() => {
+  if (result.value) return '成片已生成';
+  if (variants.value.length && hasGeneratedResult.value) return '已有版本生成';
+  if (variants.value.length) return generating.value ? '正在生成两版' : '两版结果';
+  if (generating.value) return '正在生成';
+  return '等待生成';
+});
+const previewSubtitle = computed(() => {
+  if (result.value) return '视频、下载和换一版都在这里';
+  if (variants.value.length && hasGeneratedResult.value) return '生成好的版本会出现在这里';
+  if (generating.value) return '完成后会自动跳到这里';
+  return '开始生成后，这里会显示进度和成片';
+});
+function scrollResultIntoView() {
+  previewPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // —— 生成进度的友好提示：耗时预期 + 计时 + 轮播文案（生成较久，给用户心理预期）——
@@ -801,6 +828,7 @@ function pollTask(taskId: string) {
           result.value = j.task.output_json;
           generating.value = false;
           stopProgressUx();
+          nextTick(scrollResultIntoView);
           if (auth.email) auth.fetchPointsFromServer(auth.email);
           return;
         }
@@ -865,7 +893,7 @@ function pollVariant(k: number, taskId: string) {
       const j = await r.json();
       if (j.success) {
         variants.value[k].task = j.task;
-        if (j.task.status === 'succeeded') { variants.value[k].result = j.task.output_json; onVariantSettled(); return; }
+        if (j.task.status === 'succeeded') { variants.value[k].result = j.task.output_json; nextTick(scrollResultIntoView); onVariantSettled(); return; }
         if (j.task.status === 'failed') { onVariantSettled(); if (auth.email) auth.fetchPointsFromServer(auth.email); return; }
       }
     } catch { /* 网络抖动，继续轮询 */ }
@@ -1082,7 +1110,8 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   span { padding:6px 11px; border-radius:999px; background:rgba(255,255,255,.74); border:1px solid rgba(148,163,184,.24); color:#64748b; font-size:12px; font-weight:600; }
 }
 
-.workspace { display:grid; grid-template-columns: 1fr 380px; gap: 24px; align-items:start; }
+.workspace { display:grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 24px; align-items:start; }
+.workspace.has-output { grid-template-columns: minmax(0, .92fr) minmax(460px, 560px); }
 
 .card { background:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding: 22px; margin-bottom:18px; box-shadow: 0 10px 34px -20px rgba(15,23,42,.28); backdrop-filter: blur(10px); transition: box-shadow .3s ease;
   &:hover { box-shadow: 0 16px 40px -22px rgba(37,99,235,.34); } }
@@ -1169,11 +1198,22 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   &:not(:disabled):hover { background:#e0e7ff; transform: translateY(-1px); }
   &:disabled { opacity:.45; cursor:not-allowed; }
 }
+.result-jump { position:sticky; bottom:18px; z-index:8; width:100%; margin-top:12px; min-height:46px; border:1px solid rgba(37,99,235,.22); border-radius:14px; background:#111827; color:#fff; font-size:15px; font-weight:900; cursor:pointer; box-shadow:0 18px 36px -20px rgba(15,23,42,.72);
+  &:hover { background:#0f172a; transform:translateY(-1px); }
+}
 .duration-note { text-align:center; font-size:12px; line-height:1.6; color:#64748b; margin:10px 0 0; }
 .hint { text-align:center; font-size:13px; color: var(--color-text-tertiary); margin:12px 0 0; }
 .hint.warn { color:#b45309; }
 
-.preview { position:sticky; top:88px; background:rgba(255,255,255,.78); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding:20px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 540px; display:flex; flex-direction:column; }
+.preview { position:sticky; top:88px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.72); border-radius: var(--radius-2xl); padding:18px; box-shadow: 0 18px 44px -22px rgba(15,23,42,.32); backdrop-filter: blur(12px); min-height: 540px; display:flex; flex-direction:column; scroll-margin-top:88px;
+  &.has-output { border-color:rgba(37,99,235,.24); box-shadow:0 28px 70px -32px rgba(37,99,235,.52); }
+}
+.preview-headline { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding:3px 2px 15px; margin-bottom:15px; border-bottom:1px solid rgba(226,232,240,.85);
+  div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  span { color:#2563eb; font-size:12px; font-weight:900; }
+  b { color:#0f172a; font-size:18px; font-weight:900; line-height:1.25; }
+  em { max-width:170px; color:#64748b; font-size:12px; font-style:normal; line-height:1.45; text-align:right; }
+}
 .preview-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; color: var(--color-text-tertiary);
   .phone { width:150px; aspect-ratio:9/16; border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:#fff; background: linear-gradient(160deg,#1e293b,#0f172a); box-shadow: 0 20px 44px -16px rgba(37,99,235,.4); position:relative;
     &::before { content:''; position:absolute; inset:6px; border-radius:15px; border:1.5px dashed rgba(255,255,255,.22); }
@@ -1428,6 +1468,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 
 @media (max-width: 880px) {
   .workspace { grid-template-columns: 1fr; }
+  .workspace.has-output { grid-template-columns:1fr; }
   .preview { position:relative; top:0; }
   .prompt-guide-modal { width:100%; max-height:92vh; }
   .pg-scenario-grid { grid-template-columns:1fr; }

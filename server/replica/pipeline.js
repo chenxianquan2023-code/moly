@@ -233,9 +233,11 @@ export function buildReplicaSafetyRule({ hasPerson = false, productClass = class
 export function buildReplicaUserDirection({ creativePrompt = '', negativePrompt = '' } = {}) {
   const creative = compactText(creativePrompt, 1200);
   const negative = compactText(negativePrompt, 800);
+  const subjectRule = '【主体数量一致性】若用户提示词或源分镜没有明确要求多人，每个画面只允许一个主要人物主体；不要把同一模特的多个动作状态放进同一帧，不得出现第二个同款人物、背景同款人、镜像人物、分身或 before/after 双人对比。连续动作必须拆成不同镜头或不同时间段表达。若用户提示词或源视频明确是多人，则保持对应人数与角色差异，禁止复制同一张脸/同一套衣服，禁止凭空新增人物。';
   return [
     creative && `【用户创意要求】${creative}`,
     negative && `【用户禁止事项】${negative}`,
+    (creative || negative) && subjectRule,
   ].filter(Boolean).join('\n');
 }
 
@@ -1111,9 +1113,12 @@ export async function runReplicaPipeline(task, ctx) {
         const subjectMotionRule = hasPerson
           ? '画面里的人物像真人出镜一样自然地动起来：可以走动/迈步/转身/坐下或起身/重心转移/侧身回眸，配合自然的表情(微笑、眨眼、说话口型、点头转头)与轻柔的手臂摆动、裙摆和头发的自然飘动，动作流畅、有真实拍摄的生活感，绝不是一张僵硬的静止照片。硬性底线：双手解剖正确、五指自然、绝不多出第三只手或手臂、不做快速复杂的手部小动作；手持或佩戴的商品始终清晰、形状与 logo 不变形、不漂浮、不无故消失或移动。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；商品的形状、logo/标志、按钮等细节全程保持一致、不变样不丢失；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
+        const subjectMultiplicityMotionRule = hasPerson
+          ? '主体数量保持一致：单人镜头全程只出现一个人物主体，不能把同一人物复制成前后两个、镜像人、背景同款人或分身；若源镜明确多人，保持人数稳定且每个人不同，不凭空加人。'
+          : '';
         // 衣服不乱动不穿模 + 道具保持完整（治"模特弄衣服/穿模"和"吸管消失/杯子缺口"）
         const propStableRule = '模特的衣服自然贴身、不要去整理/拉扯/掀动衣物，衣物始终贴合身体、不穿模不穿帮；画面中的杯子、餐具、吸管等道具全程保持完整稳定，不变形、不增减、不消失、不无故出现。';
-        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 620);
+        const motionPrompt = `${rhythmCue}${anonymityMotionRule}${subjectMultiplicityMotionRule}${subjectMotionRule}${propStableRule}`.slice(0, 820);
         // Seedance/可灵都走 fal：直接喂公网 URL（fal 海外自取、不跨境上传），无需旧的压图兜底。
         // 主引擎 → 另一引擎兜底；都失败再走 Ken Burns
         for (const prov of videoProviders) {

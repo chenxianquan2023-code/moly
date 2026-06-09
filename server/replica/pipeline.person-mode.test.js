@@ -270,3 +270,15 @@ test('user prompt directions preserve creative instructions and negative constra
   assert.match(direction, /用户禁止事项/);
   assert.match(direction, /不要裸露/);
 });
+
+test('single-model user directions forbid duplicate same-person subjects in one frame', () => {
+  const direction = buildReplicaUserDirection({
+    creativePrompt: '生成一段短视频，一位年轻女性穿白色吊带裙，先走进画面，再坐在窗边喝咖啡，最后起身转圈展示裙摆',
+    negativePrompt: '不要裸露，不要换商品',
+  });
+
+  assert.match(direction, /主体数量一致性/);
+  assert.match(direction, /只允许一个主要人物主体|每个画面只允许一个/);
+  assert.match(direction, /第二个同款人物|背景同款人|分身|镜像/);
+  assert.match(direction, /连续动作.*拆成不同镜头|不要把同一模特的多个动作状态放进同一帧/);
+});

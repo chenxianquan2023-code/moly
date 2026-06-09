@@ -29,3 +29,11 @@ test('studio exposes a Creatok-style prompt guide modal with scenario cards', ()
   assert.match(source, /动作/);
   assert.match(source, /选择此方案/);
 });
+
+test('studio makes generated results easy to find after completion', () => {
+  assert.match(source, /生成结果/);
+  assert.match(source, /class="result-jump"/);
+  assert.match(source, /ref="previewPanel"/);
+  assert.match(source, /scrollResultIntoView/);
+  assert.match(source, /成片已生成/);
+});
