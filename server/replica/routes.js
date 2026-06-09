@@ -57,6 +57,60 @@ export function validateRequiredCreativePrompt(value) {
   return { ok: true, value: text, message: '' };
 }
 
+function compactGuideText(value, max = 180) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function normalizeGuideScenario(raw = {}, index = 0) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const fallbackTitles = ['真实试用场景', '高能种草场景', '生活方式场景'];
+  const fallbackTags = [
+    ['Raw UGC', 'Authentic', 'Cozy'],
+    ['High-energy', 'Demo', 'Lifestyle'],
+    ['Opinionated', 'Daily Routine', 'Natural'],
+  ];
+  const actions = Array.isArray(source.actions)
+    ? source.actions.map((x) => compactGuideText(x, 120)).filter(Boolean)
+    : String(source.actions || '').split(/[;；\n]/).map((x) => compactGuideText(x, 120)).filter(Boolean);
+  while (actions.length < 3) actions.push(['展示商品核心使用方式', '保留参考视频的构图与节奏', '突出商品材质、卖点和真实使用关系'][actions.length]);
+  const tags = Array.isArray(source.tags)
+    ? source.tags.map((x) => compactGuideText(x, 28)).filter(Boolean).slice(0, 4)
+    : fallbackTags[index % fallbackTags.length];
+  const prompt = compactGuideText(
+    source.prompt || source.creativePrompt || `${source.subject || '模特自然使用商品'}，${source.lighting || '真实自然光'}，${source.camera || '手机手持拍摄'}，${actions.join('；')}。`,
+    800,
+  );
+  return {
+    title: compactGuideText(source.title, 80) || fallbackTitles[index % fallbackTitles.length],
+    subject: compactGuideText(source.subject, 180) || '一位符合目标受众的成人模特，在真实生活场景中自然使用商品。',
+    lighting: compactGuideText(source.lighting, 160) || '自然光或柔和室内光，保持真实、干净、有生活感。',
+    camera: compactGuideText(source.camera, 160) || '手机手持 POV，轻微晃动，贴近真实 UGC 记录感。',
+    actions: actions.slice(0, 5),
+    tags,
+    prompt,
+  };
+}
+
+export function normalizePromptGuide(raw = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const sellingPoints = Array.isArray(source.sellingPoints)
+    ? source.sellingPoints.map((x) => compactGuideText(x, 80)).filter(Boolean).slice(0, 5)
+    : [];
+  const scenarios = Array.isArray(source.scenarios) ? source.scenarios.map(normalizeGuideScenario) : [];
+  while (scenarios.length < 3) scenarios.push(normalizeGuideScenario({}, scenarios.length));
+  const primary = scenarios[0] || normalizeGuideScenario({}, 0);
+  return {
+    productName: compactGuideText(source.productName, 120),
+    category: compactGuideText(source.category, 80),
+    sellingPoints,
+    audience: compactGuideText(source.audience || source.targetAudience, 160),
+    videoType: compactGuideText(source.videoType || source.contentType, 80) || 'UGC 种草',
+    scenarios: scenarios.slice(0, 3),
+    creativePrompt: compactGuideText(source.creativePrompt || primary.prompt, 800),
+    negativePrompt: compactGuideText(source.negativePrompt || '不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素。', 500),
+  };
+}
+
 // ── 素材 ──────────────────────────────────────────────────────
 // POST /api/assets/upload  multipart: file, assetType, userEmail, [consent]
 replicaRouter.post('/assets/upload', upload.single('file'), async (req, res) => {
@@ -167,18 +221,13 @@ replicaRouter.post('/replica/prompt-guide', async (req, res) => {
       for (const f of frames) images.push(readFileSync(join(work, f)));
     }
 
-    const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份用户可编辑的生成提示词建议。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"creativePrompt":"一段给用户看的拍摄/画面/动作要求，80-180字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}`;
+    const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份 Creatok 风格的提示词向导。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。
+输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"audience":"目标受众","videoType":"UGC 种草/测评/教程/带货等","scenarios":[{"title":"方案标题","subject":"主体：谁在什么场景使用/展示商品","lighting":"光线：自然光/棚光/夜景等","camera":"镜头：POV/自拍/桌面俯拍/手持跟拍等","actions":["动作1","动作2","动作3","动作4","动作5"],"tags":["Raw UGC","Authentic","Lifestyle"],"prompt":"按该方案生成视频的一段完整提示词，100-220字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现"}],"creativePrompt":"默认推荐方案的完整提示词","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}。scenarios 必须给 3 个，风格要明显不同。`;
     const txt = await gemini.analyzeImages(prompt, images, { temperature: 0.3 });
-    const guide = gemini.parseJson(txt);
+    const guide = normalizePromptGuide(gemini.parseJson(txt));
     res.json({
       success: true,
-      guide: {
-        productName: String(guide.productName || '').slice(0, 120),
-        category: String(guide.category || '').slice(0, 80),
-        sellingPoints: Array.isArray(guide.sellingPoints) ? guide.sellingPoints.map((x) => String(x).slice(0, 80)).slice(0, 5) : [],
-        creativePrompt: String(guide.creativePrompt || '').slice(0, 800),
-        negativePrompt: String(guide.negativePrompt || '').slice(0, 500),
-      },
+      guide,
     });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message || '提示词建议生成失败' });

@@ -324,6 +324,81 @@
       </div>
     </div>
 
+    <!-- 提示词向导 -->
+    <div v-if="showPromptGuide" class="prompt-guide-mask" @click.self="closePromptGuide">
+      <div class="prompt-guide-modal">
+        <div class="pg-head">
+          <div>
+            <span class="pg-icon">✦</span>
+            <b>提示词向导</b>
+          </div>
+          <button type="button" class="pg-x" @click="closePromptGuide">×</button>
+        </div>
+
+        <div class="pg-steps">
+          <button v-for="(s, i) in PROMPT_GUIDE_STEPS" :key="s" type="button" :class="{ active: promptGuideStep === i, done: promptGuideStep > i }" @click="promptGuideStep = i" :disabled="guidingPrompt || !promptGuide">
+            <span>{{ i + 1 }}</span>{{ s }}
+          </button>
+        </div>
+
+        <div v-if="guidingPrompt" class="pg-loading">
+          <span class="mini-spin" />
+          <p>AI 正在识别商品和参考视频，生成拍摄方案…</p>
+        </div>
+        <div v-else-if="promptGuideError" class="pg-error">
+          <p>{{ promptGuideError }}</p>
+          <button type="button" @click="generatePromptGuide">重新分析</button>
+        </div>
+        <template v-else-if="promptGuide">
+          <div v-if="promptGuideStep === 0" class="pg-pane">
+            <h3>核心信息</h3>
+            <div class="pg-core-grid">
+              <div><span>产品名称</span><b>{{ promptGuide.productName || productName || '本商品' }}</b></div>
+              <div><span>产品类目</span><b>{{ promptGuide.category || '未识别' }}</b></div>
+              <div><span>目标受众</span><b>{{ promptGuide.audience || '短视频种草用户' }}</b></div>
+              <div><span>视频类型</span><b>{{ promptGuide.videoType || 'UGC 种草' }}</b></div>
+            </div>
+            <div class="pg-selling">
+              <span>核心卖点</span>
+              <em v-for="p in (promptGuide.sellingPoints || [])" :key="p">{{ p }}</em>
+            </div>
+            <div class="pg-actions">
+              <button type="button" class="pg-primary" @click="promptGuideStep = 1">下一步：看推荐方案</button>
+            </div>
+          </div>
+
+          <div v-else-if="promptGuideStep === 1" class="pg-pane">
+            <div class="pg-pane-title">
+              <h3>推荐方案</h3>
+              <button type="button" class="pg-secondary" @click="generatePromptGuide">换一批</button>
+            </div>
+            <div class="pg-scenario-grid">
+              <article v-for="(s, i) in guideScenarios" :key="i" class="pg-scenario-card" :class="{ active: selectedGuideScenario === i }">
+                <h4>{{ s.title }}</h4>
+                <p class="pg-row"><span>主体</span>{{ s.subject }}</p>
+                <p class="pg-row"><span>光线</span>{{ s.lighting }}</p>
+                <p class="pg-row"><span>镜头</span>{{ s.camera }}</p>
+                <div class="pg-row actions"><span>动作</span><ol><li v-for="a in s.actions" :key="a">{{ a }}</li></ol></div>
+                <div class="pg-tags"><em v-for="t in s.tags" :key="t">{{ t }}</em></div>
+                <button type="button" class="pg-card-pick" @click="selectGuideScenario(i)">选择此方案</button>
+              </article>
+            </div>
+          </div>
+
+          <div v-else class="pg-pane">
+            <h3>提示词</h3>
+            <textarea class="pg-final-prompt" v-model="guideFinalPrompt" rows="8" />
+            <label class="pg-negative-label">避免出现</label>
+            <textarea class="pg-final-negative" v-model="guideNegativePrompt" rows="3" />
+            <div class="pg-actions">
+              <button type="button" class="pg-secondary" @click="promptGuideStep = 1">重选方案</button>
+              <button type="button" class="pg-primary" @click="applyPromptGuide">使用这个提示词</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- 充值弹窗 -->
     <div v-if="showRecharge" class="modal-mask" @click.self="showRecharge = false">
       <div class="modal">
@@ -414,9 +489,19 @@ const negativePrompt = ref(DEFAULT_NEGATIVE_PROMPT);
 const guidingPrompt = ref(false);
 const showAdvancedPrompt = ref(false);
 const showAdvancedSettings = ref(false);
+const showPromptGuide = ref(false);
+const promptGuideStep = ref(0);
+const promptGuideError = ref('');
+const promptGuide = ref<any>(null);
+const selectedGuideScenario = ref(0);
+const guideFinalPrompt = ref('');
+const guideNegativePrompt = ref(DEFAULT_NEGATIVE_PROMPT);
+const PROMPT_GUIDE_STEPS = ['核心信息', '场景与建议', '提示词'];
+type PromptGuideScenario = { title: string; subject: string; lighting: string; camera: string; actions: string[]; tags: string[]; prompt: string };
 const creativePromptText = computed(() => creativePrompt.value.replace(/\s+/g, ' ').trim());
 const promptReady = computed(() => creativePromptText.value.length >= MIN_CREATIVE_PROMPT_LENGTH);
 const promptRequiredMessage = `生成前必须填写提示词（至少 ${MIN_CREATIVE_PROMPT_LENGTH} 个字），可手写或点「AI 填写建议」。`;
+const guideScenarios = computed<PromptGuideScenario[]>(() => Array.isArray(promptGuide.value?.scenarios) ? promptGuide.value.scenarios : []);
 
 const generateVoice = ref(true);
 const generateSubtitle = ref(true);
@@ -533,6 +618,9 @@ const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && pr
 async function generatePromptGuide() {
   if (!auth.isLoggedIn) { alert('请先登录'); return; }
   if (!productAsset.value && !sourceVideoAsset.value) { alert('请先上传商品图或参考视频'); return; }
+  showPromptGuide.value = true;
+  promptGuideError.value = '';
+  promptGuideStep.value = 0;
   guidingPrompt.value = true;
   try {
     const r = await fetch('/api/replica/prompt-guide', {
@@ -549,18 +637,42 @@ async function generatePromptGuide() {
         language: language.value,
       }),
     });
+    const contentType = r.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) throw new Error('提示词向导接口未连接，请确认后端服务已启动');
     const j = await r.json();
     if (!j.success) throw new Error(j.message || 'AI 建议生成失败');
     const g = j.guide || {};
-    if (g.productName && (!productName.value || productName.value === '本商品')) productName.value = g.productName;
-    if (Array.isArray(g.sellingPoints) && g.sellingPoints.length) sellingPoints.value = g.sellingPoints.join('，');
-    if (g.creativePrompt) creativePrompt.value = g.creativePrompt;
-    if (g.negativePrompt) negativePrompt.value = g.negativePrompt;
+    promptGuide.value = g;
+    selectedGuideScenario.value = 0;
+    guideFinalPrompt.value = (Array.isArray(g.scenarios) && g.scenarios[0]?.prompt) || g.creativePrompt || creativePrompt.value;
+    guideNegativePrompt.value = g.negativePrompt || negativePrompt.value || DEFAULT_NEGATIVE_PROMPT;
   } catch (e: any) {
-    alert(e.message || 'AI 建议生成失败，请手动填写');
+    promptGuideError.value = e.message || 'AI 建议生成失败，请手动填写';
   } finally {
     guidingPrompt.value = false;
   }
+}
+
+function selectGuideScenario(index: number | string) {
+  const n = Number(index) || 0;
+  selectedGuideScenario.value = n;
+  const s = guideScenarios.value[n];
+  guideFinalPrompt.value = s?.prompt || promptGuide.value?.creativePrompt || creativePrompt.value;
+  promptGuideStep.value = 2;
+}
+
+function applyPromptGuide() {
+  const g = promptGuide.value || {};
+  if (g.productName && (!productName.value || productName.value === '本商品')) productName.value = g.productName;
+  if (Array.isArray(g.sellingPoints) && g.sellingPoints.length) sellingPoints.value = g.sellingPoints.join('，');
+  if (guideFinalPrompt.value.trim()) creativePrompt.value = guideFinalPrompt.value.trim();
+  if (guideNegativePrompt.value.trim()) negativePrompt.value = guideNegativePrompt.value.trim();
+  showPromptGuide.value = false;
+}
+
+function closePromptGuide() {
+  if (guidingPrompt.value) return;
+  showPromptGuide.value = false;
 }
 
 // 把内部降级/报错 notes 转成对用户友好的一句提示（绝不暴露原始 API 报错码）
@@ -1234,12 +1346,92 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .vp-done { padding:9px 24px; border:none; border-radius:var(--radius-md); background:linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 6px 14px -6px rgba(37,99,235,.5); flex-shrink:0; }
 }
 
+.prompt-guide-mask { position:fixed; inset:0; z-index:180; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(15,23,42,.62); backdrop-filter:blur(7px); }
+.prompt-guide-modal { width:min(1180px, 96vw); max-height:90vh; display:flex; flex-direction:column; overflow:hidden; background:#fff; border:1px solid rgba(226,232,240,.75); border-radius:24px; box-shadow:0 34px 90px -32px rgba(2,6,23,.62); }
+.pg-head { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:24px 28px 18px;
+  div { display:flex; align-items:center; gap:10px; min-width:0; }
+  b { color:#0f172a; font-size:21px; font-weight:900; }
+}
+.pg-icon { width:31px; height:31px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px; background:#111827; color:#fff; font-size:16px; font-weight:900; }
+.pg-x { width:34px; height:34px; flex-shrink:0; border:none; border-radius:50%; background:#f8fafc; color:#475569; font-size:22px; line-height:1; cursor:pointer;
+  &:hover { background:#e2e8f0; color:#0f172a; }
+}
+.pg-steps { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; padding:0 28px 22px; border-bottom:1px solid #e5e7eb;
+  button { min-height:52px; display:flex; align-items:center; gap:11px; padding:0 17px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; color:#94a3b8; font-size:15px; font-weight:800; text-align:left; cursor:pointer; transition:all .16s ease;
+    span { width:25px; height:25px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border-radius:50%; background:#f1f5f9; color:#94a3b8; font-size:12px; font-weight:900; }
+    &:disabled { cursor:default; }
+    &.active { border-color:#34d399; background:#dcfce7; color:#166534; box-shadow:0 10px 24px -18px rgba(22,101,52,.55);
+      span { background:#166534; color:#fff; }
+    }
+    &.done:not(.active) { color:#2563eb; border-color:#bfdbfe; background:#eff6ff;
+      span { background:#2563eb; color:#fff; }
+    }
+  }
+}
+.pg-loading, .pg-error { min-height:340px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#64748b; font-size:15px; text-align:center; padding:36px; }
+.pg-error p { margin:0; color:#b45309; }
+.pg-error button { padding:10px 18px; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#2563eb; font-weight:800; cursor:pointer; }
+.pg-pane { min-height:0; overflow-y:auto; padding:26px 28px 30px;
+  h3 { margin:0 0 18px; color:#0f172a; font-size:19px; font-weight:900; }
+}
+.pg-core-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px;
+  div { min-height:76px; padding:14px 16px; border:1px solid #e5e7eb; border-radius:14px; background:#fafafa; }
+  span { display:block; margin-bottom:7px; color:#64748b; font-size:12px; font-weight:800; }
+  b { color:#111827; font-size:15px; line-height:1.45; }
+}
+.pg-selling { margin-top:14px; padding:16px; border:1px solid #e5e7eb; border-radius:14px; background:#fff;
+  span { display:block; margin-bottom:10px; color:#64748b; font-size:12px; font-weight:900; }
+  em { display:inline-flex; margin:0 8px 8px 0; padding:7px 12px; border-radius:999px; background:#f0fdf4; color:#047857; font-size:13px; font-style:normal; font-weight:800; }
+}
+.pg-pane-title { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px;
+  h3 { margin:0; }
+}
+.pg-scenario-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; }
+.pg-scenario-card { display:flex; flex-direction:column; min-height:590px; padding:20px; border:1px solid #e5e7eb; border-radius:18px; background:#fff; box-shadow:0 10px 28px -22px rgba(15,23,42,.5); transition:all .16s ease;
+  &.active { border-color:#60a5fa; box-shadow:0 16px 34px -24px rgba(37,99,235,.55); }
+  h4 { margin:0 0 18px; color:#111827; font-size:17px; line-height:1.45; font-weight:900; }
+}
+.pg-row { display:grid; grid-template-columns:58px 1fr; gap:10px; margin:0 0 12px; color:#1f2937; font-size:14px; line-height:1.58;
+  span { align-self:start; justify-self:start; min-width:46px; padding:3px 10px; border:1px solid #86efac; border-radius:999px; background:#ecfdf5; color:#047857; font-size:12px; font-weight:900; text-align:center; }
+  &.actions { display:block;
+    span { display:inline-flex; margin-bottom:8px; }
+    ol { margin:0; padding-left:20px; color:#1f2937; }
+    li { margin-bottom:6px; }
+  }
+}
+.pg-tags { display:flex; flex-wrap:wrap; gap:8px; margin:auto 0 16px; padding-top:6px;
+  em { padding:5px 11px; border-radius:999px; background:#f8fafc; color:#38bdf8; font-size:12px; font-style:normal; font-weight:900;
+    &:nth-child(3n+1) { color:#10b981; }
+    &:nth-child(3n) { color:#8b5cf6; }
+  }
+}
+.pg-card-pick { width:100%; min-height:45px; border:none; border-radius:12px; background:#111827; color:#fff; font-size:15px; font-weight:900; cursor:pointer;
+  &:hover { background:#0f172a; box-shadow:0 10px 22px -12px rgba(2,6,23,.55); }
+}
+.pg-final-prompt, .pg-final-negative { width:100%; border:1px solid #e5e7eb; border-radius:14px; background:#fafafa; color:#0f172a; font:inherit; line-height:1.65; resize:vertical; outline:none;
+  &:focus { border-color:#93c5fd; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.09); }
+}
+.pg-final-prompt { min-height:210px; padding:16px; font-size:15px; }
+.pg-negative-label { display:block; margin:18px 0 8px; color:#475569; font-size:13px; font-weight:900; }
+.pg-final-negative { min-height:86px; padding:12px 14px; font-size:13px; color:#334155; }
+.pg-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; }
+.pg-primary, .pg-secondary { min-height:42px; padding:0 20px; border-radius:12px; font-size:14px; font-weight:900; cursor:pointer; }
+.pg-primary { border:none; background:#111827; color:#fff;
+  &:hover { background:#0f172a; box-shadow:0 10px 22px -12px rgba(2,6,23,.55); }
+}
+.pg-secondary { border:1px solid #e5e7eb; background:#fff; color:#111827;
+  &:hover { border-color:#cbd5e1; background:#f8fafc; }
+}
+
 @keyframes ringGlow { 0%,100% { box-shadow: 0 0 0 6px rgba(37,99,235,.08); } 50% { box-shadow: 0 0 0 10px rgba(37,99,235,.04); } }
 @keyframes fadeUp { from { opacity:0; transform: translateY(18px); } to { opacity:1; transform: none; } }
 
 @media (max-width: 880px) {
   .workspace { grid-template-columns: 1fr; }
   .preview { position:relative; top:0; }
+  .prompt-guide-modal { width:100%; max-height:92vh; }
+  .pg-scenario-grid { grid-template-columns:1fr; }
+  .pg-scenario-card { min-height:0; }
 }
 /* 手机端：减小内边距、防溢出 */
 @media (max-width: 640px) {
@@ -1251,6 +1443,15 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .quick-settings { grid-template-columns:1fr; }
   .prompt-composer-head, .prompt-composer-foot { align-items:flex-start; flex-direction:column; }
   .prompt-guide-btn, .advanced-toggle { width:100%; }
+  .prompt-guide-mask { padding:10px; align-items:flex-end; }
+  .prompt-guide-modal { max-height:94vh; border-radius:20px 20px 0 0; }
+  .pg-head { padding:18px 18px 14px; }
+  .pg-steps { grid-template-columns:1fr; gap:9px; padding:0 18px 16px; }
+  .pg-steps button { min-height:44px; }
+  .pg-pane { padding:20px 18px 24px; }
+  .pg-core-grid { grid-template-columns:1fr; }
+  .pg-actions { flex-direction:column-reverse; }
+  .pg-primary, .pg-secondary { width:100%; }
   .hero { margin-bottom: 24px; h1 { font-size: clamp(22px, 6vw, 30px); } p { font-size: 14px; } }
 }
 /* 参考视频播放弹层 */
