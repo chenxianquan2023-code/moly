@@ -227,6 +227,38 @@ test('replica safety rule blocks nudity for model scenes across product categori
   assert.match(rule, /内衣|泳装|裸背/);
 });
 
+test('intimate apparel can be shown as the product without banning itself', () => {
+  const cls = classifyReplicaProduct('黑色蕾丝文胸 bra lingerie underwear');
+
+  assert.equal(cls.isGarment, true);
+  assert.equal(cls.isAccessory, false);
+  assert.equal(cls.isIntimate, true);
+
+  const rule = buildReplicaSafetyRule({ hasPerson: true, productClass: cls });
+
+  assert.match(rule, /成人模特/);
+  assert.match(rule, /合规展示|电商展示|穿搭展示/);
+  assert.match(rule, /不得裸露|不得生成裸身/);
+  assert.match(rule, /不得.*未成年人|不得.*性暗示/);
+  assert.doesNotMatch(rule, /不得内衣\/泳装|不得.*泳装模特|不得.*内衣模特/);
+});
+
+test('swimwear can be shown as the product while non-intimate items still block swimsuit drift', () => {
+  const swim = classifyReplicaProduct('蓝色连体泳衣 swimsuit swimwear');
+  const bag = classifyReplicaProduct('黄色刺绣褶皱手提包 handbag');
+
+  assert.equal(swim.isGarment, true);
+  assert.equal(swim.isIntimate, true);
+  assert.equal(bag.isIntimate, false);
+
+  const swimRule = buildReplicaSafetyRule({ hasPerson: true, productClass: swim });
+  const bagRule = buildReplicaSafetyRule({ hasPerson: true, productClass: bag });
+
+  assert.doesNotMatch(swimRule, /不得内衣\/泳装|不得.*泳装模特/);
+  assert.match(swimRule, /成人模特/);
+  assert.match(bagRule, /不得.*内衣|不得.*泳装/);
+});
+
 test('user prompt directions preserve creative instructions and negative constraints', () => {
   const direction = buildReplicaUserDirection({
     creativePrompt: '保留高级秀场感，模特从左侧入画后坐下展示黄色包',

@@ -196,28 +196,38 @@ const FACE_COVER_USE_RE = /面膜|facial\s*mask|sheet\s*mask|skincare|护肤|墨
 const ANONYMOUS_USE_RE = new RegExp(`${FACE_COVER_USE_RE.source}|乳贴|nipple|pasties|bra|抹胸|tube\\s*top|服饰|穿搭|试穿|wear|try\\s*on`, 'i');
 const PERSON_RE = /模特|女生|女性|人物|真人|手|肩颈|身体|背影|侧身|佩戴|试用|敷|戴|穿|woman|girl|model|hand|body|wear|try/i;
 const GARMENT_RE = /衣|裙|裤|内衣|文胸|外套|上衣|连衣|睡衣|吊带|抹胸|短袖|长袖|衬衫|卫衣|毛衣|夹克|大衣|风衣|西装|套装|泳衣|bra|dress|shirt|skirt|pants|trousers|jeans|coat|jacket|hoodie|sweater|lingerie|underwear|swimsuit|bikini|tube\s*top/i;
+const INTIMATE_RE = /内衣|文胸|胸罩|内裤|乳贴|泳衣|泳装|比基尼|bra|lingerie|underwear|pant(y|ies)|nipple\s*(cover|covers|pasties)|pasties|swimsuit|swimwear|bikini|bathing\s*suit|tube\s*top/i;
 const BAG_RE = /包|手袋|托特|单肩|斜挎|背包|钱包|卡包|提包|链条包|hobo|bag|handbag|purse|tote|backpack|wallet|satchel|crossbody/i;
 const ACCESSORY_RE = /鞋|靴|帽|袜|饰品|项链|手表|手链|戒指|耳[环钉]|眼镜|墨镜|围巾|腰带|配饰|鞋履|sneaker|shoe|boot|hat|cap|sock|jewelry|necklace|watch|bracelet|ring|earring|glasses|sunglasses|scarf|belt|accessory/i;
 
 export function classifyReplicaProduct(text = '') {
   const value = String(text || '');
   const isBag = BAG_RE.test(value);
-  const isGarment = GARMENT_RE.test(value) && !isBag;
+  const isIntimate = INTIMATE_RE.test(value) && !isBag;
+  const isGarment = (GARMENT_RE.test(value) || isIntimate) && !isBag;
   const isAccessory = isBag || ACCESSORY_RE.test(value);
   return {
     isGarment,
     isBag,
     isAccessory,
+    isIntimate,
     isFaceCover: FACE_COVER_USE_RE.test(value),
     isWearable: isGarment || isAccessory,
   };
 }
 
-export function buildReplicaSafetyRule({ hasPerson = false } = {}) {
+export function buildReplicaSafetyRule({ hasPerson = false, productClass = classifyReplicaProduct('') } = {}) {
+  const allowsIntimateDisplay = Boolean(productClass?.isIntimate);
   if (!hasPerson) {
+    if (allowsIntimateDisplay) {
+      return '【商品安全硬性要求】该商品可用平铺、挂拍、包装、衣架或货架方式展示；不得出现未成年人、裸露真人、性暗示场景，不能把商品画成裸体遮挡物。';
+    }
     return '画面不得凭空出现裸露人体、内衣/泳装模特或与商品无关的性感摆拍。';
   }
-  return '【人物安全硬性要求】人物必须完整穿着得体服装，衣物覆盖胸部、腰腹、臀部和私密区域；不得裸露、不得生成裸身/裸背裸腰、不得内衣/泳装/透视装/性暗示姿势，不能把商品当作遮挡身体的唯一衣物。';
+  if (allowsIntimateDisplay) {
+    return '【人物安全硬性要求】若商品本身是内衣、泳装或贴身衣物，可以由成人模特合规展示、电商展示或穿搭展示；人物必须成年、姿态自然，不得出现未成年人、不得性暗示、不得裸露、不得生成裸身/裸背裸腰/透视效果；商品必须按真实穿着方式覆盖胸部、臀部和私密区域，不能把商品当作裸体遮挡物或擦边摆拍道具。';
+  }
+  return '【人物安全硬性要求】人物必须完整穿着得体服装，衣物覆盖胸部、腰腹、臀部和私密区域；不得裸露、不得生成裸身/裸背裸腰、不得穿内衣/泳装/透视装、不得性暗示姿势，不能把商品当作遮挡身体的唯一衣物。';
 }
 
 export function buildReplicaUserDirection({ creativePrompt = '', negativePrompt = '' } = {}) {
