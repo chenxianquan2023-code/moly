@@ -1164,7 +1164,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 }
 
 .workspace { display:grid; grid-template-columns: minmax(0, 1fr) 500px; gap: 28px; align-items:start; }
-.workspace.has-output { grid-template-columns: minmax(0, .92fr) minmax(460px, 560px); }
+.workspace.has-output { grid-template-columns: minmax(0, 1fr) minmax(420px, 480px); }
 
 .card { background:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.7); border-radius: var(--radius-2xl); padding: 22px; margin-bottom:18px; box-shadow: 0 10px 34px -20px rgba(15,23,42,.28); backdrop-filter: blur(10px); transition: box-shadow .3s ease;
   &:hover { box-shadow: 0 16px 40px -22px rgba(37,99,235,.34); } }
@@ -1297,7 +1297,7 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   .pv-tip { margin:0; font-size:12px; line-height:1.5; color: var(--color-text-tertiary); background: rgba(37,99,235,.05); border:1px solid rgba(37,99,235,.1); padding:9px 12px; border-radius:10px; }
 }
 .preview-done { flex:1; display:flex; flex-direction:column; gap:14px;
-  .result-video { width:100%; border-radius: var(--radius-lg); background:#000; aspect-ratio:9/16; object-fit:contain; box-shadow: 0 16px 36px -18px rgba(15,23,42,.5); }
+  .result-video { display:block; width:auto; max-width:100%; max-height:min(62vh, 600px); margin:0 auto; border-radius: var(--radius-lg); background:#000; aspect-ratio:9/16; object-fit:contain; box-shadow: 0 16px 36px -18px rgba(15,23,42,.5); }
   .result-actions { display:flex; gap:10px; }
   .btn-download { flex:1; text-align:center; padding:12px; background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border:none; border-radius: var(--radius-md); font-weight:600; font-size:14px; text-decoration:none; cursor:pointer; box-shadow:0 8px 20px -8px rgba(37,99,235,.55); &:disabled { opacity:.6; cursor:default; } }
   .btn-again { flex:1; padding:12px; background:#fff; border:1px solid var(--color-border); border-radius: var(--radius-md); font-weight:600; font-size:14px; color: var(--color-text-primary); cursor:pointer; }
