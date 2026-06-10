@@ -896,6 +896,12 @@ export async function runReplicaPipeline(task, ctx) {
     // ── 2. 导演分镜脚本（口播 + 画面 + 运动 + 是否出模特）──
     await setStep(1, { status: 'running' });
     let scenes = regen ? regen.scenes.slice() : null; // 换单镜：复用缓存分镜，跳过导演 LLM（下面归一化是幂等的，重跑无害）
+    // 分镜数与成片时长挂钩(代码硬上限,不靠导演自觉)：Seedance 单镜最短按4秒计费——
+    // 12秒片切6镜=按24秒付费、近半白扔(实测46%浪费)；12s→3镜、18s→4-5镜、≥24s才6镜。
+    // 这同时也是爆款的真实节奏(creatok 12s 仅1-2镜)：少而长、不碎切。
+    const wantSec = Number(opts.targetDurationSec) || Math.min(45, Number(analysis?.durationSec) || 12);
+    // 换单镜复用旧任务分镜缓存，绝不能按新上限截断(会与缓存底图/动画片错位)
+    const sceneCap = regen ? Math.max(scenes?.length || 6, 6) : Math.max(2, Math.min(6, Math.round(wantSec / 4)));
     try {
       if (!regen && llm.isConfigured()) {
         const hasSrc = Array.isArray(analysis?.shots) && analysis.shots.length;
@@ -929,14 +935,14 @@ export async function runReplicaPipeline(task, ctx) {
         if (hasSrc) {
           prompt = `你是电商带货短视频导演。任务：【复刻】下面这条爆款视频的拍法与节奏，把主角换成用户的商品，做一条"同款风格"的带货片。\n${common}\n` +
             `源视频风格指纹：${sourceStyle}\n源爆款分镜(按时间顺序)：${sourceShots}\n` +
-            `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与时长占比，分镜数贴合源视频(最多6镜)。【剪辑节奏必须和源视频一致——源是慢节奏/优雅大片感(镜头少而长、画面停留久)就做更少、更长的镜头(如3-4个、每个7-10秒)，绝不为凑数硬切成6个快镜；只有源本身快节奏密集切换才用多而短的分镜。durationRatio 要忠实反映源镜的长短(长镜给大占比)。宁少勿多、宁长勿碎，让成片的快慢观感和源视频一模一样】【必须完整复刻整条"转变弧"：尤其保留源视频的"成果展示镜"(如护肤后皮肤透亮/前后对比)和"收尾镜"(如打扮好/换装准备出门)，绝不能只做前半段就结束；最后一镜要落在一个完整有力的成果或行动状态(打扮好、微笑看镜头推荐)，不要停在动作中途】\n` +
+            `复刻规则：\n1. 【按源视频分镜顺序与节奏逐镜复刻】沿用每镜的镜头类型、运镜、角色(role)与时长占比，本次成片约${wantSec}秒、分镜数最多${sceneCap}个(硬性，超出会被截断；优先保留 hook 与成果/收尾镜)。【剪辑节奏必须和源视频一致——源是慢节奏/优雅大片感(镜头少而长、画面停留久)就做更少、更长的镜头(如3-4个、每个7-10秒)，绝不为凑数硬切成6个快镜；只有源本身快节奏密集切换才用多而短的分镜。durationRatio 要忠实反映源镜的长短(长镜给大占比)。宁少勿多、宁长勿碎，让成片的快慢观感和源视频一模一样】【必须完整复刻整条"转变弧"：尤其保留源视频的"成果展示镜"(如护肤后皮肤透亮/前后对比)和"收尾镜"(如打扮好/换装准备出门)，绝不能只做前半段就结束；最后一镜要落在一个完整有力的成果或行动状态(打扮好、微笑看镜头推荐)，不要停在动作中途】\n` +
             `2. 主体换成【用户的商品】：源镜纯产品→拍本商品对应特写；源镜"手+产品"操作演示→改拍其"结果状态"，withModel=false；源镜完整真人→模特出镜，withModel=true。【忠实复刻源镜人物"实际在做的事"：源镜是自然生活状态(素颜静坐/洗漱/起床)就照拍那个状态，严禁擅自改成"举着产品包装怼镜头"的硬广镜，除非源镜本身就在展示包装】【模特长相只以用户上传模特图为准：只写动作/姿态/表情/景别/场景，绝不写发色/发型/五官，也不照抄源视频人物长相】\n` +
             `3. 源视频纯文字/图形镜→复刻为"本商品英雄特写 + 同款节奏"，不改成普通棚拍海报。\n` +
             `4. 若某镜涉及"喝水/拿杯子/细长道具"，visual 改用不透明杯或直接手持商品，避免吸管、透明玻璃杯这类 AI 视频里极易变形/消失的细长或透明物。\n` +
             `5. ${realityRule}\n6. ${seedanceFaceRule}\n7. ${copyRule}\n8. ${punchRule}\n9. ${fmt}`;
         } else {
           prompt = `你是电商带货短视频导演。${common}` +
-            `\n按"卖货逻辑"设计一条 ${lang} 带货短视频的3-4个分镜(hook/demo/proof/cta)。规则：` +
+            `\n按"卖货逻辑"设计一条 ${lang} 带货短视频的分镜(成片约${wantSec}秒，最多${sceneCap}个镜头，按 hook/demo/proof/cta 取舍)。规则：` +
             `\n1. 结合品类：水杯/数码/家居→展示产品本身(英雄特写、细节微距、内部结构、卖点状态)；服装鞋包→模特展示版型。各镜画面不同、层层递进。` +
             `\n2. ${realityRule}\n3. ${copyRule}` +
             `\n4. withModel：重产品品类演示镜用纯商品(false)并安排1个模特镜(true)；重模特品类多数 true。\n5. ${seedanceFaceRule}\n6. ${punchRule}\n7. ${fmt}`;
@@ -960,7 +966,7 @@ export async function runReplicaPipeline(task, ctx) {
       usedTemplateScenes = true;
       await setStep(1, { status: llm.isConfigured() ? 'failed' : 'skipped', note: '降级:模板分镜' });
     }
-    scenes = scenes.slice(0, 6).map((s, i) => {
+    scenes = scenes.slice(0, sceneCap).map((s, i) => {
       const sourceShotIndex = normalizeSourceIndex(s.sourceShotIndex ?? s.sourceIndex, i, analysis);
       const sourceShot = sourceShotFor(analysis, sourceShotIndex ?? i);
       return {
