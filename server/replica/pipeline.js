@@ -1000,10 +1000,14 @@ export async function runReplicaPipeline(task, ctx) {
         const qcVideo = async (vpath) => {
           if (!gemini.isConfigured()) return { pass: true };
           try {
-            readdirSync(work).filter((f) => f.startsWith('qc_')).forEach((f) => rmSync(join(work, f), { force: true }));
             const qd = (await ff.probe(vpath)).duration || outSec;
-            await ff.extractFrames(vpath, join(work, 'qc_%03d.jpg'), 3 / Math.max(1, qd), qd);
-            const qf = readdirSync(work).filter((f) => f.startsWith('qc_')).sort().slice(0, 3).map((f) => readFileSync(join(work, f)));
+            // 显式钉首尾：发型/换装漂移最爱发生在片头入场与最后一幕——均匀抽帧会漏掉两端(实测盲区)
+            const ts = [0.3, qd * 0.25, qd * 0.5, qd * 0.75, Math.max(0.5, qd - 0.4)];
+            const qf = [];
+            for (let qi = 0; qi < ts.length; qi++) {
+              const fp = join(work, `qcf_${qi}.jpg`);
+              try { await ff.thumbnail(vpath, fp, ts[qi]); qf.push(readFileSync(fp)); } catch { /* 单帧失败跳过 */ }
+            }
             if (qf.length < 2) return { pass: true };
             const vtxt = await gemini.analyzeImages(
               '这些是同一条AI生成视频按时间顺序抽的帧。请核对全片一致性，只输出 JSON：{"pass":true|false,"why":"不一致时一句话说明"}。pass=false 的情形：换了人、发型明显变化(如扎发变披发/长短变化)、服装款式或颜色变化、同帧出现两个相同的人。镜头角度/景别/姿势变化是正常的，不算不一致。',
