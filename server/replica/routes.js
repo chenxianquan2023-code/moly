@@ -252,10 +252,11 @@ replicaRouter.post('/replica/generate', async (req, res) => {
     if (!promptCheck.ok) return res.status(400).json({ success: false, code: 'PROMPT_REQUIRED', message: promptCheck.message });
     const mergedOptions = { ...options, creativePrompt: promptCheck.value, language, aspectRatio, models };
 
-    // 成片秒数：用户选了固定时长用它；否则(跟源)用源视频时长(前端读取上传视频得到)，封顶 45s
-    const outputSec = Number(mergedOptions.targetDurationSec) > 0
+    // 成片秒数：用户选了固定时长用它；否则(跟源)用源视频时长(前端读取上传视频得到)，封顶 45s；动作复刻成片上限 15s
+    let outputSec = Number(mergedOptions.targetDurationSec) > 0
       ? Number(mergedOptions.targetDurationSec)
       : Math.min(45, Number(mergedOptions.sourceDurationSec) || 12);
+    if (mergedOptions.replicaMode === 'motion') outputSec = Math.min(15, outputSec);
     // 按成片秒数 + 所选模型估价
     const { cost, breakdown } = estimateCost(mergedOptions, outputSec);
 
@@ -381,7 +382,8 @@ replicaRouter.get('/replica/voice-sample', async (req, res) => {
 // POST /api/replica/estimate  body: { models, targetDurationSec, sourceDurationSec } —— 预估价（不扣费）
 replicaRouter.post('/replica/estimate', (req, res) => {
   const b = req.body || {};
-  const outputSec = Number(b.targetDurationSec) > 0 ? Number(b.targetDurationSec) : Math.min(45, Number(b.sourceDurationSec) || 12);
+  let outputSec = Number(b.targetDurationSec) > 0 ? Number(b.targetDurationSec) : Math.min(45, Number(b.sourceDurationSec) || 12);
+  if (b.replicaMode === 'motion') outputSec = Math.min(15, outputSec);
   const { cost, breakdown } = estimateCost({ models: b.models || {} }, outputSec);
   res.json({ success: true, cost, breakdown });
 });

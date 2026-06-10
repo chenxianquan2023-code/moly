@@ -761,6 +761,77 @@ export async function runReplicaPipeline(task, ctx) {
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
     await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
 
+    // ── 动作复刻(motion)：参考视频整段动作/运镜迁移给虚构模特并换上商品 ──
+    // 不走分镜/逐镜出图/逐镜动画——直接 reference-to-video 一次成片(4-15s)，再走统一合成(背景乐/淡出/封面)。
+    // 内容边界：真人暧昧素材(性感舞/贴身暴露)会被平台审核拒 → 抛人话错误，runTask 自动全额退款。
+    if (!regen && opts.replicaMode === 'motion') {
+      const srcPath = join(work, 'src.mp4');
+      if (!task.source_video_id || !existsSync(srcPath)) {
+        throw new Error('动作复刻需要参考视频：请先上传一条参考视频(人物着装常规、不以身体为焦点)再生成。本次积分已自动退还。');
+      }
+      await setStep(1, { status: 'skipped', note: '动作复刻：整段动作迁移，无需分镜' });
+      await setStep(2, { status: 'skipped', note: '动作复刻：不生成口播/字幕，可选保留源视频背景乐' });
+      await setStep(3, { status: 'running', note: '整段动作迁移生成中（约 3-6 分钟）' });
+      const srcMeta = await ff.probe(srcPath);
+      const srcDur = srcMeta.duration || 12;
+      let refPath = srcPath;
+      if (srcDur > 15.2) { // 参考视频上限 15 秒：超长取前 15 秒
+        refPath = join(work, 'motion_ref.mp4');
+        await ff.ffmpeg(['-y', '-i', srcPath, '-t', '15', '-an', '-c:v', 'libx264', '-crf', '23', refPath]);
+        notes.push(`参考视频约 ${Math.round(srcDur)} 秒，超 15 秒上限，已取前 15 秒做动作参考`);
+      }
+      const refUrl = await uploadBuffer(makePath(task.user_email, 'motion-ref', 'ref.mp4'), readFileSync(refPath), 'video/mp4');
+      const outSec = Math.max(4, Math.min(15, Math.round(Number(opts.targetDurationSec) || Math.min(15, srcDur))));
+      const garment = productClass.isGarment
+        ? '身上穿的必须是参考商品图里的这一件(同款式/颜色/印花/细节)，全程同一身、绝不换装'
+        : '自然地使用/手持/佩戴参考商品图里的这一件商品(同款式/颜色/logo/细节)，全程同一件';
+      const motionPrompt = `以参考视频作为动作编排、镜头运动、场景与节奏的唯一参考：生成一位原创虚构的模特(不对应任何真实人物，长相须与参考视频中的人明显不同)，${garment}，在与参考视频同样的场景与光线里，按参考视频同样的动作与节奏表演，运镜与景别保持一致。画面真实自然、肢体解剖正确、双手五指正常、商品细节清晰可见、不变形、不漂浮、无任何文字水印。${userDirection}`;
+      let motionUrl;
+      try {
+        motionUrl = await fal.referenceToVideo({
+          prompt: motionPrompt.slice(0, 1800),
+          videoUrls: [refUrl],
+          imageUrls: [productUrl, modelUrl].filter(Boolean),
+          duration: outSec,
+        });
+      } catch (e) {
+        const m = String(e?.message || e);
+        if (/CONTENT_POLICY|content_policy/i.test(m)) {
+          throw new Error('参考视频未通过内容审核：平台拒绝以"性感舞蹈、贴身暴露着装、以身体为焦点"的真人视频做生成参考。请换一条着装常规的参考视频(时装走位/产品演示/生活场景都可以)。本次积分已自动退还。');
+        }
+        if (looksLikeNoBalance(m)) {
+          tripVideoBreaker();
+          notifyAdmin('视频模型没额度了', '动作复刻(reference-to-video)余额耗尽，用户生成被中止并退款。');
+          throw new Error('视频模型没额度了，请联系管理员充值。本次积分已自动退还。');
+        }
+        throw e;
+      }
+      const vp = join(work, 'motion.mp4');
+      await download(motionUrl, vp);
+      await setStep(3, { status: 'succeeded', note: '视频源: Seedance·动作复刻' });
+      await setStep(4, { status: 'running' });
+      const mMeta = await ff.probe(vp);
+      const mScenes = [{ type: 'motion', text: '', visual: '整段动作迁移(动作复刻)', withModel: true, personMode: 'identifiable' }];
+      const mDurations = [mMeta.duration || outSec];
+      const comp = await composeVideo({ work, scenes: mScenes, sceneDurations: mDurations, sceneClips: [vp], sceneAudios: [{ duration: 0 }], ttsOk: false, analysis, opts, notes });
+      const videoUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'video.mp4'), readFileSync(comp.finalPath), 'video/mp4');
+      const coverUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'cover.jpg'), readFileSync(comp.coverPath), 'image/jpeg');
+      const subtitleUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'subs.srt'), readFileSync(comp.srtPath), 'text/plain');
+      const gv = await insertRow('generated_videos', {
+        user_email: task.user_email, task_id: task.id, source_video_id: task.source_video_id || null,
+        video_url: videoUrl, cover_url: coverUrl, subtitle_url: subtitleUrl, duration: comp.duration,
+      });
+      await setStep(4, { status: 'succeeded' });
+      notes.push('动作复刻：参考视频整段动作迁移(不含口播/字幕脚本)');
+      if (opts.generate_voice) notes.push('动作复刻模式不支持 AI 配音，已忽略该选项');
+      return {
+        generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
+        usedAI: true, ttsOk: false, shots: mScenes, sceneImages: [], sceneClips: [videoUrl], sceneDurations: mDurations,
+        usedProvider: 'Seedance·动作复刻', sourceShots: analysis?.shots || null, styleFingerprint: null,
+        replicated: true, notes,
+      };
+    }
+
     // 统一拍摄环境(从源解析抽场景/背景/布光)：喂给 hero/虚拟模特，确立全片同一处环境，根治背景跳变
     const sceneEnv = sceneEnvironment(analysis);
 

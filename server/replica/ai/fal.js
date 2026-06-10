@@ -93,6 +93,52 @@ export async function imageToVideo(image, prompt = '', {
   }
 }
 
+// 动作复刻：Seedance 2.0 reference-to-video——参考视频(≤15s)整段动作/运镜迁移 + 商品图换装。
+// 实测要点：①带视频输入 $0.145/s(比 i2v 便宜) ②真人暧昧内容(性感舞等)会被 partner 审核拒,
+// 拒绝时请求状态仍是 COMPLETED、结果体里是 detail[].type=content_policy_violation ③取状态/结果
+// 必须用根应用路径(bytedance/seedance-2.0)，带完整子路径会 405。
+const REF_MODEL = process.env.FAL_REF_MODEL || 'bytedance/seedance-2.0/fast/reference-to-video';
+export async function referenceToVideo({ prompt, videoUrls = [], imageUrls = [], duration = 12, resolution, maxPollingMs = 720000, pollIntervalMs = 8000 } = {}) {
+  if (!FAL_KEY) throw new Error('缺少 FAL_KEY');
+  const auth = { Authorization: `Key ${FAL_KEY}` };
+  const input = {
+    prompt: prompt || '按参考视频的动作与节奏自然表演',
+    video_urls: videoUrls.filter(Boolean).slice(0, 3),
+    image_urls: imageUrls.filter(Boolean).slice(0, 9),
+    resolution: resolution || process.env.FAL_RESOLUTION || '720p',
+    duration: Math.max(4, Math.min(15, Math.round(Number(duration) || 12))),
+    aspect_ratio: '9:16',
+    generate_audio: false,
+  };
+  const subRes = await fetchRetry(`${BASE}/${REF_MODEL}`, {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify(input), signal: AbortSignal.timeout(120000),
+  });
+  const sub = await subRes.json().catch(() => ({}));
+  if (!subRes.ok || !sub.request_id) throw new Error('Fal 提交失败: ' + JSON.stringify(sub.detail || sub.message || sub).slice(0, 220));
+  const root = REF_MODEL.split('/').slice(0, 2).join('/'); // 取结果用根应用路径(子路径会405)
+  const statusUrl = `${BASE}/${root}/requests/${sub.request_id}/status`;
+  const responseUrl = `${BASE}/${root}/requests/${sub.request_id}`;
+  const start = Date.now();
+  while (true) {
+    if (Date.now() - start > maxPollingMs) throw new Error(`Fal 动作迁移超时 (${maxPollingMs / 1000}s)`);
+    await sleep(pollIntervalMs);
+    let st;
+    try { st = await (await fetchRetry(statusUrl, { headers: auth })).json(); }
+    catch { continue; }
+    if (st?.status === 'COMPLETED') {
+      const out = await (await fetchRetry(responseUrl, { headers: auth })).json();
+      const url = out?.video?.url || out?.output?.video?.url;
+      if (url) return url;
+      // COMPLETED 但无 url：多半是内容审核拒绝(detail.type=content_policy_violation)
+      const det = JSON.stringify(out?.detail || out).slice(0, 260);
+      if (/content_policy/i.test(det)) throw new Error('CONTENT_POLICY: ' + det);
+      throw new Error('Fal 动作迁移无结果: ' + det);
+    }
+    if (st?.status === 'FAILED' || st?.status === 'ERROR') throw new Error('Fal 动作迁移失败: ' + JSON.stringify(st?.error || st).slice(0, 200));
+  }
+}
+
 // 复探：fal 是否在接受请求(有余额)。给"视频引擎熔断器"自愈用——充值后立即解封，不傻等。
 // 提交一个最小请求看是否被接受(返回 request_id)；接受=有钱，并尽量取消这次探测(省费用)。60s 缓存避免狂探。
 let _probe = { at: 0, ok: null };

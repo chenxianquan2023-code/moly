@@ -27,12 +27,15 @@ async function runActor(actorId, input, timeoutMs = 180000) {
   return Array.isArray(items) ? items : [];
 }
 
-/** 搜索 TikTok 爆款视频（不下载、只拿元数据/封面）→ 归一化 */
+/** 搜索 TikTok 爆款视频（不下载、只拿元数据/封面）→ 归一化。
+ *  TikTok 搜索接口按"相关性"排序(普通/擦边视频常排前面)，不是按热度——
+ *  所以多抓 3 倍候选、按点赞降序取前 limit 条，"搜爆款"才真是爆款。 */
 export async function searchTikTok(keyword, limit = 12) {
+  const fetchN = Math.min(40, Math.max(limit * 3, 24));
   const items = await runActor(TIKTOK, {
     searchQueries: [keyword],
     searchSection: '/video',
-    resultsPerPage: limit,
+    resultsPerPage: fetchN,
     shouldDownloadVideos: false,
   });
   return items
@@ -48,7 +51,9 @@ export async function searchTikTok(keyword, limit = 12) {
       views: x.playCount || 0,
       shares: x.shareCount || 0,
       duration: x.videoMeta?.duration || 0,
-    }));
+    }))
+    .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+    .slice(0, limit);
 }
 
 /** 搜索 Amazon 爆款产品（关键词拼搜索 URL）→ 归一化 */

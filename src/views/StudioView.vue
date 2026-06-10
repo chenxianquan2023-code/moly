@@ -171,8 +171,14 @@
                   <div class="seg">
                     <button type="button" :class="{ active: replicaMode === 'smart' }" @click="replicaMode = 'smart'" title="智能复刻：参考源视频的风格/节奏，生成全新场景。任意商品都适用、更灵活。">智能</button>
                     <button type="button" :class="{ active: replicaMode === 'faithful' }" @click="replicaMode = 'faithful'" title="贴帧复刻：尽量贴源视频的构图/姿势/道具，只把商品和模特换成你的。服装等同类商品效果最佳，最像源视频。">贴帧·像源</button>
+                    <button type="button" :class="{ active: replicaMode === 'motion' }" @click="replicaMode = 'motion'" title="动作复刻：把参考视频的整段动作、运镜、节奏原样迁移给 AI 模特并换上你的商品。走位/演示类动作视频效果最佳。">动作复刻</button>
                   </div>
                 </div>
+                <p v-if="replicaMode === 'motion'" class="voice-hint motion-hint">
+                  动作复刻：整段迁移参考视频的<b>动作、运镜和节奏</b>，模特换成 AI 虚构模特、商品换成你的。
+                  需上传参考视频（超过 15 秒只取前 15 秒），成片 4–15 秒，不含口播和字幕，可保留源视频背景乐。<br />
+                  ⚠️ 参考视频中的人物须<b>着装常规、不以身体为焦点</b>——性感舞蹈、贴身暴露类素材会被平台内容审核拒绝（拒绝后积分自动全额退还）。
+                </p>
                 <div class="model-row" v-if="pricing.video && pricing.video.length > 1">
                   <span class="model-label">视频引擎</span>
                   <div class="seg">
@@ -630,10 +636,11 @@ function stopProgressUx() {
   if (tipTimer) { clearInterval(tipTimer); tipTimer = null; }
 }
 
-// 成片秒数：选了固定时长用它；否则(跟源)用上传源视频时长，封顶 outputMaxSec
+// 成片秒数：选了固定时长用它；否则(跟源)用上传源视频时长，封顶 outputMaxSec；动作复刻成片上限 15s
 const outputSeconds = computed(() => {
-  const maxSec = pricing.value?.outputMaxSec || 45;
-  return targetDuration.value > 0 ? targetDuration.value : Math.min(maxSec, Math.round(sourceDuration.value) || 12);
+  const maxSec = replicaMode.value === 'motion' ? 15 : (pricing.value?.outputMaxSec || 45);
+  const sec = targetDuration.value > 0 ? targetDuration.value : Math.round(sourceDuration.value) || 12;
+  return Math.min(maxSec, sec);
 });
 const estimatedCredits = computed(() => {
   if (!pricing.value) return 240;
@@ -649,7 +656,8 @@ const settingsSummary = computed(() => {
   const sound = generateVoice.value ? 'AI配音' : (generateMusic.value ? '源视频背景乐' : '无音频');
   return `${vm} · ${im} · ${sound}`;
 });
-const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && promptReady.value && !generating.value);
+const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && promptReady.value && !generating.value
+  && (replicaMode.value !== 'motion' || !!sourceVideoAsset.value)); // 动作复刻必须有参考视频(动作的来源)
 
 async function generatePromptGuide() {
   if (!auth.isLoggedIn) { alert('请先登录'); return; }

@@ -100,6 +100,7 @@
 
       <section v-if="res.tiktok?.length" class="block">
         <h2 class="bt">TikTok 爆款视频 <em>{{ res.tiktok.length }}</em></h2>
+        <p class="results-tip">已按点赞数从高到低排序。提示：以身体为焦点的视频(如性感舞蹈)可用「智能复刻」借鉴节奏出新场景，但无法用于「动作复刻」——平台内容审核会拒绝并自动退款。</p>
         <div class="grid">
           <div v-for="v in res.tiktok" :key="v.sourceUrl" class="card">
             <div class="cover" @click="playVideo(v)">
@@ -385,6 +386,7 @@ async function blobDownload(url: string, name: string) {
 
 .hint { margin: 28px 0; text-align:center; color: var(--color-text-secondary); font-size:15px; }
 .warn { margin: 16px 0 0; font-size: 13px; color: var(--color-warning); }
+.results-tip { margin: -6px 0 14px; font-size: 12.5px; line-height: 1.6; color: var(--color-text-tertiary); }
 .empty { margin: 48px 0; text-align:center; color: var(--color-text-tertiary); }
 
 /* 初始态 */
