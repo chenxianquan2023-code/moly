@@ -772,6 +772,22 @@ export async function runReplicaPipeline(task, ctx) {
       await setStep(1, { status: 'skipped', note: '动作复刻：整段动作迁移，无需分镜' });
       await setStep(2, { status: 'skipped', note: '动作复刻：不生成口播/字幕，可选保留源视频背景乐' });
       await setStep(3, { status: 'running', note: '整段动作迁移生成中（约 3-6 分钟）' });
+      // 内容预检(省钱省时)：平台对"身体焦点"画面双层审核(输入+输出)，输出层拒绝=生成费已花掉才被拒。
+      // 用 Gemini 看抽帧提前判risk，有风险当场拦——用户不用白等10分钟，我们不白烧生成费。预检失败不阻断。
+      if (sourceStyleFrames.length && gemini.isConfigured()) {
+        try {
+          const gateTxt = await gemini.analyzeImages(
+            '这些是要用作 AI 视频生成"动作参考"的视频抽帧。生成平台的审核会拒绝"以身体为焦点"的内容。请判断被拒风险，只输出 JSON：{"risky":true|false,"reason":"一句话"}。risky=true 的情形：着装暴露(超短裙/贴身/泳装/内衣)、腿部或身体局部特写较多、性感姿势或性感舞蹈。着装常规的全身走位、产品演示、生活场景为 false。',
+            sourceStyleFrames.slice(0, 4), { temperature: 0 });
+          const gate = gemini.parseJson(gateTxt);
+          if (gate?.risky) {
+            throw new Error(`参考视频大概率无法通过平台内容审核（${compactText(gate.reason, 60) || '画面以身体为焦点'}）。平台对短裙坐姿、腿部/身体局部特写、性感舞蹈类画面非常敏感，即使着装正常也常被误判。请换一条全身走位、镜头不聚焦身体局部的参考视频（如时装走位/产品演示/生活场景）。本次积分已自动退还。`);
+          }
+        } catch (e) {
+          if (/无法通过平台内容审核/.test(String(e?.message))) throw e; // 预检命中→真拦截
+          notes.push('内容预检跳过: ' + String(e?.message || e).split('\n')[0].slice(0, 40)); // 预检本身失败→放行
+        }
+      }
       const srcMeta = await ff.probe(srcPath);
       const srcDur = srcMeta.duration || 12;
       let refPath = srcPath;
@@ -785,7 +801,11 @@ export async function runReplicaPipeline(task, ctx) {
       const garment = productClass.isGarment
         ? '身上穿的必须是参考商品图里的这一件(同款式/颜色/印花/细节)，全程同一身、绝不换装'
         : '自然地使用/手持/佩戴参考商品图里的这一件商品(同款式/颜色/logo/细节)，全程同一件';
-      const motionPrompt = `以参考视频作为动作编排、镜头运动、场景与节奏的唯一参考：生成一位原创虚构的模特(不对应任何真实人物，长相须与参考视频中的人明显不同)，${garment}，在与参考视频同样的场景与光线里，按参考视频同样的动作与节奏表演，运镜与景别保持一致。画面真实自然、肢体解剖正确、双手五指正常、商品细节清晰可见、不变形、不漂浮、无任何文字水印。${userDirection}`;
+      // 审核是关键词级匹配、不懂否定句——"不要裸露"这类负面词也会被当敏感词拍死。
+      // 动作复刻：不携带用户负面词(reference-to-video 用不上)，并对最终 prompt 清洗敏感词兜底。
+      const motionDirection = buildReplicaUserDirection({ creativePrompt: opts.creativePrompt || opts.userPrompt || opts.prompt || '', negativePrompt: '' });
+      const motionPrompt = `以参考视频作为动作编排、镜头运动、场景与节奏的唯一参考：生成一位原创虚构的模特(不对应任何真实人物，长相须与参考视频中的人明显不同)，${garment}，在与参考视频同样的场景与光线里，按参考视频同样的动作与节奏表演，运镜与景别保持一致。模特着装完整得体。画面真实自然、肢体解剖正确、双手五指正常、商品细节清晰可见、不变形、不漂浮、无任何文字水印。${motionDirection}`
+        .replace(/裸露|裸体|赤裸|性感|情色|色情|暴露|内衣|泳装/g, '');
       let motionUrl;
       try {
         motionUrl = await fal.referenceToVideo({
@@ -796,8 +816,11 @@ export async function runReplicaPipeline(task, ctx) {
         });
       } catch (e) {
         const m = String(e?.message || e);
+        if (/CONTENT_POLICY_OUTPUT/.test(m)) {
+          throw new Error('生成结果未通过平台内容审核：参考视频画面以身体为焦点(如短裙坐姿、腿部/身体局部特写)时，按它生成的成片容易被平台判为敏感——即使着装正常也可能被误判。请换一条全身走位、镜头不聚焦身体局部的参考视频。本次积分已自动退还。');
+        }
         if (/CONTENT_POLICY|content_policy/i.test(m)) {
-          throw new Error('参考视频未通过内容审核：平台拒绝以"性感舞蹈、贴身暴露着装、以身体为焦点"的真人视频做生成参考。请换一条着装常规的参考视频(时装走位/产品演示/生活场景都可以)。本次积分已自动退还。');
+          throw new Error('参考视频未通过平台内容审核：平台拒绝"性感舞蹈、着装暴露、以身体为焦点"的真人视频做生成参考，且对女性短裙/腿部特写类画面较敏感(可能误判)。请换一条着装覆盖较多、全身走位的参考视频(时装走位/产品演示/生活场景都可以)。本次积分已自动退还。');
         }
         if (looksLikeNoBalance(m)) {
           tripVideoBreaker();

@@ -130,9 +130,12 @@ export async function referenceToVideo({ prompt, videoUrls = [], imageUrls = [],
       const out = await (await fetchRetry(responseUrl, { headers: auth })).json();
       const url = out?.video?.url || out?.output?.video?.url;
       if (url) return url;
-      // COMPLETED 但无 url：多半是内容审核拒绝(detail.type=content_policy_violation)
+      // COMPLETED 但无 url：多半是内容审核拒绝(detail.type=content_policy_violation)。
+      // 双层审核：loc=prompt/video_urls 是输入层(秒拒)；loc=generated_video 是输出层(生成完才拒，钱已花)。
       const det = JSON.stringify(out?.detail || out).slice(0, 260);
-      if (/content_policy/i.test(det)) throw new Error('CONTENT_POLICY: ' + det);
+      if (/content_policy/i.test(det)) {
+        throw new Error((/generated_video/i.test(det) ? 'CONTENT_POLICY_OUTPUT: ' : 'CONTENT_POLICY: ') + det);
+      }
       throw new Error('Fal 动作迁移无结果: ' + det);
     }
     if (st?.status === 'FAILED' || st?.status === 'ERROR') throw new Error('Fal 动作迁移失败: ' + JSON.stringify(st?.error || st).slice(0, 200));
