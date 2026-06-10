@@ -165,6 +165,12 @@ export function softenExtremeFraming(text) {
 
 // 统一环境描述：从源解析抽"场景/背景/布光/色调"，喂给 hero 基准图，确立全片同一处拍摄环境。
 // 根治"背景跳变/结尾突然换底"——靠 hero 那张图把环境带上(图钉死)，配合各镜"保持基准图背景"。
+// 姿态转换指令是"分身"的根源：底图站着+指令"走过去坐下" → i2v 变不出这个转换，就凭空复制一个
+// 坐着的人物副本(实测翻车)。代码级确定性改写成原地动作——姿态转换交给切镜头表现，不靠模型听话。
+export function sanitizeMotion(text) {
+  return String(text || '').replace(/走[向到过去]+.{0,8}(坐下|椅子?|凳子?)|坐到.{0,8}上|坐下|入座|落座|起身|站起身?|躺下/g, '保持当前姿态原地自然律动');
+}
+
 function sceneEnvironment(analysis) {
   if (!analysis) return '';
   return [
@@ -1326,15 +1332,15 @@ export async function runReplicaPipeline(task, ctx) {
         const sourceShot = sourceShotFor(analysis, s.sourceShotIndex ?? i);
         const sceneStyle = s.sourceStyle || styleFingerprint(analysis, sourceShot);
         const rhythmCue = sceneStyle
-          ? `镜头运动严格跟随源爆款第${(s.sourceShotIndex ?? i) + 1}镜的运镜：${s.motion || sourceShot?.camera || '保持源镜头的运镜与动势'}；复刻它的运镜幅度与节奏(该推则推、该跟则跟、该摇则摇，不要凭空压成静止)，剪辑节奏贴近源视频(${analysis?.editingRhythm || analysis?.pacing || '自然真实'})。`
-          : `镜头运动：${String(s.motion || '缓慢推近').slice(0, 80)}。`;
+          ? `镜头运动严格跟随源爆款第${(s.sourceShotIndex ?? i) + 1}镜的运镜：${sanitizeMotion(s.motion) || sanitizeMotion(sourceShot?.camera) || '保持源镜头的运镜与动势'}；复刻它的运镜幅度与节奏(该推则推、该跟则跟、该摇则摇，不要凭空压成静止)，剪辑节奏贴近源视频(${analysis?.editingRhythm || analysis?.pacing || '自然真实'})。`
+          : `镜头运动：${sanitizeMotion(s.motion).slice(0, 80) || '缓慢推近'}。`;
         const anonymityMotionRule = s.personMode === 'anonymous'
           ? '全程保持匿名，不出现清晰可识别正脸；若是面膜/墨镜/口罩/防晒面罩等面部遮挡商品，保留真实头部、眼鼻口位置或自然脸部轮廓，不能变成空白脸、无脸人或假人面具；'
           : '';
         // 有人物的镜头：让模特/人物自然灵动地动起来（像源爆款那样）；纯产品镜才保持静止防漂浮
         const hasPerson = s.withModel || s.personMode === 'anonymous';
         const subjectMotionRule = hasPerson
-          ? '画面里的人物像真人出镜一样自然地动起来：可以走动/迈步/转身/坐下或起身/重心转移/侧身回眸，配合自然的表情(微笑、眨眼、说话口型、点头转头)与轻柔的手臂摆动、裙摆和头发的自然飘动，动作流畅、有真实拍摄的生活感，绝不是一张僵硬的静止照片。硬性底线：双手解剖正确、五指自然、绝不多出第三只手或手臂、不做快速复杂的手部小动作；手持或佩戴的商品始终清晰、形状与 logo 不变形、不漂浮、不无故消失或移动。'
+          ? '画面里的人物像真人出镜一样自然地动起来：可以原地走一两步/转身/重心转移/侧身回眸，配合自然的表情(微笑、眨眼、说话口型、点头转头)与轻柔的手臂摆动、裙摆和头发的自然飘动，动作流畅、有真实拍摄的生活感，绝不是一张僵硬的静止照片。【姿态硬锁】人物的姿态类型必须与画面开头保持一致——开头站着就全程站着、坐着就全程坐着，绝不在本镜内完成"从站到坐/从坐到站/走过去坐下"这类姿态转换(这会凭空长出第二个人物副本)；姿态转换交给下一个镜头表现。硬性底线：双手解剖正确、五指自然、绝不多出第三只手或手臂、不做快速复杂的手部小动作；手持或佩戴的商品始终清晰、形状与 logo 不变形、不漂浮、不无故消失或移动。'
           : '主体商品保持静止稳定、贴合台面或被手持，不漂浮、不起飞、不变形、不扭曲、不无故移动；商品的形状、logo/标志、按钮等细节全程保持一致、不变样不丢失；只移动镜头、主体不自行运动；重力与接触关系真实自然。';
         const subjectMultiplicityMotionRule = hasPerson
           ? '主体数量保持一致：单人镜头全程只出现一个人物主体，不能把同一人物复制成前后两个、镜像人、背景同款人或分身；若源镜明确多人，保持人数稳定且每个人不同，不凭空加人。'

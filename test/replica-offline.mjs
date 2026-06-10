@@ -3,7 +3,7 @@
  * 用法: node test/replica-offline.mjs
  * 覆盖: ① computeSceneDurations 各场景不出"首幕过长/总长超源被砍尾" ② 背景乐循环铺底，-shortest 不砍画面。
  */
-import { computeSceneDurations, composeVideo, snapToBeats, softenExtremeFraming } from '../server/replica/pipeline.js';
+import { computeSceneDurations, composeVideo, snapToBeats, softenExtremeFraming, sanitizeMotion } from '../server/replica/pipeline.js';
 import { ffmpeg, probe, concatVideo, addAudio } from '../server/replica/ai/ffmpeg.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -178,6 +178,15 @@ console.log('\n═══ Part 6: softenExtremeFraming 景别下限（纯代码�
   ok(softenExtremeFraming('商品特写，突出质感') === '商品特写，突出质感', '商品特写不被误伤(只拦五官微距)');
   ok(softenExtremeFraming('全身走位，模特坐在木椅上') === '全身走位，模特坐在木椅上', '全身/中景原样保留');
   ok(softenExtremeFraming('') === '' && softenExtremeFraming(null) === '', '空输入安全返回');
+}
+
+console.log('\n═══ Part 7: sanitizeMotion 姿态转换清洗（纯代码，杜绝 i2v 分身）═══');
+{
+  ok(!/坐下/.test(sanitizeMotion('模特走向椅子坐下，镜头跟随')), '"走向椅子坐下" → 被改写(不再含坐下)');
+  ok(sanitizeMotion('优雅入座后看向镜头').includes('保持当前姿态原地自然律动'), '"入座" → 原地律动');
+  ok(!/起身/.test(sanitizeMotion('从椅子上起身离开')), '"起身" → 被改写');
+  ok(sanitizeMotion('镜头缓慢推近，模特微笑转身') === '镜头缓慢推近，模特微笑转身', '正常运镜/转身不被误伤');
+  ok(sanitizeMotion('') === '' && sanitizeMotion(null) === '', '空输入安全返回');
 }
 
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);
