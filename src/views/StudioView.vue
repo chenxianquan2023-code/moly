@@ -175,6 +175,7 @@
                   </div>
                 </div>
                 <p v-if="replicaMode === 'motion'" class="voice-hint motion-hint">
+                  ⏱ <b>生成时间较长：约 5–25 分钟</b>（整段动作迁移走平台排队，明显慢于智能/贴帧的约 7 分钟；期间可离开页面，稍后在「历史」查看成片）。<br />
                   动作复刻：整段迁移参考视频的<b>动作、运镜和节奏</b>，模特换成 AI 虚构模特、商品换成你的。
                   需上传参考视频（超过 15 秒只取前 15 秒），成片 4–15 秒，不含口播和字幕，可保留源视频背景乐。<br />
                   ⚠️ 平台对参考视频和生成结果做<b>双重内容审核</b>：性感舞蹈、着装暴露会被直接拒绝；<b>短裙坐姿、腿部/身体局部特写</b>类画面即使着装正常也可能被误判。
@@ -855,6 +856,8 @@ function buildGenBody(sourceVideoId: any) {
 
 async function generate() {
   if (!canGenerate.value) return;
+  // 动作复刻走平台排队，耗时明显长于智能/贴帧——开始前明确提醒，避免用户以为卡死
+  if (replicaMode.value === 'motion' && !confirm('动作复刻为整段动作迁移，预计需要 5–25 分钟（平台排队，时长不可控），明显长于智能/贴帧。\n生成期间可离开页面，稍后到「历史」查看成片；若被内容审核拒绝会自动全额退款。\n\n确定开始？')) return;
   generating.value = true;
   result.value = null;
   task.value = null;
