@@ -265,10 +265,13 @@ test('user prompt directions preserve creative instructions and negative constra
     negativePrompt: '不要裸露，不要换成白色包，不要多手',
   });
 
-  assert.match(direction, /用户创意要求/);
+  assert.match(direction, /用户创意参考/);
   assert.match(direction, /高级秀场感/);
   assert.match(direction, /用户禁止事项/);
   assert.match(direction, /不要裸露/);
+  // 优先级守卫：创意永远低于一致性锁(同人/同衣/同环境)，防"换场景"文案顶翻 hero 锚(实测翻车回归)
+  assert.match(direction, /优先级·硬性/);
+  assert.match(direction, /忽略冲突部分/);
 });
 
 test('single-model user directions forbid duplicate same-person subjects in one frame', () => {

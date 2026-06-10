@@ -234,10 +234,14 @@ export function buildReplicaUserDirection({ creativePrompt = '', negativePrompt 
   const creative = compactText(creativePrompt, 1200);
   const negative = compactText(negativePrompt, 800);
   const subjectRule = '【主体数量一致性】若用户提示词或源分镜没有明确要求多人，每个画面只允许一个主要人物主体；不要把同一模特的多个动作状态放进同一帧，不得出现第二个同款人物、背景同款人、镜像人物、分身或 before/after 双人对比。连续动作必须拆成不同镜头或不同时间段表达。若用户提示词或源视频明确是多人，则保持对应人数与角色差异，禁止复制同一张脸/同一套衣服，禁止凭空新增人物。';
+  // 优先级守卫(硬性)：用户创意(常为 AI 自动填)只作参考，绝不允许它顶翻一致性锁——
+  // 否则"场景切换为咖啡馆/一位年轻女性"这类文案会把 hero 环境、人物身份、服装全部带跑(实测翻车)。
+  const priorityRule = '【优先级·硬性】上述用户创意只作为动作/叙事/氛围参考，优先级低于本提示词中的一致性锁定(同一人物长相、同一身服装、同一商品、同一拍摄环境/背景)。若创意与锁定冲突——例如要求更换场景(咖啡馆/阳台/海边/街头等)、更换人物、更换服装——一律忽略冲突部分，只采纳不冲突的动作、节奏与情绪；人物/服装/商品/背景始终以基准图(参考图)与上述硬性规则为准，全片只有一个模特。';
   return [
-    creative && `【用户创意要求】${creative}`,
+    creative && `【用户创意参考】${creative}`,
     negative && `【用户禁止事项】${negative}`,
     (creative || negative) && subjectRule,
+    creative && priorityRule,
   ].filter(Boolean).join('\n');
 }
 

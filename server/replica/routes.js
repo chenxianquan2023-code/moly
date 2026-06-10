@@ -221,8 +221,14 @@ replicaRouter.post('/replica/prompt-guide', async (req, res) => {
       for (const f of frames) images.push(readFileSync(join(work, f)));
     }
 
-    const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份 Creatok 风格的提示词向导。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。
-输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"audience":"目标受众","videoType":"UGC 种草/测评/教程/带货等","scenarios":[{"title":"方案标题","subject":"主体：谁在什么场景使用/展示商品","lighting":"光线：自然光/棚光/夜景等","camera":"镜头：POV/自拍/桌面俯拍/手持跟拍等","actions":["动作1","动作2","动作3","动作4","动作5"],"tags":["Raw UGC","Authentic","Lifestyle"],"prompt":"按该方案生成视频的一段完整提示词，100-220字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现"}],"creativePrompt":"默认推荐方案的完整提示词","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}。scenarios 必须给 3 个，风格要明显不同。`;
+    // 有参考视频时：方案绝不允许"换场景"(咖啡馆/海边等)——那会顶翻复刻流水线的环境/人物一致性锁(实测翻车)。
+    // 差异只许体现在动作编排、镜头节奏、表现重点上；场景/环境/光线一律沿用参考视频。
+    const sceneRule = sourceAsset?.file_url
+      ? `【硬性】用户已上传参考视频(后面的帧)：3 个方案的场景、环境、背景、光线都必须沿用参考视频里的(在 subject/lighting/prompt 中明确写"沿用参考视频的场景与光线")，绝不改成咖啡馆、阳台、海边、街头等参考视频里没有的新场景；3 个方案的差异只体现在动作编排、镜头节奏、表现重点上。每个 prompt 都必须包含一句"场景/环境/光线沿用参考视频，全片同一个模特、同一身穿搭"。`
+      : `没有参考视频：3 个方案可以自由设定生活化场景，风格明显不同。`;
+    const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份提示词向导。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。
+${sceneRule}
+输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"audience":"目标受众","videoType":"UGC 种草/测评/教程/带货等","scenarios":[{"title":"方案标题","subject":"主体：谁在什么场景使用/展示商品","lighting":"光线：自然光/棚光/夜景等","camera":"镜头：POV/自拍/桌面俯拍/手持跟拍等","actions":["动作1","动作2","动作3","动作4","动作5"],"tags":["Raw UGC","Authentic","Lifestyle"],"prompt":"按该方案生成视频的一段完整提示词，100-220字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现"}],"creativePrompt":"默认推荐方案的完整提示词","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}。scenarios 必须给 3 个。`;
     const txt = await gemini.analyzeImages(prompt, images, { temperature: 0.3 });
     const guide = normalizePromptGuide(gemini.parseJson(txt));
     res.json({
