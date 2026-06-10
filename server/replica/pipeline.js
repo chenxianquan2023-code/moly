@@ -874,6 +874,106 @@ export async function runReplicaPipeline(task, ctx) {
       };
     }
 
+    // ── 一段式智能(creatok 式架构)：≤15s 整段一次生成 ──
+    // 流程：LLM 写整段导演脚本(结构重写,不1:1) → Seedance reference-to-video 只喂商品/模特图(不喂源视频,
+    // 规避真人footage审核) → 按口播句切段配音/字幕 → 统一合成。一致性是单次生成天然带的(无跨镜漂移)，
+    // 且省掉虚拟模特/hero/逐镜出图全部步骤。任何失败自动回退下面的多镜头管线。
+    const effSec = Number(opts.targetDurationSec) > 0
+      ? Number(opts.targetDurationSec)
+      : Math.min(45, Number(analysis?.durationSec) || Number(opts.sourceDurationSec) || 12);
+    if (!regen && (opts.replicaMode === 'smart' || !opts.replicaMode) && effSec <= 15 && productUrl && fal.isConfigured() && llm.isConfigured()) {
+      try {
+        const outSec = Math.max(4, Math.min(15, Math.round(effSec)));
+        await setStep(1, { status: 'running', note: '一段式：撰写整段导演脚本' });
+        const srcBrief = analysis
+          ? `源爆款风格指纹：${styleFingerprint(analysis, null)}。源分镜概要：${(analysis.shots || []).slice(0, 8).map((s) => `#${s.index} ${s.shotType || ''} ${s.action || ''}`).join('；').slice(0, 600)}`
+          : '无参考视频，自行设计生活化场景。';
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1)【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
+        const scriptTxt = await llm.generateText(scriptPrompt, { maxTokens: 4000, timeoutMs: 120000 });
+        const script = llm.parseJson(scriptTxt);
+        const videoPrompt = (`${String(script.videoPrompt || '').trim()}。全片只有这一位模特，长相与穿搭从一而终；商品的款式/颜色/logo/细节严格以参考商品图为准${modelUrl ? '；模特长相以参考模特图为准' : ''}。画面真实自然、双手五指正常、不变形、不漂浮、无任何文字水印。`)
+          .replace(/裸露|裸体|赤裸|性感|情色|色情|暴露|内衣|泳装/g, '');
+        const narration = (Array.isArray(script.narration) ? script.narration : []).map((t) => compactText(t, 40)).filter(Boolean).slice(0, 3);
+        if (!videoPrompt || videoPrompt.length < 40) throw new Error('整段脚本过短');
+        await setStep(1, { status: 'succeeded', note: `一段式脚本(${narration.length}句口播)` });
+
+        // 配音(可选)：先合成口播拿到每句时长，用于切段对齐字幕
+        const sceneAudios = [];
+        let ttsOk = false;
+        if (opts.generate_voice !== false && narration.length) {
+          await setStep(2, { status: 'running' });
+          const voiceCfg = resolveVoice(opts.ttsVoice || process.env.TTS_VOICE || 'presenter_female');
+          try {
+            for (let i = 0; i < narration.length; i++) {
+              const buf = await ttsSynthesize(narration[i], voiceCfg);
+              const ap = join(work, `osa_${i}.mp3`);
+              writeFileSync(ap, buf);
+              sceneAudios.push({ path: ap, duration: (await ff.probe(ap)).duration || 3 });
+            }
+            ttsOk = true;
+            await setStep(2, { status: 'succeeded' });
+          } catch (e) {
+            sceneAudios.length = 0;
+            notes.push('一段式配音降级(无声): ' + String(e.message || e).split('\n')[0].slice(0, 50));
+            await setStep(2, { status: 'skipped', note: '配音失败→保留画面' });
+          }
+        } else {
+          await setStep(2, { status: 'skipped', note: opts.generate_voice !== false ? '无口播内容' : '未配 AI 音（字幕脚本仍可用）' });
+        }
+
+        await setStep(3, { status: 'running', note: `一段式整段生成中（${outSec}秒，约 3-8 分钟）` });
+        const oneUrl = await fal.referenceToVideo({
+          prompt: videoPrompt.slice(0, 1800),
+          videoUrls: [],
+          imageUrls: [productUrl, modelUrl].filter(Boolean),
+          duration: outSec,
+          maxPollingMs: 480000, // 8 分钟内不出 → 回退多镜头管线，别让用户干等
+        });
+        const ovp = join(work, 'oneshot.mp4');
+        await download(oneUrl, ovp);
+        await setStep(3, { status: 'succeeded', note: '视频源: Seedance·一段式' });
+        await setStep(4, { status: 'running' });
+        const oMeta = await ff.probe(ovp);
+        const total = oMeta.duration || outSec;
+        // 按口播句切段(配音/字幕对齐)；无口播则整段单镜
+        const lines = narration.length ? narration : [''];
+        const weights = lines.map((_, i) => Math.max(1.5, (sceneAudios[i]?.duration || 0) + 0.4 || total / lines.length));
+        const wSum = weights.reduce((a, b) => a + b, 0);
+        const segDurs = weights.map((w) => Math.max(1.2, (w / wSum) * total));
+        const parts = [];
+        let acc = 0;
+        for (let i = 0; i < segDurs.length; i++) {
+          const p = join(work, `osv_${i}.mp4`);
+          await ff.ffmpeg(['-y', '-ss', String(acc.toFixed(2)), '-i', ovp, '-t', String(segDurs[i].toFixed(2)), '-r', '30', '-pix_fmt', 'yuv420p', p]);
+          parts.push(p);
+          acc += segDurs[i];
+        }
+        const oScenes = lines.map((t) => ({ type: 'oneshot', text: t, visual: '一段式整段生成(creatok式)', withModel: true, personMode: 'identifiable' }));
+        const comp = await composeVideo({ work, scenes: oScenes, sceneDurations: segDurs, sceneClips: parts, sceneAudios: sceneAudios.length ? sceneAudios : lines.map(() => ({ duration: 0 })), ttsOk, analysis, opts, notes });
+        const videoUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'video.mp4'), readFileSync(comp.finalPath), 'video/mp4');
+        const coverUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'cover.jpg'), readFileSync(comp.coverPath), 'image/jpeg');
+        const subtitleUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'subs.srt'), readFileSync(comp.srtPath), 'text/plain');
+        const gv = await insertRow('generated_videos', {
+          user_email: task.user_email, task_id: task.id, source_video_id: task.source_video_id || null,
+          video_url: videoUrl, cover_url: coverUrl, subtitle_url: subtitleUrl, duration: comp.duration,
+        });
+        await setStep(4, { status: 'succeeded' });
+        notes.push('一段式整段生成(creatok式)：单次生成、全片一致');
+        clearVideoBreaker();
+        return {
+          generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
+          usedAI: true, ttsOk, shots: oScenes, sceneImages: [], sceneClips: [videoUrl], sceneDurations: segDurs,
+          usedProvider: 'Seedance·一段式', sourceShots: analysis?.shots || null,
+          styleFingerprint: analysis ? { tone: analysis.tone, pacing: analysis.pacing, styleBrief: analysis.styleBrief, colorPalette: analysis.colorPalette, lighting: analysis.lighting, cameraLanguage: analysis.cameraLanguage, captionStyle: analysis.captionStyle, transitionStyle: analysis.transitionStyle } : null,
+          replicated: !!(analysis?.shots?.length), notes,
+        };
+      } catch (e) {
+        const m = String(e?.message || e).split('\n')[0].slice(0, 90);
+        if (looksLikeNoBalance(m)) { tripVideoBreaker(); notifyAdmin('视频模型没额度了', '一段式生成余额耗尽。'); throw new Error('视频模型没额度了，请联系管理员充值。本次积分已自动退还。'); }
+        notes.push('一段式失败→回退多镜头管线: ' + m);
+      }
+    }
+
     // 统一拍摄环境(从源解析抽场景/背景/布光)：喂给 hero/虚拟模特，确立全片同一处环境，根治背景跳变
     const sceneEnv = sceneEnvironment(analysis);
 
