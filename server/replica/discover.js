@@ -25,17 +25,21 @@ function getEmail(req, res) {
 }
 
 // 缓存读/写（容错：表不存在或出错就当未命中/跳过）
+// v2：搜索改为抓3倍候选按点赞降序——旧缓存(纯数组=相关性序的12条)整体作废，命中即重抓，否则排序修复永远轮不到执行
+const CACHE_VERSION = 2;
 async function readCache(keyword, platform) {
   try {
     const row = await selectOne('discover_cache',
       `keyword=eq.${encodeURIComponent(keyword)}&platform=eq.${platform}&order=created_at.desc&select=results,created_at`);
     if (!row) return null;
     if ((Date.now() - new Date(row.created_at).getTime()) / 86400000 > CACHE_DAYS) return null;
-    return Array.isArray(row.results) ? row.results : null;
+    const r = row.results;
+    if (r && !Array.isArray(r) && r.v === CACHE_VERSION && Array.isArray(r.items)) return r.items;
+    return null; // 旧版数组缓存 → 作废重抓
   } catch { return null; }
 }
 async function writeCache(keyword, platform, results) {
-  try { await insertRow('discover_cache', { keyword, platform, results }); } catch { /* 没建表则跳过 */ }
+  try { await insertRow('discover_cache', { keyword, platform, results: { v: CACHE_VERSION, items: results } }); } catch { /* 没建表则跳过 */ }
 }
 
 // POST /api/discover/search  { keyword, platforms:['tiktok','amazon'] } —— 抓取免费
