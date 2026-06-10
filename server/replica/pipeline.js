@@ -807,12 +807,22 @@ export async function runReplicaPipeline(task, ctx) {
       const motionPrompt = `以参考视频作为动作编排、镜头运动、场景与节奏的唯一参考：生成一位原创虚构的模特(不对应任何真实人物，长相须与参考视频中的人明显不同)，${garment}，在与参考视频同样的场景与光线里，按参考视频同样的动作与节奏表演，运镜与景别保持一致。模特着装完整得体。画面真实自然、肢体解剖正确、双手五指正常、商品细节清晰可见、不变形、不漂浮、无任何文字水印。${motionDirection}`
         .replace(/裸露|裸体|赤裸|性感|情色|色情|暴露|内衣|泳装/g, '');
       let motionUrl;
+      let lastBeat = 0;
       try {
         motionUrl = await fal.referenceToVideo({
           prompt: motionPrompt.slice(0, 1800),
           videoUrls: [refUrl],
           imageUrls: [productUrl, modelUrl].filter(Boolean),
           duration: outSec,
+          // 心跳：高峰排队可到 15-25 分钟。每 45s 刷一次任务进度/note——
+          // ①用户看得到还活着+排到第几位 ②updated_at 保持新鲜，孤儿回收器(20min)不会把活任务误杀
+          onPoll: (sec, st) => {
+            if (sec - lastBeat < 45) return;
+            lastBeat = sec;
+            const q = Number(st?.queue_position);
+            setStep(3, { status: 'running', note: `整段动作迁移生成中…已等 ${Math.max(1, Math.ceil(sec / 60))} 分钟${Number.isFinite(q) ? `（平台排队第 ${q} 位）` : ''}，高峰期可能需要 10-25 分钟，请耐心等待` }).catch(() => {});
+            ctx.setProgress(Math.min(78, 62 + Math.floor(sec / 90))).catch(() => {});
+          },
         });
       } catch (e) {
         const m = String(e?.message || e);
@@ -821,6 +831,9 @@ export async function runReplicaPipeline(task, ctx) {
         }
         if (/CONTENT_POLICY|content_policy/i.test(m)) {
           throw new Error('参考视频未通过平台内容审核：平台拒绝"性感舞蹈、着装暴露、以身体为焦点"的真人视频做生成参考，且对女性短裙/腿部特写类画面较敏感(可能误判)。请换一条着装覆盖较多、全身走位的参考视频(时装走位/产品演示/生活场景都可以)。本次积分已自动退还。');
+        }
+        if (/动作迁移超时/.test(m)) {
+          throw new Error('生成平台当前排队过久，本次已超时中止(等了30分钟)。积分已自动退还——请稍后重试，避开高峰时段成功率更高。');
         }
         if (looksLikeNoBalance(m)) {
           tripVideoBreaker();

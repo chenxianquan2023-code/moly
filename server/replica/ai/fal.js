@@ -98,7 +98,7 @@ export async function imageToVideo(image, prompt = '', {
 // 拒绝时请求状态仍是 COMPLETED、结果体里是 detail[].type=content_policy_violation ③取状态/结果
 // 必须用根应用路径(bytedance/seedance-2.0)，带完整子路径会 405。
 const REF_MODEL = process.env.FAL_REF_MODEL || 'bytedance/seedance-2.0/fast/reference-to-video';
-export async function referenceToVideo({ prompt, videoUrls = [], imageUrls = [], duration = 12, resolution, maxPollingMs = 720000, pollIntervalMs = 8000 } = {}) {
+export async function referenceToVideo({ prompt, videoUrls = [], imageUrls = [], duration = 12, resolution, maxPollingMs = 1800000, pollIntervalMs = 8000, onPoll = null } = {}) {
   if (!FAL_KEY) throw new Error('缺少 FAL_KEY');
   const auth = { Authorization: `Key ${FAL_KEY}` };
   const input = {
@@ -126,6 +126,8 @@ export async function referenceToVideo({ prompt, videoUrls = [], imageUrls = [],
     let st;
     try { st = await (await fetchRetry(statusUrl, { headers: auth })).json(); }
     catch { continue; }
+    // 心跳回调：长排队时让上层刷新任务进度/updated_at(防孤儿回收器把还在跑的任务误杀)
+    try { onPoll?.(Math.round((Date.now() - start) / 1000), st); } catch { /* 心跳失败不影响生成 */ }
     if (st?.status === 'COMPLETED') {
       const out = await (await fetchRetry(responseUrl, { headers: auth })).json();
       const url = out?.video?.url || out?.output?.video?.url;
