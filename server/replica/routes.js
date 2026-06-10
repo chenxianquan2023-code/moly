@@ -305,6 +305,10 @@ replicaRouter.post('/replica/regenerate-scene', async (req, res) => {
     const orig = await getTask(taskId);
     if (!orig || orig.user_email !== email) return res.status(404).json({ success: false, message: '原任务不存在或无权访问' });
     const o = orig.output_json || {};
+    // 一段式/动作复刻 = 整段一次生成，没有逐镜缓存可换——换单镜对它无意义，引导走"换一版"
+    if (['oneshot', 'motion'].includes(String(o.shots?.[0]?.type)) || /一段式|动作复刻/.test(String(o.usedProvider || ''))) {
+      return res.status(400).json({ success: false, message: '该视频为整段一次生成（一段式/动作复刻），不支持换单镜；想要不同版本请用「换一版」整体重新生成。' });
+    }
     if (!Array.isArray(o.shots) || !o.shots.length || !Array.isArray(o.sceneClips) || o.sceneClips.length !== o.shots.length) {
       return res.status(400).json({ success: false, message: '该视频没有可复用的分镜缓存，无法换单镜，请整条重新生成一次' });
     }
