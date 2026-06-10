@@ -42,8 +42,12 @@ export function parseJson(text) {
   if (fenced) s = fenced[1].trim();
   else s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim(); // 只有开头围栏（被截断）
   try { return JSON.parse(s); } catch { /* 继续兜底 */ }
-  // 兜底：抓第一个完整的 JSON 数组/对象
-  const m = s.match(/[\[{][\s\S]*[\]}]/);
+  // 字符串值里的裸换行/制表符(JSON 非法)——LLM 写长中文段落时高发(实测一段式脚本连翻两次的根因)。
+  // 压成空格重试：对合法 JSON 是等价变换(结构空白允许为空格)，零风险。
+  const flat = s.replace(/[\r\n\t]+/g, ' ');
+  try { return JSON.parse(flat); } catch { /* 继续兜底 */ }
+  // 兜底：抓第一个完整的 JSON 数组/对象(在压平文本上抓，双保险)
+  const m = flat.match(/[\[{][\s\S]*[\]}]/);
   if (m) { try { return JSON.parse(m[0]); } catch { /* fallthrough */ } }
   // 截断的数组（输出被 token 上限切断）→ 截到最后一个完整对象，补 ]
   if (s.startsWith('[')) {

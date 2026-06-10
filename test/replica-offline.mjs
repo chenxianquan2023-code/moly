@@ -189,5 +189,16 @@ console.log('\n═══ Part 7: sanitizeMotion 姿态转换清洗（纯代码�
   ok(sanitizeMotion('') === '' && sanitizeMotion(null) === '', '空输入安全返回');
 }
 
+console.log('\n═══ Part 8: parseJson 裸换行修复（一段式脚本翻车根因）═══');
+{
+  const { parseJson } = await import('../server/replica/ai/llm.js');
+  const broken = '{"videoPrompt":"第一拍\n模特走入\n第二拍\n转身","narration":["你好","真香"]}'; // 字符串内裸换行=非法JSON
+  const fixed = parseJson(broken);
+  ok(fixed.videoPrompt.includes('模特走入'), '字符串内裸换行 → 压平修复后可解析');
+  ok(Array.isArray(fixed.narration) && fixed.narration.length === 2, '修复后字段完整');
+  ok(parseJson('```json\n{"a":1}\n```').a === 1, '围栏 JSON 照常解析(回归)');
+  ok(parseJson('{"a":"x y"}').a === 'x y', '合法 JSON 不受影响(等价变换)');
+}
+
 console.log(`\n═══ 结果: ${pass} 通过 / ${fail} 失败 ═══`);
 process.exit(fail ? 1 : 0);

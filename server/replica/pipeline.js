@@ -901,7 +901,7 @@ export async function runReplicaPipeline(task, ctx) {
         const modeRule = oneshotMode === 'faithful'
           ? '【贴源复刻】严格按照源视频的分镜顺序、构图、姿势、场景与节奏逐秒描述——目标是尽量"像源"，只把人物换成全新虚构模特、商品换成参考商品图这一件；不发明源里没有的场景或动作'
           : '【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写';
-        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
         // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
         let script = null;
         for (let attempt = 0; attempt < 2 && !script; attempt++) {
@@ -993,6 +993,39 @@ export async function runReplicaPipeline(task, ctx) {
         });
         const ovp = join(work, 'oneshot.mp4');
         await download(oneUrl, ovp);
+
+        // ── 成片机器质检(输出端 verify)：抽3帧核对"同一人/同一发型/同一服装"，不过关自动重生一次再查。
+        // 实测病例：入场扎发、下一镜披发——发型这类软属性会在单次生成的内部分镜间漂移，
+        // 提示词保不住，交付前机器查才保得住。质检服务自身失败→放行不阻断。
+        const qcVideo = async (vpath) => {
+          if (!gemini.isConfigured()) return { pass: true };
+          try {
+            readdirSync(work).filter((f) => f.startsWith('qc_')).forEach((f) => rmSync(join(work, f), { force: true }));
+            const qd = (await ff.probe(vpath)).duration || outSec;
+            await ff.extractFrames(vpath, join(work, 'qc_%03d.jpg'), 3 / Math.max(1, qd), qd);
+            const qf = readdirSync(work).filter((f) => f.startsWith('qc_')).sort().slice(0, 3).map((f) => readFileSync(join(work, f)));
+            if (qf.length < 2) return { pass: true };
+            const vtxt = await gemini.analyzeImages(
+              '这些是同一条AI生成视频按时间顺序抽的帧。请核对全片一致性，只输出 JSON：{"pass":true|false,"why":"不一致时一句话说明"}。pass=false 的情形：换了人、发型明显变化(如扎发变披发/长短变化)、服装款式或颜色变化、同帧出现两个相同的人。镜头角度/景别/姿势变化是正常的，不算不一致。',
+              qf, { temperature: 0 });
+            const v = gemini.parseJson(vtxt);
+            return { pass: v?.pass !== false, why: compactText(v?.why, 60) };
+          } catch { return { pass: true }; }
+        };
+        let qc = await qcVideo(ovp);
+        if (!qc.pass) {
+          notes.push(`成片质检不过(${qc.why || '前后不一致'})→自动重生一次`);
+          await setStep(3, { status: 'running', note: `成片质检未过(${qc.why || '不一致'})，自动重生中…` });
+          const retryUrl = await fal.referenceToVideo({
+            prompt: (videoPrompt + refRole + '。全片人物的发型、妆容、服装必须从第一帧到最后一帧完全一致，不得中途变化。').slice(0, 1800),
+            videoUrls: [], imageUrls: refImgs, duration: outSec, maxPollingMs: 480000,
+          });
+          await download(retryUrl, ovp);
+          qc = await qcVideo(ovp);
+          notes.push(qc.pass ? '重生后成片质检通过' : `重生后仍不一致(${qc.why || ''})，按最新版交付`);
+        } else {
+          notes.push('成片机器质检通过(同人/同发型/同装)');
+        }
         await setStep(3, { status: 'succeeded', note: `视频源: Seedance·一段式${oneshotMode === 'faithful' ? '(贴源)' : ''}` });
         await setStep(4, { status: 'running' });
         const oMeta = await ff.probe(ovp);
