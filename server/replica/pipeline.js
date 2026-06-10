@@ -742,6 +742,10 @@ export async function runReplicaPipeline(task, ctx) {
           const frameFiles = readdirSync(work).filter((f) => f.startsWith('f_')).sort().slice(0, 10);
           const frames = frameFiles.map((f) => readFileSync(join(work, f)));
           sourceStyleFrames = pickSpread(frameFiles, 4).map((f) => readFileSync(join(work, f)));
+          // 动作复刻不需要分镜解析(整段迁移、不走导演)：跳过 Gemini 拆解省 ~1 分钟；抽帧保留(内容预检要用)
+          if (opts.replicaMode === 'motion' && !regen) {
+            notes.push('动作复刻：跳过分镜解析(整段迁移用不上)');
+          } else {
           // 精简 schema(每镜只留关键字段)→ 输出更短、更不易被截断成空；2 次重试兜瞬时空响应
           const analyzePrompt =
             `这是一条电商带货短视频按时间顺序均匀抽取的帧(只参考前${Math.round(sdur)}秒${originalDuration > SOURCE_VIDEO_REFERENCE_MAX_SEC ? `，原视频约${Math.round(originalDuration)}秒，后半段忽略` : ''})。请像短视频导演一样做"风格指纹"拆解，必须只输出 JSON、不要任何解释或 markdown。schema：` +
@@ -756,10 +760,11 @@ export async function runReplicaPipeline(task, ctx) {
               notes.push('解析重试: ' + String(e.message || e).split('\n')[0].slice(0, 50));
             }
           }
+          }
         }
       }
     } catch (e) { notes.push('解析降级: ' + String(e.message || e).split('\n')[0]); }
-    await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
+    await setStep(0, { status: (task.source_video_id && analysis?.shots?.length) ? 'succeeded' : 'skipped', note: (opts.replicaMode === 'motion' && !regen) ? '动作复刻：整段迁移，无需分镜解析' : analysis?.shots?.length ? `复刻源视频 ${analysis.shots.length} 个分镜` : (task.source_video_id ? '源视频解析失败→默认结构(背景乐仍取源视频)' : '无源视频→默认结构') });
 
     // ── 动作复刻(motion)：参考视频整段动作/运镜迁移给虚构模特并换上商品 ──
     // 不走分镜/逐镜出图/逐镜动画——直接 reference-to-video 一次成片(4-15s)，再走统一合成(背景乐/淡出/封面)。
