@@ -272,6 +272,9 @@ test('user prompt directions preserve creative instructions and negative constra
   // 优先级守卫：创意永远低于一致性锁(同人/同衣/同环境)，防"换场景"文案顶翻 hero 锚(实测翻车回归)
   assert.match(direction, /优先级·硬性/);
   assert.match(direction, /忽略冲突部分/);
+  // 人数必须是条件式：默认单人，但源视频/用户明确多人时按多人保留——不许写死"全片只有一个模特"
+  assert.match(direction, /明确是多人时才按对应人数保留/);
+  assert.doesNotMatch(direction, /全片只有一个模特/);
 });
 
 test('single-model user directions forbid duplicate same-person subjects in one frame', () => {
