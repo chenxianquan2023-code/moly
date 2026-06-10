@@ -100,11 +100,12 @@
 
       <section v-if="res.tiktok?.length" class="block">
         <h2 class="bt">TikTok 爆款视频 <em>{{ res.tiktok.length }}</em></h2>
-        <p class="results-tip">已按点赞数从高到低排序。提示：以身体为焦点的视频(如性感舞蹈)可用「智能复刻」借鉴节奏出新场景，但无法用于「动作复刻」——平台内容审核会拒绝并自动退款。</p>
+        <p class="results-tip">已按点赞排序，并由 AI 过滤与关键词无关的内容；带 ⚠️ 的视频以身体为焦点——可用「智能复刻」借鉴节奏，但无法用于「动作复刻」(平台审核会拒绝并自动退款)，已排在最后。</p>
         <div class="grid">
           <div v-for="v in res.tiktok" :key="v.sourceUrl" class="card">
             <div class="cover" @click="playVideo(v)">
               <img :src="v.cover" :alt="v.desc" loading="lazy" />
+              <span v-if="v.risky" class="risk-tag" title="画面以身体为焦点：可用智能复刻，无法用于动作复刻(平台审核会拒绝并自动退款)">⚠️ 身体焦点</span>
               <span class="play"><span class="tri" /></span>
               <span class="stat">
                 <span><svg class="si" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.3 4.7 13a4.3 4.3 0 0 1 6-6.1l1.3 1.2 1.3-1.2a4.3 4.3 0 0 1 6 6.1Z"/></svg>{{ fmt(v.likes) }}</span>
@@ -388,6 +389,7 @@ async function blobDownload(url: string, name: string) {
 .hint { margin: 28px 0; text-align:center; color: var(--color-text-secondary); font-size:15px; }
 .warn { margin: 16px 0 0; font-size: 13px; color: var(--color-warning); }
 .results-tip { margin: -6px 0 14px; font-size: 12.5px; line-height: 1.6; color: var(--color-text-tertiary); }
+.risk-tag { position: absolute; top: 8px; left: 8px; z-index: 2; padding: 3px 8px; border-radius: 8px; background: rgba(15,23,42,.72); color: #fbbf24; font-size: 11px; font-weight: 800; backdrop-filter: blur(4px); }
 .empty { margin: 48px 0; text-align:center; color: var(--color-text-tertiary); }
 
 /* 初始态 */

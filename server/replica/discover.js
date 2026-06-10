@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import * as apify from '../lib/apify.js';
+import * as gemini from './ai/gemini.js';
 import { deductPoints, addPoints } from '../lib/points.js';
 import { uploadFromUrl, makePath } from '../lib/storage.js';
 import { insertRow, selectOne } from '../lib/supabase.js';
@@ -24,9 +25,34 @@ function getEmail(req, res) {
   return email;
 }
 
+// 封面视觉分类(机器看,不猜)：与关键词无关的直接扔(高赞蹭排序的聊天/新闻类)；
+// 身体焦点/擦边的沉底+打标(risky)——它们可用智能复刻、但过不了动作复刻的平台审核。
+// 分类失败→原样返回不阻断；全被判无关→保留原列表(宁可有结果别空屏)。
+async function classifyTikTok(keyword, items) {
+  if (!gemini.isConfigured() || !items.length) return items;
+  try {
+    const covers = items.map((x) => x.cover).filter(Boolean).slice(0, 12);
+    if (covers.length < 2) return items;
+    const listing = items.slice(0, covers.length).map((x, i) => `#${i + 1} 文案:${String(x.desc || '').slice(0, 60)}`).join('\n');
+    const txt = await gemini.analyzeImages(
+      `这是电商关键词「${keyword}」的 TikTok 搜索结果封面图(按顺序对应)+文案。给每条打标，只输出 JSON 数组：[{"i":1,"relevant":true,"risky":false},...]。relevant=false：封面与文案都与「${keyword}」这类商品明显无关(如纯聊天/新闻/完全不相干的品类)。risky=true：画面以身体为焦点(臀部/腿部/胸部特写、贴身裤袜怼拍、性感姿势)。普通穿搭展示、产品本体展示为 risky=false。`+`\n${listing}`,
+      covers, { temperature: 0 });
+    const tags = gemini.parseJson(txt);
+    const byIdx = new Map((Array.isArray(tags) ? tags : []).map((t) => [Number(t.i), t]));
+    const tagged = items.map((x, i) => {
+      const t = byIdx.get(i + 1);
+      return { ...x, risky: t ? !!t.risky : false, _rel: t ? t.relevant !== false : true };
+    });
+    const kept = tagged.filter((x) => x._rel);
+    return (kept.length >= 3 ? kept : tagged)
+      .sort((a, b) => (a.risky === b.risky ? (b.likes || 0) - (a.likes || 0) : a.risky ? 1 : -1))
+      .map(({ _rel, ...x }) => x);
+  } catch { return items; }
+}
+
 // 缓存读/写（容错：表不存在或出错就当未命中/跳过）
-// v2：搜索改为抓3倍候选按点赞降序——旧缓存(纯数组=相关性序的12条)整体作废，命中即重抓，否则排序修复永远轮不到执行
-const CACHE_VERSION = 2;
+// v3：搜索结果带封面视觉分类(扔无关/擦边沉底打标)——旧缓存作废重抓。v2 起为 {v,items} 结构。
+const CACHE_VERSION = 3;
 async function readCache(keyword, platform) {
   try {
     const row = await selectOne('discover_cache',
@@ -60,6 +86,7 @@ discoverRouter.post('/discover/search', async (req, res) => {
         if (!items) {
           items = p === 'tiktok' ? await apify.searchTikTok(keyword, 12)
                 : p === 'amazon' ? await apify.searchAmazon(keyword, 12) : [];
+          if (p === 'tiktok') items = await classifyTikTok(keyword, items); // 视觉分类后再入缓存(标签随缓存)
           await writeCache(keyword, p, items);
         }
         results[p] = items;
