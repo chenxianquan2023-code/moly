@@ -887,16 +887,32 @@ export async function runReplicaPipeline(task, ctx) {
     const effSec = Number(opts.targetDurationSec) > 0
       ? Number(opts.targetDurationSec)
       : Math.min(45, Number(analysis?.durationSec) || Number(opts.sourceDurationSec) || 12);
-    if (!regen && (opts.replicaMode === 'smart' || !opts.replicaMode) && effSec <= 15 && productUrl && fal.isConfigured() && llm.isConfigured()) {
+    // 智能与贴帧(≤15s)都走一段式：智能=结构重写；贴帧=源帧当图参考"贴源"——分身/椅子漂移/裙长漂移
+    // 这类跨镜病在单次生成里结构性不存在。失败回退各自的多镜头管线。
+    const oneshotMode = (opts.replicaMode === 'smart' || !opts.replicaMode) ? 'smart'
+      : opts.replicaMode === 'faithful' ? 'faithful' : null;
+    if (!regen && oneshotMode && effSec <= 15 && productUrl && fal.isConfigured() && llm.isConfigured()) {
       try {
         const outSec = Math.max(4, Math.min(15, Math.round(effSec)));
-        await setStep(1, { status: 'running', note: '一段式：撰写整段导演脚本' });
+        await setStep(1, { status: 'running', note: `一段式：撰写整段导演脚本${oneshotMode === 'faithful' ? '(贴源)' : ''}` });
         const srcBrief = analysis
           ? `源爆款风格指纹：${styleFingerprint(analysis, null)}。源分镜概要：${(analysis.shots || []).slice(0, 8).map((s) => `#${s.index} ${s.shotType || ''} ${s.action || ''}`).join('；').slice(0, 600)}`
           : '无参考视频，自行设计生活化场景。';
-        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1)【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
-        const scriptTxt = await llm.generateText(scriptPrompt, { maxTokens: 4000, timeoutMs: 120000 });
-        const script = llm.parseJson(scriptTxt);
+        const modeRule = oneshotMode === 'faithful'
+          ? '【贴源复刻】严格按照源视频的分镜顺序、构图、姿势、场景与节奏逐秒描述——目标是尽量"像源"，只把人物换成全新虚构模特、商品换成参考商品图这一件；不发明源里没有的场景或动作'
+          : '【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写';
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
+        // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
+        let script = null;
+        for (let attempt = 0; attempt < 2 && !script; attempt++) {
+          try {
+            const scriptTxt = await llm.generateText(scriptPrompt, { maxTokens: 4000, timeoutMs: 120000 });
+            script = llm.parseJson(scriptTxt);
+          } catch (e) {
+            if (attempt === 1) throw e;
+            notes.push('一段式脚本重试: ' + String(e.message || e).split('\n')[0].slice(0, 40));
+          }
+        }
         const videoPrompt = (`${String(script.videoPrompt || '').trim()}。全片只有这一位模特，长相与穿搭从一而终；商品的款式/颜色/logo/细节严格以参考商品图为准${modelUrl ? '；模特长相以参考模特图为准' : ''}。画面真实自然、双手五指正常、不变形、不漂浮、无任何文字水印。`)
           .replace(/裸露|裸体|赤裸|性感|情色|色情|暴露|内衣|泳装/g, '');
         const narration = (Array.isArray(script.narration) ? script.narration : []).map((t) => compactText(t, 40)).filter(Boolean).slice(0, 3);
@@ -927,17 +943,57 @@ export async function runReplicaPipeline(task, ctx) {
           await setStep(2, { status: 'skipped', note: opts.generate_voice !== false ? '无口播内容' : '未配 AI 音（字幕脚本仍可用）' });
         }
 
+        // 贴帧：上传≤4张源视频帧当构图/场景/节奏参考——"贴源"靠图钉死，不靠逐镜拼装
+        const srcFrameUrls = [];
+        if (oneshotMode === 'faithful' && sourceStyleFrames.length) {
+          for (let fi = 0; fi < Math.min(4, sourceStyleFrames.length); fi++) {
+            try { srcFrameUrls.push(await uploadBuffer(makePath(task.user_email, 'oneshot-ref', `sf_${fi}.jpg`), sourceStyleFrames[fi], 'image/jpeg')); }
+            catch { /* 单帧失败不阻断 */ }
+          }
+        }
+        // ── 治本·闭环质检(穿戴类)：先花几毛钱生成"模特穿着商品"基准图，再用视觉模型逐项核对款式
+        // (领型/袖型/裙长/颜色/logo)，质检不过就重生——昂贵的视频生成永远只消费已验证的输入。
+        // 这是"verify, don't trust"：不靠提示词求模型做对，而是做没做对机器先查。
+        let heroRefUrl = null;
+        if (productClass.isGarment && image) {
+          await setStep(3, { status: 'running', note: '生成并机器质检「模特穿商品」基准图…' });
+          const heroPrompt = `电商带货竖版基准图(9:16)：让${modelUrl ? '参考模特图里这位模特' : '一位全新虚构的真实感模特'}自然地穿上参考商品图里的这一件服装——款式、颜色、领型、袖型、衣长/裙长、印花、logo 等细节必须与商品图完全一致；全身或大半身、专业布光、真实质感、画面干净无文字水印。`;
+          for (let attempt = 0; attempt < 2 && !heroRefUrl; attempt++) {
+            try {
+              const hero = await image.generate(heroPrompt, [productUrl, modelUrl].filter(Boolean), { aspectRatio: '9:16', provider: opts.models?.image });
+              const heroUp = await uploadBuffer(makePath(task.user_email, 'oneshot-hero', `hero_${attempt}.png`), hero.buffer, hero.mimeType);
+              let passQc = true; let why = '';
+              if (gemini.isConfigured()) {
+                try {
+                  const verdictTxt = await gemini.analyzeImages(
+                    '第1张是商品官方图，第2张是AI生成的模特穿着图。严格核对第2张模特身上的服装与第1张商品是否同一件：领型、袖型(吊带/短袖/泡泡袖等)、衣长/裙长、颜色、印花/logo。只输出 JSON：{"match":true|false,"why":"不一致时一句话指出哪里不同"}',
+                    [productUrl, heroUp], { temperature: 0 });
+                  const verdict = gemini.parseJson(verdictTxt);
+                  passQc = verdict?.match !== false;
+                  why = compactText(verdict?.why, 60);
+                } catch { /* 质检服务瞬时失败 → 不阻断，放行 */ }
+              }
+              if (passQc) { heroRefUrl = heroUp; notes.push(`基准图机器质检通过${attempt ? `(第${attempt + 1}次)` : ''}`); }
+              else { notes.push(`基准图质检不过(${why || '款式不符'})→重生`); }
+            } catch (e) { notes.push('基准图生成失败: ' + String(e?.message || e).split('\n')[0].slice(0, 40)); break; }
+          }
+          if (!heroRefUrl) notes.push('基准图质检未通过→退回商品图直喂');
+        }
+
+        // 参考图次序=权重：已质检的 hero(或商品图)排第 1——实测源帧排前面时商品款式会被源里的衣服带偏
+        const refImgs = [...new Set([heroRefUrl || productUrl, productUrl, modelUrl, ...srcFrameUrls].filter(Boolean))];
+        const refRole = `参考图说明：第 1 张是${heroRefUrl ? '已质检的「模特穿着商品」基准图——人物与整套穿着以它为准(最高优先级)，服装细节同时严格对照商品官方图' : '商品图——商品/服装的款式、颜色、领型、袖型、logo、细节必须与它严格一致(最高优先级，绝不被源帧里的衣服带偏)'}；${modelUrl ? '模特图供人物长相参考；' : ''}${srcFrameUrls.length ? `最后 ${srcFrameUrls.length} 张是源视频画面帧——只参考构图、姿势、场景、光线与节奏，人物长相与身上衣服款式绝不照搬。` : ''}`;
         await setStep(3, { status: 'running', note: `一段式整段生成中（${outSec}秒，约 3-8 分钟）` });
         const oneUrl = await fal.referenceToVideo({
-          prompt: videoPrompt.slice(0, 1800),
+          prompt: (videoPrompt + refRole).slice(0, 1800),
           videoUrls: [],
-          imageUrls: [productUrl, modelUrl].filter(Boolean),
+          imageUrls: refImgs,
           duration: outSec,
           maxPollingMs: 480000, // 8 分钟内不出 → 回退多镜头管线，别让用户干等
         });
         const ovp = join(work, 'oneshot.mp4');
         await download(oneUrl, ovp);
-        await setStep(3, { status: 'succeeded', note: '视频源: Seedance·一段式' });
+        await setStep(3, { status: 'succeeded', note: `视频源: Seedance·一段式${oneshotMode === 'faithful' ? '(贴源)' : ''}` });
         await setStep(4, { status: 'running' });
         const oMeta = await ff.probe(ovp);
         const total = oMeta.duration || outSec;
@@ -969,7 +1025,7 @@ export async function runReplicaPipeline(task, ctx) {
         return {
           generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
           usedAI: true, ttsOk, shots: oScenes, sceneImages: [], sceneClips: [videoUrl], sceneDurations: segDurs,
-          usedProvider: 'Seedance·一段式', sourceShots: analysis?.shots || null,
+          usedProvider: `Seedance·一段式${oneshotMode === 'faithful' ? '(贴源)' : ''}`, sourceShots: analysis?.shots || null,
           styleFingerprint: analysis ? { tone: analysis.tone, pacing: analysis.pacing, styleBrief: analysis.styleBrief, colorPalette: analysis.colorPalette, lighting: analysis.lighting, cameraLanguage: analysis.cameraLanguage, captionStyle: analysis.captionStyle, transitionStyle: analysis.transitionStyle } : null,
           replicated: !!(analysis?.shots?.length), notes,
         };
