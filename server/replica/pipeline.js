@@ -802,7 +802,8 @@ export async function runReplicaPipeline(task, ctx) {
         notes.push(`参考视频约 ${Math.round(srcDur)} 秒，超 15 秒上限，已取前 15 秒做动作参考`);
       }
       const refUrl = await uploadBuffer(makePath(task.user_email, 'motion-ref', 'ref.mp4'), readFileSync(refPath), 'video/mp4');
-      const outSec = Math.max(4, Math.min(15, Math.round(Number(opts.targetDurationSec) || Math.min(15, srcDur))));
+      // 用户显式选了时长就尊重(上限15)；跟源默认压到12秒——15秒是最慢最贵档，高峰排队明显更久
+      const outSec = Math.max(4, Math.min(15, Math.round(Number(opts.targetDurationSec) || Math.min(12, srcDur))));
       const garment = productClass.isGarment
         ? '身上穿的必须是参考商品图里的这一件(同款式/颜色/印花/细节)，全程同一身、绝不换装'
         : '自然地使用/手持/佩戴参考商品图里的这一件商品(同款式/颜色/logo/细节)，全程同一件';
