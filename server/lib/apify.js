@@ -31,7 +31,8 @@ async function runActor(actorId, input, timeoutMs = 180000) {
  *  TikTok 搜索接口按"相关性"排序(普通/擦边视频常排前面)，不是按热度——
  *  所以多抓 3 倍候选、按点赞降序取前 limit 条，"搜爆款"才真是爆款。 */
 export async function searchTikTok(keyword, limit = 12) {
-  const fetchN = Math.min(40, Math.max(limit * 3, 24));
+  // 2 倍候选：3 倍(36条)实测会让同步抓取超过网关超时(前端收到"upstream error"纯文本)，24 条是耗时/质量的平衡点
+  const fetchN = Math.min(40, Math.max(limit * 2, 24));
   const items = await runActor(TIKTOK, {
     searchQueries: [keyword],
     searchSection: '/video',

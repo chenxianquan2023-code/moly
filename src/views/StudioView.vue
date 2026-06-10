@@ -454,6 +454,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { safeJson } from '@/api/safeJson';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
@@ -683,7 +684,7 @@ async function generatePromptGuide() {
     });
     const contentType = r.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) throw new Error('提示词向导接口未连接，请确认后端服务已启动');
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!j.success) throw new Error(j.message || 'AI 建议生成失败');
     const g = j.guide || {};
     promptGuide.value = g;
@@ -741,7 +742,7 @@ async function autoFillPromptSilently() {
     });
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('application/json')) return; // 后端没接好就静默放弃，用户仍可手动点「AI 填写建议」
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!j.success) return;
     const g = j.guide || {};
     promptGuide.value = g;
@@ -777,7 +778,7 @@ async function uploadAsset(file: File, assetType: string) {
   fd.append('assetType', assetType);
   fd.append('userEmail', auth.email || '');
   const r = await fetch('/api/assets/upload', { method: 'POST', body: fd });
-  const j = await r.json();
+  const j = await safeJson(r);
   if (!j.success) throw new Error(j.message || '上传失败');
   return j.asset;
 }
@@ -837,7 +838,7 @@ async function ensureSourceVideoId() {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userEmail: auth.email, assetId: sourceVideoAsset.value.id }),
   });
-  const j = await r.json();
+  const j = await safeJson(r);
   return j.success ? j.sourceVideo.id : null;
 }
 function buildGenBody(sourceVideoId: any) {
@@ -864,7 +865,7 @@ async function generate() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildGenBody(sourceVideoId)),
     });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!j.success) {
       if (j.code === 'INSUFFICIENT') { generating.value = false; stopProgressUx(); openRecharge(`积分不足：本次需 ${j.need}，当前 ${j.points}`); return; }
       throw new Error(j.message || '生成失败');
@@ -882,7 +883,7 @@ function pollTask(taskId: string) {
   const tick = async () => {
     try {
       const r = await fetch('/api/generation-tasks/' + taskId);
-      const j = await r.json();
+      const j = await safeJson(r);
       if (j.success) {
         task.value = j.task;
         if (j.task.status === 'succeeded') {
@@ -931,7 +932,7 @@ async function generateVariants() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(buildGenBody(sourceVideoId)),
         });
-        const j = await r.json();
+        const j = await safeJson(r);
         if (!j.success) { variants.value[k].startFailed = j.code === 'INSUFFICIENT' ? '积分不足，这版未生成' : (j.message || '启动失败'); continue; }
         variants.value[k].taskId = j.taskId;
         pollVariant(k, j.taskId);
@@ -951,7 +952,7 @@ function pollVariant(k: number, taskId: string) {
   const tick = async () => {
     try {
       const r = await fetch('/api/generation-tasks/' + taskId);
-      const j = await r.json();
+      const j = await safeJson(r);
       if (j.success) {
         variants.value[k].task = j.task;
         if (j.task.status === 'succeeded') { variants.value[k].result = j.task.output_json; nextTick(scrollResultIntoView); onVariantSettled(); return; }
@@ -988,7 +989,7 @@ async function regenerateScene(i: number) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userEmail: auth.email, taskId: tid, sceneIndex: i }),
     });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!j.success) {
       if (j.code === 'INSUFFICIENT') { generating.value = false; stopProgressUx(); openRecharge(`积分不足：本次需 ${j.need}，当前 ${j.points}`); return; }
       throw new Error(j.message || '换单镜失败');
@@ -1079,7 +1080,7 @@ async function recharge(pkg: any) {
   recharging.value = pkg.id;
   try {
     const r = await fetch('/api/replica/recharge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, packageId: pkg.id }) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.success) {
       if (auth.email) await auth.fetchPointsFromServer(auth.email);
       rechargeMsg.value = `充值成功，已到账 ${j.added} 积分`;
@@ -1099,7 +1100,7 @@ async function doLogin() {
   loggingIn.value = true;
   try {
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: loginEmail.value.trim(), password: loginPassword.value }) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.success && j.user) auth.login({ email: j.user.email, points: j.user.points });
     else loginError.value = j.message || '登录失败';
   } catch {

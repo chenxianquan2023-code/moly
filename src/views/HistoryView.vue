@@ -71,6 +71,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { safeJson } from '@/api/safeJson';
 import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
@@ -117,7 +118,7 @@ async function regenScene(t: any, i: number) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userEmail: auth.email, taskId: t.id, sceneIndex: i }),
     });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (!j.success) { regenning.value = false; regenSceneIdx.value = -1; alert(j.message || '换单镜失败'); return; }
     if (auth.email) (auth as any).fetchPointsFromServer?.(auth.email);
     pollRegen(j.taskId);
@@ -127,7 +128,7 @@ function pollRegen(taskId: string) {
   const tick = async () => {
     try {
       const r = await fetch('/api/generation-tasks/' + taskId);
-      const j = await r.json();
+      const j = await safeJson(r);
       if (j.success) {
         if (j.task.status === 'succeeded') {
           regenning.value = false; regenSceneIdx.value = -1;
@@ -154,7 +155,7 @@ async function load() {
   loading.value = true;
   try {
     const r = await fetch('/api/generation-tasks?userEmail=' + encodeURIComponent(auth.email));
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.success) tasks.value = j.tasks || [];
   } catch { /* 忽略，显示空态 */ }
   finally { loading.value = false; }

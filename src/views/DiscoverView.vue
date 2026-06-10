@@ -189,6 +189,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
+import { safeJson } from '@/api/safeJson';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 import thermosImg from '@/assets/img/thermos-temp-display.jpg';
@@ -302,7 +303,7 @@ async function search() {
   res.tiktok = []; res.amazon = [];
   try {
     const r = await fetch('/api/discover/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, keyword: kw, platforms }) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.success) { res.tiktok = j.results.tiktok || []; res.amazon = j.results.amazon || []; notes.value = j.notes || []; }
     else notes.value = [j.message || '搜索失败'];
   } catch { notes.value = ['网络错误，请重试']; }
@@ -319,7 +320,7 @@ async function download(v: any) {
   busy.add(v.sourceUrl);
   try {
     const r = await fetch('/api/discover/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, sourceUrl: v.sourceUrl }) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.code === 'INSUFFICIENT') { ui.openRecharge(`积分不足：下载需 ${j.need}，当前 ${j.points}`); return; }
     if (!j.success) { alert(j.message || '下载失败'); return; }
     if (auth.email) auth.fetchPointsFromServer(auth.email);
@@ -344,7 +345,7 @@ async function useForReplica(item: any, mode: 'deep' | 'light' = 'light') {
   busy.add(item.sourceUrl);
   try {
     const r = await fetch('/api/discover/to-asset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, item, mode }) });
-    const j = await r.json();
+    const j = await safeJson(r);
     if (j.code === 'INSUFFICIENT') { ui.openRecharge(`积分不足：导入需 ${j.need}，当前 ${j.points}`); return; }
     if (!j.success) { alert(j.message || '处理失败'); return; }
     if (auth.email) auth.fetchPointsFromServer(auth.email);
