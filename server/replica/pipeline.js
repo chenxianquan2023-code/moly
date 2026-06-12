@@ -704,7 +704,13 @@ export async function runReplicaPipeline(task, ctx) {
     const langRule = `【语言硬性要求·最高优先级】所有镜头的口播 text 必须用「${langName}」书写：${lang === 'en-US' ? '纯英文，不得出现任何汉字' : lang === 'ja-JP' ? '纯日文，不得夹简体中文' : lang === 'es-ES' ? '纯西班牙语，不得夹中文/汉字' : '简体中文'}。visual/motion 字段仍用中文（仅供生成画面，不影响口播语言）。`;
 
     const urlOf = async (id) => (id ? (await getById('assets', id))?.file_url || null : null);
-    const productUrl = await urlOf(assets.product_image_id);
+    // 多图串视频：支持 1-5 张商品图(不同角度/场景)。product_image_ids 数组优先，单图字段向后兼容。
+    const productIds = [...new Set([
+      ...(Array.isArray(assets.product_image_ids) ? assets.product_image_ids : []),
+      assets.product_image_id,
+    ].filter(Boolean))].slice(0, 5);
+    const productUrls = (await Promise.all(productIds.map((pid) => urlOf(pid)))).filter(Boolean);
+    const productUrl = productUrls[0] || null;
     let modelUrl = await urlOf(assets.model_image_id); // 可被"自动虚拟模特"重赋值
     let baseImageUrl = modelUrl || productUrl || input.previewUrl || null;
     let virtualModel = false; // 是否自动生成了虚拟模特
@@ -824,7 +830,7 @@ export async function runReplicaPipeline(task, ctx) {
         motionUrl = await fal.referenceToVideo({
           prompt: motionPrompt.slice(0, 1800),
           videoUrls: [refUrl],
-          imageUrls: [productUrl, modelUrl].filter(Boolean),
+          imageUrls: [...productUrls, modelUrl].filter(Boolean).slice(0, 9), // 多图：全部角度都给动作迁移当商品参考
           duration: outSec,
           // 心跳：高峰排队可到 15-25 分钟。每 45s 刷一次任务进度/note——
           // ①用户看得到还活着+排到第几位 ②updated_at 保持新鲜，孤儿回收器(20min)不会把活任务误杀
@@ -901,7 +907,11 @@ export async function runReplicaPipeline(task, ctx) {
         const modeRule = oneshotMode === 'faithful'
           ? '【贴源复刻】严格按照源视频的分镜顺序、构图、姿势、场景与节奏逐秒描述——目标是尽量"像源"，只把人物换成全新虚构模特、商品换成参考商品图这一件；不发明源里没有的场景或动作'
           : '【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写';
-        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
+        // 多图串视频：用户传了多张商品图(不同角度/使用场景) → 脚本按时间轴依次呈现
+        const multiImgRule = productUrls.length > 1
+          ? `\n5) 用户提供了 ${productUrls.length} 张商品图，展示同一商品的不同角度/使用场景——请把它们串成一条连贯视频：按时间轴依次自然呈现各张图对应的角度或场景(如 0-${Math.round(outSec / productUrls.length)}秒呈现第1张的场景…)，过渡自然连贯，不要漏掉任何一张的内容。`
+          : '';
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
         // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
         let script = null;
         for (let attempt = 0; attempt < 2 && !script; attempt++) {
@@ -980,9 +990,10 @@ export async function runReplicaPipeline(task, ctx) {
           if (!heroRefUrl) notes.push('基准图质检未通过→退回商品图直喂');
         }
 
-        // 参考图次序=权重：已质检的 hero(或商品图)排第 1——实测源帧排前面时商品款式会被源里的衣服带偏
-        const refImgs = [...new Set([heroRefUrl || productUrl, productUrl, modelUrl, ...srcFrameUrls].filter(Boolean))];
-        const refRole = `参考图说明：第 1 张是${heroRefUrl ? '已质检的「模特穿着商品」基准图——人物与整套穿着以它为准(最高优先级)，服装细节同时严格对照商品官方图' : '商品图——商品/服装的款式、颜色、领型、袖型、logo、细节必须与它严格一致(最高优先级，绝不被源帧里的衣服带偏)'}；${modelUrl ? '模特图供人物长相参考；' : ''}${srcFrameUrls.length ? `最后 ${srcFrameUrls.length} 张是源视频画面帧——只参考构图、姿势、场景、光线与节奏，人物长相与身上衣服款式绝不照搬。` : ''}`;
+        // 参考图次序=权重：已质检的 hero(或商品图)排第 1——实测源帧排前面时商品款式会被源里的衣服带偏。
+        // 多图串视频：全部商品图都进参考(总数≤9，源帧让位)。
+        const refImgs = [...new Set([heroRefUrl || productUrl, ...productUrls, modelUrl, ...srcFrameUrls].filter(Boolean))].slice(0, 9);
+        const refRole = `参考图说明：第 1 张是${heroRefUrl ? '已质检的「模特穿着商品」基准图——人物与整套穿着以它为准(最高优先级)，服装细节同时严格对照商品官方图' : '商品图——商品/服装的款式、颜色、领型、袖型、logo、细节必须与它严格一致(最高优先级，绝不被源帧里的衣服带偏)'}；${productUrls.length > 1 ? `共 ${productUrls.length} 张商品图展示同一商品的不同角度/场景(视频按时间轴依次呈现这些场景)；` : ''}${modelUrl ? '模特图供人物长相参考；' : ''}${srcFrameUrls.length ? `最后的源视频画面帧——只参考构图、姿势、场景、光线与节奏，人物长相与身上衣服款式绝不照搬。` : ''}`;
         await setStep(3, { status: 'running', note: `一段式整段生成中（${outSec}秒，约 3-8 分钟）` });
         const oneUrl = await fal.referenceToVideo({
           prompt: (videoPrompt + refRole).slice(0, 1800),
@@ -1316,7 +1327,9 @@ export async function runReplicaPipeline(task, ctx) {
           // 一致性锚(治本)：模特镜锚定 hero(模特穿商品的基准图)、纯商品镜锚定商品图——每镜都从同一张"编辑"出来，
           // 只换姿势/景别/角度/背景，人和商品锁死不重画。绝不喂源风格帧(源里别款会串进来)。
           const isModelScene = s.withModel || isAnonymous;
-          const anchorUrl = isModelScene ? (heroUrl || modelUrl || productUrl) : (productUrl || heroUrl || modelUrl);
+          // 多图串视频(兜底管线)：纯商品镜按镜序轮换商品图——每镜展示一个角度/场景;模特镜仍锚 hero(第1张商品图)保一致
+          const scenePUrl = productUrls.length > 1 ? productUrls[i % productUrls.length] : productUrl;
+          const anchorUrl = isModelScene ? (heroUrl || modelUrl || productUrl) : (scenePUrl || heroUrl || modelUrl);
           const assetRefs = isModelScene
             ? [anchorUrl, productUrl].filter((v, idx, a) => v && a.indexOf(v) === idx) // hero + 商品图(强化细节)
             : [anchorUrl].filter(Boolean);

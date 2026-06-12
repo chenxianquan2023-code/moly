@@ -31,14 +31,17 @@
           <div class="card">
             <div class="card-title"><span class="num">1</span>上传素材</div>
             <div class="uploads">
-              <label class="upload" :class="{ filled: productAsset, busy: uploading==='product' }">
-                <input type="file" accept="image/*" hidden @change="e => onFile(e, 'product_image', 'product')" />
-                <img v-if="productAsset" :src="productAsset.file_url" />
+              <label class="upload" :class="{ filled: productAssets.length, busy: uploading==='product' }">
+                <input type="file" accept="image/*" multiple hidden @change="e => onFile(e, 'product_image', 'product')" />
+                <template v-if="productAssets.length">
+                  <img :src="productAssets[0].file_url" />
+                  <span v-if="productAssets.length > 1" class="upload-count">{{ productAssets.length }} 张</span>
+                </template>
                 <template v-else>
                   <span class="upload-plus">＋</span>
-                  <span class="upload-label">商品图<em>必填</em></span>
+                  <span class="upload-label">商品图<em>必填 · 可传 1-5 张</em></span>
                 </template>
-                <button v-if="productAsset" type="button" class="upload-del" title="删除" @click.stop.prevent="clearAsset('product')">×</button>
+                <button v-if="productAssets.length" type="button" class="upload-del" title="全部删除" @click.stop.prevent="clearAsset('product')">×</button>
                 <span v-if="uploading==='product'" class="upload-spin" />
               </label>
 
@@ -73,6 +76,18 @@
                 </template>
                 <span v-if="uploading==='source'" class="upload-spin" />
               </label>
+            </div>
+            <div v-if="productAssets.length" class="product-thumbs">
+              <div v-for="(p, pi) in productAssets" :key="p.id || pi" class="pt-item">
+                <img :src="p.file_url" />
+                <button type="button" class="pt-del" title="删除这张" @click="removeProductImage(pi)">×</button>
+                <em v-if="pi === 0">主图</em>
+              </div>
+              <label v-if="productAssets.length < 5" class="pt-add" title="再加一张(最多5张)">
+                ＋
+                <input type="file" accept="image/*" multiple hidden @change="e => onFile(e, 'product_image', 'product')" />
+              </label>
+              <span class="pt-tip">多张图 = 同一商品的不同角度/场景，会按顺序串成一条视频(第1张为主图)</span>
             </div>
             <p class="upload-note">爆款参考视频用于拆解拍法、分镜和节奏；本地上传最多 60 秒。从「找爆款」带入的视频也只参考前 60 秒。</p>
             <div class="samples">
@@ -491,7 +506,9 @@ const showRecharge = ref(false);
 const rechargeMsg = ref('');
 const recharging = ref('');
 
-const productAsset = ref<any>(null);
+const productAssets = ref<any[]>([]); // 多图串视频：1-5 张商品图(不同角度/场景)，第 1 张为主图
+const productAsset = computed(() => productAssets.value[0] || null); // 兼容层：既有"单图"读取点全部走这里
+function removeProductImage(idx: number) { productAssets.value.splice(idx, 1); }
 const modelAsset = ref<any>(null);
 const sourceVideoAsset = ref<any>(null);
 const sourceDuration = ref(0); // 上传源视频的时长(秒)，用于"跟源"按时长计费
@@ -501,7 +518,7 @@ const uploading = ref('');
 
 // 删除/清空某个素材槽
 function clearAsset(slot: string) {
-  if (slot === 'product') productAsset.value = null;
+  if (slot === 'product') productAssets.value = [];
   else if (slot === 'model') modelAsset.value = null;
   else if (slot === 'source') { sourceVideoAsset.value = null; sourceDuration.value = 0; }
   else if (slot === 'inspiration') refInspiration.value = null;
@@ -806,11 +823,11 @@ function readVideoDuration(file: File): Promise<number> {
 
 async function onFile(e: Event, assetType: string, slot: string) {
   const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
   try {
     if (assetType === 'source_video') {
-      const duration = await readVideoDuration(file);
+      const duration = await readVideoDuration(files[0]);
       if (duration > MAX_SOURCE_VIDEO_SECONDS + 0.5) {
         alert(`爆款参考视频最多支持 ${MAX_SOURCE_VIDEO_SECONDS} 秒。当前视频约 ${Math.round(duration)} 秒，请先裁剪后再上传。`);
         input.value = '';
@@ -819,10 +836,21 @@ async function onFile(e: Event, assetType: string, slot: string) {
       sourceDuration.value = duration; // 记下源视频时长 → "跟源"按时长计费
     }
     uploading.value = slot;
-    const asset = await uploadAsset(file, assetType);
-      if (slot === 'product') productAsset.value = asset;
-      else if (slot === 'model') modelAsset.value = asset;
+    if (slot === 'product') {
+      // 多图串视频：一次可选多张，与已传的累计、封顶 5 张
+      const room = 5 - productAssets.value.length;
+      if (room <= 0) { alert('商品图最多 5 张，删除几张后再加。'); return; }
+      const picked = files.slice(0, room);
+      if (files.length > room) alert(`商品图最多 5 张，本次只取前 ${picked.length} 张。`);
+      for (const f of picked) {
+        const asset = await uploadAsset(f, assetType);
+        productAssets.value = [...productAssets.value, asset];
+      }
+    } else {
+      const asset = await uploadAsset(files[0], assetType);
+      if (slot === 'model') modelAsset.value = asset;
       else sourceVideoAsset.value = asset;
+    }
       // 传完商品/参考视频 → 自动让 AI 写好提示词（后台跑、不阻塞上传；空着才填，不覆盖用户已写的）
       if (slot === 'product' || slot === 'source') autoFillPromptSilently();
   } catch (err: any) {
@@ -846,7 +874,11 @@ async function ensureSourceVideoId() {
 function buildGenBody(sourceVideoId: any) {
   return {
     userEmail: auth.email, sourceVideoId,
-    assets: { product_image_id: productAsset.value?.id, model_image_id: modelAsset.value?.id || null },
+    assets: {
+      product_image_id: productAsset.value?.id, // 主图(向后兼容)
+      product_image_ids: productAssets.value.map((p) => p.id).filter(Boolean), // 多图串视频(1-5张)
+      model_image_id: modelAsset.value?.id || null,
+    },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
     options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
     models: { video: videoModel.value, image: imageModel.value },
@@ -1038,7 +1070,7 @@ onMounted(async () => {
     if (raw) {
       sessionStorage.removeItem('moly_prefill');
       const p = JSON.parse(raw);
-      if (p.kind === 'productImage' && p.asset) productAsset.value = p.asset;
+      if (p.kind === 'productImage' && p.asset) productAssets.value = [p.asset];
       else if (p.kind === 'sourceVideo' && p.asset) sourceVideoAsset.value = p.asset; // 兼容旧逻辑
       else if (p.kind === 'inspiration') {
         refInspiration.value = { cover: p.cover || '', desc: p.desc || '' };
@@ -1127,7 +1159,7 @@ async function useSample(s: { id: string; name: string; points: string; url: str
     const resp = await fetch(s.url);
     const blob = await resp.blob();
     const file = new File([blob], s.id + '.png', { type: blob.type || 'image/png' });
-    productAsset.value = await uploadAsset(file, 'product_image');
+    productAssets.value = [await uploadAsset(file, 'product_image')];
     productName.value = s.name;
     sellingPoints.value = s.points;
     creativePrompt.value = '';
@@ -1205,6 +1237,18 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
     &:hover { background:rgba(37,99,235,.7); } }
 }
 .upload-note { margin:12px 0 0; color:#64748b; font-size:12px; line-height:1.7; }
+.upload-count { position:absolute; bottom:6px; right:6px; z-index:1; padding:2px 8px; border-radius:999px; background:rgba(37,99,235,.9); color:#fff; font-size:11px; font-weight:800; }
+.product-thumbs { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px;
+  .pt-item { position:relative; width:56px; height:56px; border-radius:10px; overflow:hidden; border:1px solid var(--color-border);
+    img { width:100%; height:100%; object-fit:cover; }
+    em { position:absolute; bottom:0; left:0; right:0; padding:1px 0; background:rgba(37,99,235,.85); color:#fff; font-size:9px; font-style:normal; font-weight:800; text-align:center; }
+    .pt-del { position:absolute; top:2px; right:2px; width:16px; height:16px; padding:0; border:none; border-radius:50%; background:rgba(15,23,42,.65); color:#fff; font-size:11px; line-height:1; cursor:pointer; }
+  }
+  .pt-add { width:56px; height:56px; display:flex; align-items:center; justify-content:center; border:1.5px dashed var(--color-border-muted); border-radius:10px; color:var(--color-text-tertiary); font-size:20px; cursor:pointer;
+    &:hover { border-color:#93c5fd; color:#2563eb; }
+  }
+  .pt-tip { flex-basis:100%; color:var(--color-text-tertiary); font-size:11.5px; }
+}
 
 .product-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
 .field { width:100%; padding:11px 14px; border:1px solid var(--color-border); border-radius: var(--radius-md); font-size:14px; background:rgba(255,255,255,.82); transition: all var(--transition-fast); &:focus{ border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline:none; } }
