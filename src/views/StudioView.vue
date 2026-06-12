@@ -439,23 +439,47 @@
       </div>
     </div>
 
-    <!-- 充值弹窗 -->
-    <div v-if="showRecharge" class="modal-mask" @click.self="showRecharge = false">
+    <!-- 充值弹窗（聚合支付：微信/支付宝；测试账号保留直充调试） -->
+    <div v-if="showRecharge" class="modal-mask" @click.self="closeRecharge">
       <div class="modal">
-        <div class="modal-head"><b>{{ auth.isTester ? '积分充值' : '内测体验额度' }}</b><button type="button" class="modal-x" @click="showRecharge = false">×</button></div>
+        <div class="modal-head"><b>积分充值</b><button type="button" class="modal-x" @click="closeRecharge">×</button></div>
         <p v-if="rechargeMsg" class="modal-msg">{{ rechargeMsg }}</p>
-        <template v-if="auth.isTester">
+
+        <template v-if="payStep === 'pkg'">
           <div class="pkgs">
-            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
+            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="choosePkg(p)">
               <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
               <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
               <span class="pkg-price">¥{{ p.priceYuan }}</span>
               <span v-if="recharging === p.id" class="pkg-spin" />
             </button>
           </div>
-          <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 测试账号可无限充值</p>
+          <p class="modal-foot">当前余额 {{ auth.points }} 积分{{ auth.isTester ? ' · 测试账号点套餐直充' : '' }}</p>
         </template>
-        <p v-else class="modal-tip">内测期间每位用户固定 <b>320 积分</b> 体验额度，暂不支持充值。<br>当前余额 <b>{{ auth.points }}</b> 积分。<br>正式上线后将开放充值，敬请期待 🙌</p>
+
+        <template v-else-if="payStep === 'channel'">
+          <p class="pay-sub">「{{ selectedPkg?.label }}」 {{ (selectedPkg?.credits || 0) + (selectedPkg?.bonus || 0) }} 积分 · ¥{{ selectedPkg?.priceYuan }}，选择支付方式：</p>
+          <div class="pay-channels">
+            <button type="button" class="pay-ch wechat" :disabled="!payChannels.wechat || paying" @click="startPay('wechat')">微信支付{{ payChannels.wechat ? '' : '(配置中)' }}</button>
+            <button type="button" class="pay-ch alipay" :disabled="!payChannels.alipay || paying" @click="startPay('alipay')">支付宝{{ payChannels.alipay ? '' : '(配置中)' }}</button>
+          </div>
+          <button type="button" class="pay-back" @click="payStep = 'pkg'">← 换个套餐</button>
+        </template>
+
+        <template v-else-if="payStep === 'qr'">
+          <p class="pay-sub">请用{{ payOrder?.channel === 'alipay' ? '支付宝' : '微信' }}扫码支付 <b>¥{{ payOrder?.amountYuan }}</b>（到账 {{ payOrder?.credits }} 积分）</p>
+          <div class="pay-qr">
+            <img v-if="payOrder?.qrUrl" :src="payOrder.qrUrl" alt="支付二维码" />
+            <a v-else-if="payOrder?.payUrl" :href="payOrder.payUrl" target="_blank" rel="noopener" class="pay-link">点此跳转支付</a>
+          </div>
+          <p class="pay-wait"><span class="mini-spin" /> 等待支付中…支付完成后自动到账</p>
+          <a v-if="payOrder?.payUrl" :href="payOrder.payUrl" target="_blank" rel="noopener" class="pay-h5">手机端？点此直接跳转支付 →</a>
+        </template>
+
+        <template v-else-if="payStep === 'done'">
+          <p class="pay-done">✅ 支付成功，已到账 <b>{{ payOrder?.credits }}</b> 积分！当前余额 <b>{{ auth.points }}</b>。</p>
+          <button type="button" class="pay-back" @click="closeRecharge">完成</button>
+        </template>
       </div>
     </div>
 
@@ -1111,8 +1135,63 @@ function auditionVoice(v: any) {
   try { if (voiceAudio) voiceAudio.pause(); voiceAudio = new Audio(src); voiceAudio.play(); } catch { /* 忽略 */ }
 }
 
-function openRecharge(msg = '') { rechargeMsg.value = msg; showRecharge.value = true; }
-async function recharge(pkg: any) {
+function openRecharge(msg = '') { rechargeMsg.value = msg; showRecharge.value = true; payStep.value = 'pkg'; loadPayChannels(); }
+// ── 真实支付流(聚合支付：微信/支付宝)：选套餐 → 选通道 → 扫码 → 轮询到账。测试账号点套餐直充(调试用)。
+const payStep = ref<'pkg' | 'channel' | 'qr' | 'done'>('pkg');
+const selectedPkg = ref<any>(null);
+const payChannels = ref({ wechat: false, alipay: false });
+const payOrder = ref<any>(null);
+const paying = ref(false);
+let payTimer: any = null;
+
+async function loadPayChannels() {
+  try { payChannels.value = await safeJson(await fetch('/api/pay/channels')); } catch { /* 保持禁用态 */ }
+}
+
+function choosePkg(pkg: any) {
+  if (auth.isTester) { rechargeTester(pkg); return; } // 测试账号保留直充
+  selectedPkg.value = pkg;
+  rechargeMsg.value = '';
+  payStep.value = 'channel';
+}
+
+async function startPay(channel: 'wechat' | 'alipay') {
+  if (!selectedPkg.value || paying.value) return;
+  paying.value = true; rechargeMsg.value = '';
+  try {
+    const r = await fetch('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, packageId: selectedPkg.value.id, channel }) });
+    const j = await safeJson(r);
+    if (!j.success) { rechargeMsg.value = j.message || '下单失败'; return; }
+    payOrder.value = { ...j, channel };
+    payStep.value = 'qr';
+    payTimer = setInterval(pollPay, 3000);
+  } catch (e: any) { rechargeMsg.value = e.message || '网络错误，请重试'; }
+  finally { paying.value = false; }
+}
+
+async function pollPay() {
+  if (!payOrder.value?.orderId) return;
+  try {
+    const j = await safeJson(await fetch(`/api/pay/order?orderId=${encodeURIComponent(payOrder.value.orderId)}`));
+    if (j.status === 'paid') {
+      clearInterval(payTimer); payTimer = null;
+      if (auth.email) await auth.fetchPointsFromServer(auth.email);
+      payStep.value = 'done';
+    }
+  } catch { /* 下一轮再试 */ }
+}
+
+function closeRecharge() {
+  if (payTimer) { clearInterval(payTimer); payTimer = null; }
+  showRecharge.value = false;
+  rechargeMsg.value = '';
+  payStep.value = 'pkg';
+  payOrder.value = null;
+  selectedPkg.value = null;
+}
+
+// 测试账号直充(旧逻辑保留，仅 isTester 可用——后端同样校验)
+async function rechargeTester(pkg: any) {
   recharging.value = pkg.id;
   try {
     const r = await fetch('/api/replica/recharge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, packageId: pkg.id }) });
@@ -1120,7 +1199,7 @@ async function recharge(pkg: any) {
     if (j.success) {
       if (auth.email) await auth.fetchPointsFromServer(auth.email);
       rechargeMsg.value = `充值成功，已到账 ${j.added} 积分`;
-      setTimeout(() => { showRecharge.value = false; rechargeMsg.value = ''; }, 1200);
+      setTimeout(() => closeRecharge(), 1200);
     } else { rechargeMsg.value = j.message || '充值失败'; }
   } catch { rechargeMsg.value = '网络错误，请重试'; }
   finally { recharging.value = ''; }
@@ -1446,6 +1525,22 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .pkg-spin { position:absolute; right:16px; width:16px; height:16px; border:2px solid var(--color-border); border-top-color:var(--color-primary); border-radius:50%; animation:spin .8s linear infinite; }
 .modal-foot { font-size:11px; color:var(--color-text-tertiary); text-align:center; margin:14px 0 0; }
 .modal-tip { font-size:14px; line-height:1.75; color: var(--color-text-secondary); text-align:center; padding:6px 4px 2px; b { color: var(--color-primary); font-weight:700; } }
+.pay-sub { margin:4px 0 12px; color:#334155; font-size:14px; line-height:1.6; b { color:var(--color-primary); } }
+.pay-channels { display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  .pay-ch { min-height:52px; border:none; border-radius:14px; color:#fff; font-size:15px; font-weight:900; cursor:pointer;
+    &:disabled { opacity:.45; cursor:not-allowed; }
+    &.wechat { background:#07c160; }
+    &.alipay { background:#1677ff; }
+  }
+}
+.pay-back { margin-top:14px; padding:8px 14px; border:1px solid var(--color-border); border-radius:10px; background:#fff; color:#475569; font-size:13px; font-weight:700; cursor:pointer; }
+.pay-qr { display:flex; align-items:center; justify-content:center; min-height:200px; margin:6px 0;
+  img { width:200px; height:200px; border-radius:12px; border:1px solid var(--color-border); }
+  .pay-link { color:#2563eb; font-weight:800; }
+}
+.pay-wait { display:flex; align-items:center; justify-content:center; gap:8px; margin:4px 0 8px; color:#64748b; font-size:13px; }
+.pay-h5 { display:block; text-align:center; color:#2563eb; font-size:13px; font-weight:700; margin-bottom:4px; }
+.pay-done { margin:14px 0; color:#047857; font-size:15px; line-height:1.7; text-align:center; b { color:var(--color-primary); } }
 
 .voice-hint { font-size:12px; color:var(--color-text-tertiary); margin:10px 0 0; line-height:1.5; }
 .script { background:rgba(248,250,252,.8); border:1px solid var(--color-border-light); border-radius:var(--radius-md); padding:12px 14px;

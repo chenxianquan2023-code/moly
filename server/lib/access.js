@@ -5,7 +5,11 @@
  * - 内测白名单：仅受邀账号 + 测试账号可注册/登录，其余一律拒绝（防"无限注册薅体验额度"）
  * 可用环境变量覆盖：FREE_CREDITS / TEST_EMAIL / BETA_ALLOWLIST
  */
-export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 800);
+// 公测开放注册(2026-06 用户拍板)：人人可注册，新用户送小额体验积分。
+// 回滚开关：Railway 设 OPEN_REGISTRATION=false 即恢复邀请制白名单。
+export const OPEN_REGISTRATION = String(process.env.OPEN_REGISTRATION ?? 'true') !== 'false';
+// 新用户赠送：公测降为 100(防撸羊毛)。注意：若 Railway 已设 FREE_CREDITS 环境变量,需在面板同步改
+export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 100);
 export const TEST_EMAIL = String(process.env.TEST_EMAIL || 'tester@moly.app').trim().toLowerCase();
 
 /** 是否为可无限充值的测试账号 */
@@ -41,10 +45,11 @@ const ALLOWSET = new Set(
     .map(normAccount).filter(Boolean),
 );
 
-/** 内测期：该账号（邮箱或手机号）是否允许注册/登录 */
+/** 该账号（邮箱或手机号）是否允许注册/登录。公测开放后恒为 true(空账号除外)；关掉开关即回到白名单。 */
 export function isAllowed(account) {
   const a = normAccount(account);
   if (!a) return false;
+  if (OPEN_REGISTRATION) return true;
   if (a === normAccount(TEST_EMAIL)) return true;
   return ALLOWSET.has(a);
 }
