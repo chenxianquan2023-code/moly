@@ -266,6 +266,14 @@ app.post('/api/auth/send-code', async (req, res) => {
   // 内测白名单：非受邀账号不发验证码（从源头挡住注册/登录）
   const checkAcct = key.startsWith('phone:') ? key.slice(6) : key;
   if (!isAllowed(checkAcct)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
+  // 通道就绪检查：公测开放后，未配置真实发送通道时绝不能把验证码泄露给客户端(否则可被脚本无限注册撸积分)
+  const emailConfigured = !!(BREVO_API_KEY || RESEND_API_KEY || (SMTP_USER && SMTP_PASS));
+  if (key.includes('@') && !emailConfigured && process.env.ALLOW_DEV_CODE !== 'true') {
+    return res.status(503).json({ success: false, message: '邮箱验证码服务配置中，请稍后再试或联系管理员。' });
+  }
+  if (!key.includes('@') && !SMS_WEBHOOK_URL && process.env.ALLOW_DEV_CODE !== 'true') {
+    return res.status(400).json({ success: false, message: '手机号注册暂未开放，请使用邮箱注册。' });
+  }
   const code = randomCode();
   codes.set(key, { code, expiresAt: Date.now() + CODE_TTL_MS });
   let sendError = null;
@@ -285,7 +293,8 @@ app.post('/api/auth/send-code', async (req, res) => {
   if (sendError) {
     return res.status(500).json({ success: false, message: `验证码发送失败：${sendError}` });
   }
-  const devCode = key.includes('@') ? (!SMTP_USER ? code : undefined) : (!SMS_WEBHOOK_URL ? code : undefined);
+  // devCode 仅限本地开发(显式 ALLOW_DEV_CODE=true)——生产环境绝不返回，防脚本批量注册
+  const devCode = process.env.ALLOW_DEV_CODE === 'true' ? code : undefined;
   return res.json({ success: true, message: '验证码已发送', devCode });
 });
 
