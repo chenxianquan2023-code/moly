@@ -10,12 +10,17 @@ import express from 'express';
 import { insertRow, getById, updateById, selectRows } from '../lib/supabase.js';
 import { addPoints, getPoints } from '../lib/points.js';
 import { RECHARGE_PACKAGES } from './pricing.js';
-import { createPayment, verifyNotify, isPayConfigured } from '../lib/hupi.js';
+import * as hupi from '../lib/hupi.js';
+import * as xorpay from '../lib/xorpay.js';
 
 export const payRouter = Router();
 
 const BASE_URL = (process.env.APP_BASE_URL || 'https://moly-production-2f51.up.railway.app').replace(/\/$/, '');
 const CHANNELS = new Set(['wechat', 'alipay']);
+
+// 供应商自动选择：配了 XorPay(资金走官方通道结算,更稳)优先；否则虎皮椒。可换、可并存。
+const useXorpay = () => xorpay.isConfigured();
+const channelConfigured = (channel) => (useXorpay() ? xorpay.isPayConfigured() : hupi.isPayConfigured(channel));
 
 // POST /api/pay/create  body: { userEmail, packageId, channel }
 payRouter.post('/pay/create', async (req, res) => {
@@ -27,7 +32,7 @@ payRouter.post('/pay/create', async (req, res) => {
     const pkg = RECHARGE_PACKAGES.find((p) => p.id === String(req.body?.packageId || ''));
     if (!pkg) return res.status(400).json({ success: false, message: '充值套餐无效' });
     if ((await getPoints(email)) === null) return res.status(404).json({ success: false, message: '用户不存在，请先登录' });
-    if (!isPayConfigured(channel)) {
+    if (!channelConfigured(channel)) {
       return res.status(503).json({ success: false, code: 'PAY_NOT_CONFIGURED', message: `${channel === 'alipay' ? '支付宝' : '微信'}支付通道配置中，暂时无法充值，请稍后再试或联系管理员。` });
     }
 
@@ -45,17 +50,53 @@ payRouter.post('/pay/create', async (req, res) => {
       return res.status(503).json({ success: false, message: '订单系统未初始化(recharge_orders 表缺失)，请联系管理员。' });
     }
 
-    const { payUrl, qrUrl } = await createPayment({
+    const provider = useXorpay() ? xorpay : hupi;
+    const notifyUrl = useXorpay() ? `${BASE_URL}/api/pay/notify-xorpay` : `${BASE_URL}/api/pay/notify/${channel}`;
+    const { payUrl, qrUrl } = await provider.createPayment({
       tradeOrderId: order.id,
       amountYuan: pkg.priceYuan,
       title: `Moly积分·${pkg.label}`,
       channel,
-      notifyUrl: `${BASE_URL}/api/pay/notify/${channel}`,
+      notifyUrl,
       returnUrl: `${BASE_URL}/studio`,
     });
     res.json({ success: true, orderId: order.id, payUrl, qrUrl, amountYuan: pkg.priceYuan, credits: order.credits, package: pkg });
   } catch (e) {
     res.status(500).json({ success: false, message: String(e.message || e).slice(0, 160) });
+  }
+});
+
+// 共用：按订单号幂等入账(验签已由调用方完成)。金额/积分以我们订单行为准，绝不信回调金额。
+async function settleOrder(orderId, transactionId) {
+  const order = orderId ? await getById('recharge_orders', orderId) : null;
+  if (!order) return 'unknown';          // 验签已过但查无单：回 success 停止重试，留日志
+  if (order.status === 'paid') return 'dup'; // 幂等：重复回调不重复加分
+  await addPoints(order.user_email, order.credits, `充值:${order.package_id}#${String(orderId).slice(0, 8)}`);
+  await updateById('recharge_orders', orderId, {
+    status: 'paid',
+    transaction_id: String(transactionId || ''),
+    paid_at: new Date().toISOString(),
+  });
+  console.log(`[pay] 到账 ${order.user_email} +${order.credits} (${order.channel} ¥${order.amount_yuan})`);
+  return 'ok';
+}
+
+// POST /api/pay/notify-xorpay —— XorPay 异步回调(表单编码)。验签 → 幂等加分 → 回 'success'。
+payRouter.post('/pay/notify-xorpay', express.urlencoded({ extended: false }), async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!xorpay.verifyNotify(body)) {
+      console.error('[pay/notify-xorpay] 验签失败', JSON.stringify(body).slice(0, 200));
+      return res.status(400).send('fail');
+    }
+    let transactionId = String(body.aoid || '');
+    try { transactionId = JSON.parse(body.detail || '{}').transaction_id || transactionId; } catch { /* detail 非JSON则用 aoid */ }
+    const r = await settleOrder(String(body.order_id || ''), transactionId);
+    if (r === 'unknown') console.error('[pay/notify-xorpay] 查无订单', body.order_id);
+    res.send('success');
+  } catch (e) {
+    console.error('[pay/notify-xorpay]', e.message);
+    res.status(500).send('fail'); // 让通道重试
   }
 });
 
@@ -65,23 +106,14 @@ payRouter.post('/pay/notify/:channel', express.urlencoded({ extended: false }), 
     const channel = String(req.params.channel || '');
     if (!CHANNELS.has(channel)) return res.status(400).send('fail');
     const body = req.body || {};
-    if (!verifyNotify(body, channel)) {
+    if (!hupi.verifyNotify(body, channel)) {
       console.error('[pay/notify] 验签失败', channel, JSON.stringify(body).slice(0, 200));
       return res.status(400).send('fail');
     }
     // 虎皮椒：status 'OD' = 已支付
     if (String(body.status) !== 'OD') return res.send('success');
-    const orderId = String(body.trade_order_id || '');
-    const order = orderId ? await getById('recharge_orders', orderId) : null;
-    if (!order) return res.send('success'); // 验签已过但查无单(异常少见)：回 success 停止重试，留日志
-    if (order.status === 'paid') return res.send('success'); // 幂等：重复回调不重复加分
-    await addPoints(order.user_email, order.credits, `充值:${order.package_id}#${orderId.slice(0, 8)}`);
-    await updateById('recharge_orders', orderId, {
-      status: 'paid',
-      transaction_id: String(body.transaction_id || body.open_order_id || ''),
-      paid_at: new Date().toISOString(),
-    });
-    console.log(`[pay] 到账 ${order.user_email} +${order.credits} (${channel} ¥${order.amount_yuan})`);
+    const r = await settleOrder(String(body.trade_order_id || ''), String(body.transaction_id || body.open_order_id || ''));
+    if (r === 'unknown') console.error('[pay/notify] 查无订单', body.trade_order_id);
     res.send('success');
   } catch (e) {
     console.error('[pay/notify]', e.message);
@@ -102,7 +134,12 @@ payRouter.get('/pay/order', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// GET /api/pay/channels —— 前端按配置状态渲染可用支付方式
+// GET /api/pay/channels —— 前端按配置状态渲染可用支付方式(含当前供应商，便于排查)
 payRouter.get('/pay/channels', (req, res) => {
-  res.json({ success: true, wechat: isPayConfigured('wechat'), alipay: isPayConfigured('alipay') });
+  res.json({
+    success: true,
+    wechat: channelConfigured('wechat'),
+    alipay: channelConfigured('alipay'),
+    provider: useXorpay() ? 'xorpay' : (hupi.isPayConfigured('wechat') || hupi.isPayConfigured('alipay')) ? 'hupi' : 'none',
+  });
 });
