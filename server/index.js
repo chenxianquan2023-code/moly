@@ -148,7 +148,21 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Moly';
 const EMAIL_FROM_ADDR = process.env.EMAIL_FROM_ADDR || 'moly@matrue.cn';
 
-async function sendEmail(to, subject, text) {
+// 品牌化验证码邮件模板(内联样式,Gmail/QQ/网易兼容)——大号码、Moly 标、留白卡片
+function codeEmailHtml(code) {
+  return `<div style="background:#f5f7fb;padding:36px 16px;font-family:-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;">
+  <div style="max-width:420px;margin:0 auto;background:#ffffff;border-radius:16px;padding:36px 32px;text-align:center;border:1px solid #eef2f7;">
+    <div style="display:inline-block;width:44px;height:44px;background:#2563eb;border-radius:12px;color:#ffffff;font-size:22px;font-weight:800;line-height:44px;">M</div>
+    <div style="margin-top:10px;font-size:20px;font-weight:800;color:#0f172a;">Moly</div>
+    <p style="margin:22px 0 10px;color:#475569;font-size:14px;">你的验证码</p>
+    <div style="font-size:34px;font-weight:900;letter-spacing:10px;color:#2563eb;padding:16px 0 16px 10px;background:#eff6ff;border-radius:12px;">${code}</div>
+    <p style="margin:20px 0 0;color:#94a3b8;font-size:12px;line-height:1.8;">验证码 5 分钟内有效，请勿泄露给他人。<br>如非本人操作，请忽略本邮件。</p>
+  </div>
+  <p style="text-align:center;color:#cbd5e1;font-size:11px;margin-top:18px;">© Moly · AI 爆款视频工作台 · moly.video</p>
+</div>`;
+}
+
+async function sendEmail(to, subject, text, html) {
   // 优先 Brevo
   if (BREVO_API_KEY) {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -162,6 +176,7 @@ async function sendEmail(to, subject, text) {
         to: [{ email: to }],
         subject,
         textContent: text,
+        ...(html ? { htmlContent: html } : {}),
       }),
       signal: AbortSignal.timeout(15000),
     });
@@ -179,7 +194,7 @@ async function sendEmail(to, subject, text) {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDR}>`, to: [to], subject, text }),
+      body: JSON.stringify({ from: `${EMAIL_FROM_NAME} <${EMAIL_FROM_ADDR}>`, to: [to], subject, text, ...(html ? { html } : {}) }),
       signal: AbortSignal.timeout(15000),
     });
     const data = await res.json();
@@ -203,7 +218,7 @@ async function sendEmail(to, subject, text) {
     socketTimeout: 15000,
   });
   try {
-    await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text });
+    await transporter.sendMail({ from: SMTP_FROM || SMTP_USER, to, subject, text, ...(html ? { html } : {}) });
     console.log('[Auth] SMTP 邮件发送成功:', to);
     return { sent: true };
   } catch (err) {
@@ -280,7 +295,7 @@ app.post('/api/auth/send-code', async (req, res) => {
   try {
     if (key.includes('@')) {
       const text = `您的 Moly 验证码是：${code}，5 分钟内有效。如非本人操作请忽略。`;
-      await sendEmail(key, 'Moly 验证码', text);
+      await sendEmail(key, `${code} 是你的 Moly 验证码`, text, codeEmailHtml(code));
     } else {
       const p = String(phone || '').replace(/\D/g, '');
       const cc = String(countryCode || '86').replace(/\D/g, '') || '86';
