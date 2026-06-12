@@ -9,22 +9,9 @@
       </router-link>
 
         <div v-if="!regionLoading" class="space-y-5">
-        <div class="flex justify-center gap-12 border-b border-[#E5E7EB] mb-2">
-          <button
-            v-if="regionMode === 'cn'"
-            type="button"
-            :class="['pb-3 text-[15px] transition-colors relative', registerType === 'phone' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB] after:content-[\'\']' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
-            @click="registerType = 'phone'"
-          >
-            手机号注册
-          </button>
-          <button
-            type="button"
-            :class="['pb-3 text-[15px] transition-colors relative', registerType === 'email' ? 'text-[#111827] font-medium after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB] after:content-[\'\']' : 'text-[#9CA3AF] hover:text-[#6B7280]']"
-            @click="registerType = 'email'"
-          >
-            邮箱注册
-          </button>
+        <!-- 海外站定位：仅邮箱注册(手机短信通道在国内需资质,且海外站对国内手机不稳) -->
+        <div class="flex justify-center border-b border-[#E5E7EB] mb-2">
+          <span class="pb-3 text-[15px] text-[#111827] font-medium relative after:absolute after:bottom-[-1px] after:left-0 after:right-0 after:h-0.5 after:bg-[#2563EB] after:content-['']">邮箱注册</span>
         </div>
         <form @submit.prevent="handleSubmit" class="space-y-5">
           <template v-if="registerType === 'phone'">

@@ -392,15 +392,46 @@ app.post('/api/auth/login-by-code', async (req, res) => {
     if (!user) {
       // 邮箱仍要求先注册；手机号首次登录自动注册（无密码，凭验证码登录）
       if (!isPhone) {
-        return res.status(404).json({ success: false, message: '该账号未注册，请先注册' });
+        // 邮箱验证码登录即注册(creatok式)：能收到验证码=邮箱真实可达,自动建号送体验积分,免单独注册步骤
       }
-      const rows = await sbFetch('POST', '/moly_users', { email: acc, password: hashPw(`phone-${acc}-${Date.now()}`), points: FREE_CREDITS });
+      const rows = await sbFetch('POST', '/moly_users', { email: acc, password: hashPw(`${isPhone ? 'phone' : 'code'}-${acc}-${Date.now()}`), points: FREE_CREDITS });
       user = Array.isArray(rows) ? rows[0] : rows;
     }
     return res.json({ success: true, user: { email: user.email, points: user.points ?? 0 } });
   } catch (err) {
     console.error('[login-by-code]', err.message);
     return res.status(500).json({ success: false, message: '登录失败，请稍后重试' });
+  }
+});
+
+// ── Google 一键登录(GIS ID Token 流) ──
+// 前端用 Google Identity Services 拿 credential(JWT)，后端经 Google tokeninfo 校验(零依赖)：
+// aud 必须等于我们的 GOOGLE_CLIENT_ID、email_verified 必须为真。首次登录自动建号送体验积分。
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+app.get('/api/auth/google-config', (req, res) => {
+  res.json({ success: true, clientId: GOOGLE_CLIENT_ID });
+});
+app.post('/api/auth/google', async (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(503).json({ success: false, message: 'Google 登录未配置' });
+  const credential = String(req.body?.credential || '');
+  if (!credential) return res.status(400).json({ success: false, message: '缺少 Google 凭证' });
+  try {
+    const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`, { signal: AbortSignal.timeout(10000) });
+    const info = await r.json().catch(() => ({}));
+    if (!r.ok || info.aud !== GOOGLE_CLIENT_ID || info.email_verified !== 'true' || !info.email) {
+      return res.status(401).json({ success: false, message: 'Google 登录校验失败，请重试' });
+    }
+    const email = String(info.email).trim().toLowerCase();
+    if (!isAllowed(email)) return res.status(403).json({ success: false, code: 'NOT_ALLOWED', message: BETA_DENY_MSG });
+    let user = await findUserByEmail(email);
+    if (!user) {
+      const rows = await sbFetch('POST', '/moly_users', { email, password: hashPw(`google-${email}-${Date.now()}`), points: FREE_CREDITS });
+      user = Array.isArray(rows) ? rows[0] : rows;
+    }
+    return res.json({ success: true, user: { email: user.email, points: user.points ?? 0 } });
+  } catch (err) {
+    console.error('[auth/google]', err.message);
+    return res.status(500).json({ success: false, message: 'Google 登录失败，请稍后重试' });
   }
 });
 

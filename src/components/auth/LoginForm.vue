@@ -1,77 +1,72 @@
 <template>
   <form class="space-y-4" @submit.prevent="handleSubmit">
-    <!-- 国内：手机号登录 | 邮箱登录 两个 Tab，默认手机号 -->
-    <div v-if="regionMode === 'cn'" class="flex border-b border-[#E5E7EB] mb-6">
+    <!-- Google 一键登录(配置了 GOOGLE_CLIENT_ID 才显示；国内无代理加载失败则自动隐藏) -->
+    <div v-show="googleReady" class="space-y-3">
+      <div ref="googleBtn" class="flex justify-center"></div>
+      <div class="flex items-center gap-3">
+        <span class="flex-1 h-px bg-[#E5E7EB]"></span>
+        <span class="text-xs text-[#9CA3AF]">或者</span>
+        <span class="flex-1 h-px bg-[#E5E7EB]"></span>
+      </div>
+    </div>
+
+    <!-- 海外站定位：仅邮箱。两种方式——密码登录 | 验证码登录(验证码即登录即注册) -->
+    <div class="flex border-b border-[#E5E7EB] mb-6">
       <button
         type="button"
-        :class="['flex-1 pb-3 text-base font-medium transition-colors', method === 'phone_code' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
-        @click="switchMethod('phone_code')"
+        :class="['flex-1 pb-3 text-base font-medium transition-colors', method === 'password' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
+        @click="switchMethod('password')"
       >
-        手机号登录
+        密码登录
       </button>
       <button
         type="button"
-        :class="['flex-1 pb-3 text-base font-medium transition-colors', method === 'email' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
-        @click="switchMethod('email')"
+        :class="['flex-1 pb-3 text-base font-medium transition-colors', method === 'email_code' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#6B7280]']"
+        @click="switchMethod('email_code')"
       >
-        邮箱登录
+        验证码登录
       </button>
     </div>
-    <!-- 海外：仅邮箱登录，无 Tab，显示标题 -->
-    <h2 v-else class="text-lg font-semibold text-[#1F2937] mb-6">邮箱登录</h2>
 
-    <!-- 手机号 + 验证码（国内）：单输入框，无 +86，与 Deepseek 一致 -->
-    <template v-if="method === 'phone_code'">
-      <div class="space-y-4">
-        <div>
-          <input
-            v-model="phoneDisplay"
-            type="tel"
-            inputmode="numeric"
-            maxlength="11"
-            placeholder="请输入手机号"
-            :class="['w-full h-12 px-4 text-[15px] border rounded-lg outline-none bg-[#F9FAFB] transition-colors', phoneError ? 'border-[#EF4444]' : 'border-[#E5E7EB] focus:border-[#2563EB] focus:bg-white']"
-            @input="onPhoneInput"
-          />
-          <p v-if="phoneError" class="mt-1.5 text-xs text-[#EF4444]">{{ phoneError }}</p>
-        </div>
-        <div>
-          <VerificationInput
-            v-model="code"
-            :countdown="countdown"
-            :can-send="isPhoneValid"
-            send-text="获取验证码"
-            :error="!!codeError"
-            @send="sendPhoneCode"
-          />
-          <p v-if="codeError" class="mt-1.5 text-xs text-[#EF4444]">{{ codeError }}</p>
-          <p v-if="devCode" class="mt-1.5 text-xs text-[#2563EB]">验证码（演示）：{{ devCode }}</p>
-        </div>
+    <!-- 邮箱(两种方式共用) -->
+    <div>
+      <input
+        v-model="email"
+        type="email"
+        placeholder="请输入邮箱地址"
+        :class="['w-full h-12 px-4 text-[15px] border rounded-lg outline-none bg-[#F9FAFB] transition-colors', emailError ? 'border-[#EF4444]' : 'border-[#E5E7EB] focus:border-[#2563EB] focus:bg-white']"
+        @input="emailError = ''"
+      />
+      <p v-if="emailError" class="mt-1.5 text-xs text-[#EF4444]">{{ emailError }}</p>
+    </div>
+
+    <!-- 密码登录 -->
+    <template v-if="method === 'password'">
+      <div>
+        <PasswordInput
+          v-model="password"
+          placeholder="请输入密码"
+          :error="!!passwordError"
+          @input="passwordError = ''"
+        />
+        <p v-if="passwordError" class="mt-1.5 text-xs text-[#EF4444]">{{ passwordError }}</p>
       </div>
     </template>
 
-    <!-- 邮箱 + 密码（国内备用 / 海外唯一） -->
-    <template v-if="method === 'email'">
-      <div class="space-y-4">
-        <div>
-          <input
-            v-model="email"
-            type="email"
-            placeholder="请输入邮箱地址"
-            :class="['w-full h-12 px-4 text-[15px] border rounded-lg outline-none bg-[#F9FAFB] transition-colors', emailError ? 'border-[#EF4444]' : 'border-[#E5E7EB] focus:border-[#2563EB] focus:bg-white']"
-            @input="emailError = ''"
-          />
-          <p v-if="emailError" class="mt-1.5 text-xs text-[#EF4444]">{{ emailError }}</p>
-        </div>
-        <div>
-          <PasswordInput
-            v-model="password"
-            placeholder="8-20位，至少包含字母和数字"
-            :error="!!passwordError"
-            @input="passwordError = ''"
-          />
-          <p v-if="passwordError" class="mt-1.5 text-xs text-[#EF4444]">{{ passwordError }}</p>
-        </div>
+    <!-- 验证码登录(未注册的邮箱会自动注册并赠送体验积分) -->
+    <template v-else>
+      <div>
+        <VerificationInput
+          v-model="code"
+          :countdown="countdown"
+          :can-send="isEmailValid"
+          send-text="获取验证码"
+          :error="!!codeError"
+          @send="sendEmailCode"
+        />
+        <p v-if="codeError" class="mt-1.5 text-xs text-[#EF4444]">{{ codeError }}</p>
+        <p v-if="devCode" class="mt-1.5 text-xs text-[#2563EB]">验证码（本地开发）：{{ devCode }}</p>
+        <p class="mt-1.5 text-xs text-[#9CA3AF]">未注册的邮箱将自动创建账号并赠送体验积分</p>
       </div>
     </template>
 
@@ -83,7 +78,7 @@
       <a href="#" class="text-[#2563EB] hover:underline" @click.prevent>隐私政策</a>
     </p>
 
-    <!-- 忘记密码 / 立即注册：与 Deepseek 一致，左忘记密码、右立即注册 -->
+    <!-- 忘记密码 / 立即注册 -->
     <div class="flex justify-between items-center text-sm">
       <router-link to="/forgot-password" class="text-[#6B7280] hover:underline">忘记密码</router-link>
       <router-link :to="{ name: 'register', query: $route.query }" class="text-[#6B7280] hover:underline">立即注册</router-link>
@@ -92,7 +87,7 @@
     <!-- 提交错误 -->
     <p v-if="submitError" class="text-sm text-[#EF4444] text-center">{{ submitError }}</p>
 
-    <!-- 登录按钮 - 白色文字 -->
+    <!-- 登录按钮 -->
     <button
       type="submit"
       :disabled="submitting"
@@ -106,23 +101,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import VerificationInput from './VerificationInput.vue';
 import PasswordInput from './PasswordInput.vue';
 import { useVerification } from '@/composables/useVerification';
 import { useAuthStore } from '@/stores/auth';
 import * as api from '@/api/auth';
-import { validatePhone, validateEmail, validateCode, validatePassword } from '@/utils/validators';
+import { validateEmail, validateCode, validatePassword } from '@/utils/validators';
 import type { RegionMode } from '@/types/auth.types';
 
-const props = defineProps<{ regionMode: RegionMode }>();
+// regionMode 保留以兼容父组件传参；海外站统一邮箱登录，不再分区
+defineProps<{ regionMode?: RegionMode }>();
 const auth = useAuthStore();
 const emit = defineEmits<{ success: [] }>();
 
-const method = ref<'phone_code' | 'email'>(props.regionMode === 'cn' ? 'phone_code' : 'email');
-const DOMESTIC_COUNTRY_CODE = '86';
-const phoneDisplay = ref('');
-const phone = ref('');
+const method = ref<'password' | 'email_code'>('password');
 const email = ref('');
 const password = ref('');
 const code = ref('');
@@ -130,26 +123,15 @@ const { countdown, start: startCooldown } = useVerification(60);
 const devCode = ref('');
 const submitting = ref(false);
 
-// 使用独立的 ref 而不是对象，避免任何可能的引用问题
-const phoneError = ref('');
 const codeError = ref('');
 const emailError = ref('');
 const passwordError = ref('');
 const submitError = ref('');
 
-function onPhoneInput(e: Event) {
-  const raw = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 11);
-  phoneDisplay.value = raw;
-  phone.value = raw;
-}
+const isEmailValid = computed(() => validateEmail(email.value).valid);
 
-const isPhoneValid = computed(() => validatePhone(phone.value).valid);
-
-// 切换登录方式
-function switchMethod(newMethod: 'phone_code' | 'email') {
+function switchMethod(newMethod: 'password' | 'email_code') {
   method.value = newMethod;
-  // 完全清空所有错误
-  phoneError.value = '';
   codeError.value = '';
   emailError.value = '';
   passwordError.value = '';
@@ -157,71 +139,90 @@ function switchMethod(newMethod: 'phone_code' | 'email') {
   devCode.value = '';
 }
 
-// 发送手机验证码（只传 phone + countryCode，避免误走邮箱逻辑）
-async function sendPhoneCode() {
-  phoneError.value = '';
+// ── Google 一键登录(GIS)：后端配置了 GOOGLE_CLIENT_ID 才渲染；脚本加载失败(国内无代理)静默隐藏 ──
+const googleBtn = ref<HTMLElement | null>(null);
+const googleReady = ref(false);
+
+onMounted(async () => {
+  try {
+    const cfg = await (await fetch('/api/auth/google-config')).json();
+    const clientId = cfg?.clientId;
+    if (!clientId) return;
+    await new Promise<void>((resolve, reject) => {
+      if ((window as any).google?.accounts?.id) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('gsi load failed'));
+      document.head.appendChild(s);
+    });
+    const gsi = (window as any).google.accounts.id;
+    gsi.initialize({ client_id: clientId, callback: onGoogleCredential });
+    if (googleBtn.value) {
+      gsi.renderButton(googleBtn.value, { theme: 'outline', size: 'large', width: 320, text: 'signin_with', locale: 'zh_CN' });
+      googleReady.value = true;
+    }
+  } catch { /* 加载失败(常见于国内直连)→ 不显示 Google 按钮，邮箱登录不受影响 */ }
+});
+
+async function onGoogleCredential(resp: any) {
+  submitError.value = '';
+  submitting.value = true;
+  try {
+    const r = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: resp?.credential }) });
+    const j = await r.json().catch(() => ({ success: false, message: '服务响应异常，请重试' }));
+    if (j.success && j.user?.email) {
+      auth.login({ email: j.user.email, points: j.user.points });
+      emit('success');
+    } else {
+      submitError.value = j.message || 'Google 登录失败';
+    }
+  } catch (e: any) {
+    submitError.value = e?.message || '网络错误，请重试';
+  } finally {
+    submitting.value = false;
+  }
+}
+
+// 发送邮箱验证码
+async function sendEmailCode() {
+  emailError.value = '';
   codeError.value = '';
   submitError.value = '';
-
-  const r = validatePhone(phone.value);
-  if (!r.valid) {
-    phoneError.value = r.message ?? '请输入正确的手机号';
-    return;
-  }
-
-  const body = {
-    phone: phone.value.replace(/\D/g, ''),
-    countryCode: `+${DOMESTIC_COUNTRY_CODE}`,
-  };
+  const r = validateEmail(email.value);
+  if (!r.valid) { emailError.value = r.message ?? '请输入正确的邮箱'; return; }
   try {
-    const res = await api.sendCode(body);
-    console.log('[Login] API 响应:', res);
+    const res = await api.sendCode({ email: email.value.trim() });
     if (res.success) {
       if (res.devCode) devCode.value = res.devCode;
       startCooldown();
     } else {
-      const msg = res.message || '发送失败';
-      codeError.value = msg === '请输入正确的邮箱' ? '请输入正确的手机号' : msg;
+      codeError.value = res.message || '发送失败';
     }
   } catch (e: unknown) {
     codeError.value = (e as { message?: string })?.message || '网络错误，请稍后重试';
-    console.error('发送验证码失败:', e);
   }
 }
 
 // 提交登录
 async function handleSubmit() {
-  // 清空所有错误
-  phoneError.value = '';
   codeError.value = '';
   emailError.value = '';
   passwordError.value = '';
   submitError.value = '';
-  
-  if (method.value === 'phone_code') {
-    // 手机号登录验证
-    const r1 = validatePhone(phone.value);
+
+  const r1 = validateEmail(email.value);
+  if (!r1.valid) { emailError.value = r1.message ?? '请输入正确的邮箱'; return; }
+
+  if (method.value === 'email_code') {
     const r2 = validateCode(code.value);
-    
-    if (!r1.valid) { 
-      phoneError.value = r1.message ?? '请输入正确的手机号'; 
-      return; 
-    }
-    if (!r2.valid) { 
-      codeError.value = r2.message ?? '请输入正确的验证码'; 
-      return; 
-    }
-    
+    if (!r2.valid) { codeError.value = r2.message ?? '请输入正确的验证码'; return; }
     submitting.value = true;
     try {
-      const accountStr = `${DOMESTIC_COUNTRY_CODE}${phone.value.replace(/\D/g, '')}`;
-      const res = await api.loginByCode({ account: accountStr, code: code.value });
-      if (res.success && res.user) {
-        // res.user.email 是 moly_users 主键（手机号登录时后端用手机号本身建号/查号），
-        // 必须存进 auth.email，否则充值/上传/生成等以 userEmail 为标识的接口会报"缺少用户标识"
-        const p = res.user.phone ?? phone.value;
-        if (res.user.email) auth.login({ email: res.user.email, displayName: p || res.user.email, points: res.user.points });
-        else if (p) auth.login({ phone: p });
+      const res = await api.loginByCode({ account: email.value.trim(), code: code.value });
+      if (res.success && res.user?.email) {
+        auth.login({ email: res.user.email, points: res.user.points });
         emit('success');
       } else {
         submitError.value = res.message || '登录失败';
@@ -233,20 +234,9 @@ async function handleSubmit() {
     }
     return;
   }
-  
-  // 邮箱登录验证
-  const r1 = validateEmail(email.value);
+
   const r2 = validatePassword(password.value);
-  
-  if (!r1.valid) { 
-    emailError.value = r1.message ?? '请输入正确的邮箱'; 
-    return; 
-  }
-  if (!r2.valid) { 
-    passwordError.value = r2.message ?? '请输入正确的密码'; 
-    return; 
-  }
-  
+  if (!r2.valid) { passwordError.value = r2.message ?? '请输入正确的密码'; return; }
   submitting.value = true;
   try {
     const res = await api.login({ account: email.value.trim(), password: password.value });
