@@ -162,9 +162,10 @@
                 <span class="model-label">生成方式</span>
                 <div class="seg">
                   <button type="button" :class="{ active: genMode === 'replica' }" @click="genMode = 'replica'" title="复刻爆款：上传1张商品图(+可选参考爆款视频)，AI 拆解后生成一条带货短片。">复刻爆款</button>
-                  <button type="button" :class="{ active: genMode === 'showcase' }" @click="genMode = 'showcase'" title="多图串烧：上传2-5张成品图，每张各成一个动态镜头、依次展示串成一条。时长=图数×4秒。">多图串烧</button>
+                  <button type="button" :class="{ active: genMode === 'showcase' }" @click="genMode = 'showcase'" title="多图串烧：上传2-5张成品图，每张各成一个动态镜头、依次展示串成一条；挂了参考爆款会借它的钩子和卖货节奏。时长=图数×4秒。">多图串烧</button>
                 </div>
               </div>
+              <p v-if="modeAutoHint" class="voice-hint mode-auto-hint">✨ 检测到多张图，已自动切到「多图串烧」(每张都会出现)。想做单品复刻可手动点回「复刻爆款」。</p>
               <div class="model-row" v-if="genMode !== 'showcase'">
                 <span class="model-label">时长<em class="ml-note">成片总时长</em></span>
                 <div class="seg">
@@ -178,7 +179,8 @@
                 </div>
               </div>
             </div>
-            <p v-if="genMode === 'showcase'" class="voice-hint showcase-hint">🎞 多图串烧：把你上传的 <b>{{ productAssets.length || 0 }}</b> 张图依次串成一条（<b>{{ showcaseImgCount * SHOWCASE_PER_SHOT }} 秒</b>，每张 {{ SHOWCASE_PER_SHOT }} 秒），约 <b>{{ estimatedCredits }}</b> 积分。每张图都会出现——适合<b>可直接展示的成品图</b>(平铺白底图不会自动加模特)。<span v-if="productAssets.length < 2" class="warn">请至少上传 2 张图。</span></p>
+            <p v-if="genMode === 'showcase'" class="voice-hint showcase-hint">🎞 多图串烧：把你上传的 <b>{{ productAssets.length || 0 }}</b> 张图依次串成一条（<b>{{ showcaseImgCount * SHOWCASE_PER_SHOT }} 秒</b>，每张 {{ SHOWCASE_PER_SHOT }} 秒），约 <b>{{ estimatedCredits }}</b> 积分。每张图都会出现——适合<b>可直接展示的成品图</b>(平铺白底图不会自动加模特)。<template v-if="sourceVideoAsset || refInspiration">挂了参考爆款，口播会<b>借它的钩子和卖货节奏</b>(我们自己的话改写)。</template><span v-if="productAssets.length < 2" class="warn">请至少上传 2 张图。</span></p>
+            <p v-else-if="genMode === 'replica' && productAssets.length > 1" class="voice-hint warn-hint">⚠️ 复刻爆款只以<b>第 1 张图</b>为商品主体，其余 {{ productAssets.length - 1 }} 张仅作辅助参考、<b>不会逐张展示</b>。想让每张图都出现 → 点上方「多图串烧」。</p>
             <p v-else-if="targetDuration === 0 && sourceDuration > 0" class="voice-hint">跟源时长：源视频约 {{ Math.round(sourceDuration) }} 秒，成片按 {{ outputSeconds }} 秒计费（约 {{ estimatedCredits }} 积分）。</p>
 
             <button type="button" class="settings-toggle" @click="showAdvancedSettings = !showAdvancedSettings">
@@ -626,6 +628,18 @@ const filteredVoices = computed(() => {
 watch(language, () => {
   if (voice.value && !langVoices.value.some((v: any) => v.id === voice.value)) {
     voice.value = langVoices.value[0]?.id || '';
+  }
+});
+// 模式↔图数联动：加到第 2 张图时,若还在「复刻爆款」→ 自动切「多图串烧」(多图的天然归宿)。
+// 只在跨越 1→2 时触发一次；用户之后手动切回复刻不会被强制拉回(下方复刻+多图会给明确提示)。
+const modeAutoHint = ref(false);
+let modeHintTimer: any = null;
+watch(() => productAssets.value.length, (n, old) => {
+  if (n >= 2 && (old || 0) < 2 && genMode.value === 'replica') {
+    genMode.value = 'showcase';
+    modeAutoHint.value = true;
+    if (modeHintTimer) clearTimeout(modeHintTimer);
+    modeHintTimer = setTimeout(() => { modeAutoHint.value = false; }, 5000);
   }
 });
 function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; showVoicePicker.value = true; }

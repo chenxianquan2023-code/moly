@@ -899,15 +899,22 @@ export async function runReplicaPipeline(task, ctx) {
         const perShot = 4; // Seedance i2v 最短按4s计费,每镜固定4s不浪费;N张→N×4秒(2张8s、5张20s)
         await setStep(1, { status: 'running', note: `多图串烧：${nImg}张图逐图成镜` });
         // 口播：每张图一句卖点(也用于字幕)。LLM 写,看不到图无妨——都是同一商品的不同展示。
+        // 借鉴爆款(本站核心)：挂了源爆款就借它的「钩子+卖货结构」(hookPattern/tone/pacing/role弧)来组织 N 句,
+        // 但要差异化改写、绝不照抄原文案("我们也要有自己的想法")。没挂源 → 纯按商品信息写。
+        const borrowViral = !!(analysis && (analysis.hookPattern || analysis.tone || analysis.shots?.length));
+        const viralBrief = borrowViral
+          ? `\n【借鉴这条爆款的卖货结构——借鉴不照搬,必须用我们自己的话差异化改写】开场钩子：${compactText(analysis.hookPattern, 40) || '(直给亮点抓人)'}；口播基调：${compactText(analysis.tone, 20) || '活泼种草'}；卖货节奏：${compactText(analysis.pacing, 20) || ''}；分镜角色顺序：${(analysis.shots || []).map((s) => s.role).filter(Boolean).join('→') || 'hook→demo→proof→cta'}。请按这条爆款的钩子和递进逻辑组织这 ${nImg} 句：第1句承接它的开场钩子、瞬间抓人；中间几句像它那样递进展示卖点/给信任感；最后一句收一个有力的行动号召。绝不照抄原文案,用我们自己的话写。`
+          : '';
         let lines = [];
         if (llm.isConfigured()) {
           try {
-            const np = `为电商带货短视频写正好 ${nImg} 句口播,每句≤14字、口语化有网感,依次介绍同一件商品(同款不同展示画面)的卖点(也用于字幕)。每句内部用逗号分隔语义单元(如「一抹酒红色，复古又高级」),绝不写无标点长句——否则配音会把词读断。商品：${product.name || ''}；${productDesc || '(见图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}\n${langRule}\n只输出 JSON 数组：["句1",...](正好 ${nImg} 句)。`;
+            const np = `为电商带货短视频写正好 ${nImg} 句口播,每句≤14字、口语化有网感,依次介绍同一件商品(同款不同展示画面)的卖点(也用于字幕)。每句内部用逗号分隔语义单元(如「一抹酒红色，复古又高级」),绝不写无标点长句——否则配音会把词读断。商品：${product.name || ''}；${productDesc || '(见图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${viralBrief}\n${langRule}\n只输出 JSON 数组：["句1",...](正好 ${nImg} 句)。`;
             const arr = llm.parseJson(await llm.generateText(np, { maxTokens: 1500, timeoutMs: 60000 }));
             if (Array.isArray(arr)) lines = arr.map((t) => compactText(t, 28)).filter(Boolean).slice(0, nImg);
           } catch (e) { notes.push('串烧口播跳过: ' + String(e?.message || e).split('\n')[0].slice(0, 40)); }
         }
-        await setStep(1, { status: 'succeeded', note: `串烧脚本(${lines.length}句口播)` });
+        if (borrowViral) notes.push('串烧借鉴爆款的钩子与卖货结构(差异化改写)');
+        await setStep(1, { status: 'succeeded', note: `串烧脚本(${lines.length}句口播${borrowViral ? '·借鉴爆款' : ''})` });
 
         // 逐图 i2v(并发)：每张图各成一个动态镜头。运镜为主、主体稳,防漂浮/畸变;过姿态清洗防分身。
         await setStep(3, { status: 'running', note: `逐图生成动态镜头(${nImg}个，约2-4分钟)` });
@@ -971,7 +978,7 @@ export async function runReplicaPipeline(task, ctx) {
         return {
           generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
           usedAI: true, ttsOk, shots: mScenes, sceneImages: productUrls.slice(), sceneClips: okClips.map((c) => c.u), sceneDurations: segDurs,
-          usedProvider: 'Seedance·多图串烧', sourceShots: analysis?.shots || null, styleFingerprint: null,
+          usedProvider: `Seedance·多图串烧${borrowViral ? '(借鉴爆款)' : ''}`, sourceShots: analysis?.shots || null, styleFingerprint: null,
           replicated: false, notes,
         };
       } catch (e) {
