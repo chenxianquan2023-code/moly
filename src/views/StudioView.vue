@@ -159,6 +159,13 @@
             <div class="card-title"><span class="num">3</span>复刻设置</div>
             <div class="quick-settings">
               <div class="model-row">
+                <span class="model-label">生成方式</span>
+                <div class="seg">
+                  <button type="button" :class="{ active: genMode === 'replica' }" @click="genMode = 'replica'" title="复刻爆款：上传1张商品图(+可选参考爆款视频)，AI 拆解后生成一条带货短片。">复刻爆款</button>
+                  <button type="button" :class="{ active: genMode === 'showcase' }" @click="genMode = 'showcase'" title="多图串烧：上传2-5张成品图，每张各成一个动态镜头、依次展示串成一条。时长=图数×4秒。">多图串烧</button>
+                </div>
+              </div>
+              <div class="model-row" v-if="genMode !== 'showcase'">
                 <span class="model-label">时长<em class="ml-note">成片总时长</em></span>
                 <div class="seg">
                   <button v-for="d in DURATIONS" :key="d.v" type="button" :class="{ active: targetDuration === d.v }" @click="targetDuration = d.v">{{ d.label }}</button>
@@ -171,7 +178,8 @@
                 </div>
               </div>
             </div>
-            <p v-if="targetDuration === 0 && sourceDuration > 0" class="voice-hint">跟源时长：源视频约 {{ Math.round(sourceDuration) }} 秒，成片按 {{ outputSeconds }} 秒计费（约 {{ estimatedCredits }} 积分）。</p>
+            <p v-if="genMode === 'showcase'" class="voice-hint showcase-hint">🎞 多图串烧：把你上传的 <b>{{ productAssets.length || 0 }}</b> 张图依次串成一条（<b>{{ showcaseImgCount * SHOWCASE_PER_SHOT }} 秒</b>，每张 {{ SHOWCASE_PER_SHOT }} 秒），约 <b>{{ estimatedCredits }}</b> 积分。每张图都会出现——适合<b>可直接展示的成品图</b>(平铺白底图不会自动加模特)。<span v-if="productAssets.length < 2" class="warn">请至少上传 2 张图。</span></p>
+            <p v-else-if="targetDuration === 0 && sourceDuration > 0" class="voice-hint">跟源时长：源视频约 {{ Math.round(sourceDuration) }} 秒，成片按 {{ outputSeconds }} 秒计费（约 {{ estimatedCredits }} 积分）。</p>
 
             <button type="button" class="settings-toggle" @click="showAdvancedSettings = !showAdvancedSettings">
               <span>高级生成设置</span>
@@ -243,7 +251,8 @@
           <button class="generate-2up" :disabled="!canGenerate" @click="generateVariants" title="用同样素材并行生成 2 条不同版本，工作台并排挑选（约 2 倍积分）">
             ✌️ 出 2 版供挑 · 约 {{ estimatedCredits * 2 }} 积分
           </button>
-          <p class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
+          <p v-if="genMode === 'showcase'" class="duration-note">成片按 9:16 竖屏输出，多图串烧时长由图片数量决定（每张 {{ SHOWCASE_PER_SHOT }} 秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
+          <p v-else class="duration-note">成片按 9:16 竖屏输出，时长由上方「时长」选择（跟源 / 短8秒 / 标准12秒 / 长18秒）。出 2 版 = 同素材各摇一次、并排挑更满意的。</p>
           <button v-if="hasGeneratedResult" type="button" class="result-jump" @click="scrollResultIntoView">查看生成结果</button>
           <p v-if="auth.isLoggedIn && productAsset && !promptReady" class="hint warn">{{ promptRequiredMessage }}</p>
           <p v-if="!auth.isLoggedIn" class="hint">请先<router-link to="/login">登录</router-link>后生成</p>
@@ -526,6 +535,8 @@ const packages = ref<any[]>(DEFAULT_PACKAGES);
 const videoModel = ref('seedance'); // 默认 Seedance 2.0（fal 国际版，真人脸不封、全身最自然）
 const imageModel = ref('gemini');
 const replicaMode = ref('smart'); // smart=智能复刻(默认,生成新场景)；faithful=贴帧复刻(贴源构图/姿势/道具)
+const genMode = ref('replica'); // replica=复刻爆款(默认)；showcase=多图串烧(每张图各成一镜、依次展示,时长=图数×4秒)
+const SHOWCASE_PER_SHOT = 4; // 每张图固定 4 秒(与后端 pricing.SHOWCASE_PER_SHOT_SEC 对齐)
 const showRecharge = ref(false);
 const rechargeMsg = ref('');
 const recharging = ref('');
@@ -681,7 +692,9 @@ function stopProgressUx() {
 }
 
 // 成片秒数：选了固定时长用它；否则(跟源)用上传源视频时长，封顶 outputMaxSec；动作复刻成片上限 15s
+const showcaseImgCount = computed(() => Math.max(2, Math.min(5, productAssets.value.length || 2)));
 const outputSeconds = computed(() => {
+  if (genMode.value === 'showcase') return showcaseImgCount.value * SHOWCASE_PER_SHOT; // 串烧:图数×4秒
   const maxSec = replicaMode.value === 'motion' ? 15 : (pricing.value?.outputMaxSec || 45);
   const sec = targetDuration.value > 0 ? targetDuration.value : Math.round(sourceDuration.value) || 12;
   return Math.min(maxSec, sec);
@@ -689,6 +702,8 @@ const outputSeconds = computed(() => {
 const estimatedCredits = computed(() => {
   if (!pricing.value) return 240;
   const perSec = pricing.value.video.find((x: any) => x.id === videoModel.value)?.perSec || 12;
+  // 串烧:按图数×4秒计费,不含出图费(直接动用户原图)
+  if (genMode.value === 'showcase') return (pricing.value.base || 0) + Math.round(perSec * outputSeconds.value);
   const im = pricing.value.image.find((x: any) => x.id === imageModel.value)?.price || 0;
   return (pricing.value.base || 0) + Math.round(perSec * outputSeconds.value) + im;
 });
@@ -700,8 +715,13 @@ const settingsSummary = computed(() => {
   const sound = generateVoice.value ? 'AI配音' : (generateMusic.value ? '源视频背景乐' : '无音频');
   return `${vm} · ${im} · ${sound}`;
 });
-const canGenerate = computed(() => auth.isLoggedIn && !!productAsset.value && promptReady.value && !generating.value
-  && (replicaMode.value !== 'motion' || !!sourceVideoAsset.value)); // 动作复刻必须有参考视频(动作的来源)
+const canGenerate = computed(() => {
+  if (!auth.isLoggedIn || generating.value) return false;
+  // 多图串烧：至少 2 张图,不强制创意提示词(口播由商品信息自动生成)
+  if (genMode.value === 'showcase') return productAssets.value.length >= 2;
+  return !!productAsset.value && promptReady.value
+    && (replicaMode.value !== 'motion' || !!sourceVideoAsset.value); // 动作复刻必须有参考视频(动作的来源)
+});
 
 async function generatePromptGuide() {
   if (!auth.isLoggedIn) { alert('请先登录'); return; }
@@ -904,7 +924,7 @@ function buildGenBody(sourceVideoId: any) {
       model_image_id: modelAsset.value?.id || null,
     },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
+    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };

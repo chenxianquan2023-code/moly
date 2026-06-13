@@ -48,6 +48,22 @@ export function estimateCost(options = {}, outputSec = 12) {
   };
 }
 
+// 多图串烧：每张商品图各成一个动态镜头，固定 4 秒/张(Seedance i2v 最短计费档)。
+export const SHOWCASE_PER_SHOT_SEC = 4;
+
+/** 多图串烧估价：按「图片数 × 4 秒」计费，不含出图费(直接动用户原图、不调出图模型)。返回 {cost, breakdown} */
+export function estimateShowcaseCost(imageCount, options = {}) {
+  const m = options.models || {};
+  const video = pick(VIDEO_MODELS, m.video, 'seedance');
+  const n = Math.max(2, Math.min(5, Math.round(Number(imageCount) || 2)));
+  const sec = n * SHOWCASE_PER_SHOT_SEC;
+  const videoCost = Math.round(VIDEO_MODELS[video].perSec * sec);
+  return {
+    cost: BASE_COST + videoCost,
+    breakdown: { base: BASE_COST, mode: 'showcase', images: n, perShotSec: SHOWCASE_PER_SHOT_SEC, seconds: sec, videoPerSec: VIDEO_MODELS[video].perSec, videoCost, video: VIDEO_MODELS[video] },
+  };
+}
+
 /** 换单镜估价（只重生一镜，复用其余缓存）——比整条生成便宜得多 */
 export function estimateRegenCost() {
   return { cost: REGEN_SCENE_COST, breakdown: { base: REGEN_SCENE_COST } };

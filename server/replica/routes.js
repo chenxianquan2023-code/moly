@@ -12,7 +12,7 @@ import { insertRow, getById, selectOne, selectRows, updateById } from '../lib/su
 import { uploadBuffer, makePath } from '../lib/storage.js';
 import { createTask, getTask, runTask } from './tasks.js';
 import { runReplicaPipeline, preflightAIHealth } from './pipeline.js';
-import { estimateCost, estimateRegenCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
+import { estimateCost, estimateShowcaseCost, estimateRegenCost, pricingTable, RECHARGE_PACKAGES } from './pricing.js';
 import { listVoices, DEFAULT_VOICE, resolveVoice } from './voices.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
 import * as gemini from './ai/gemini.js';
@@ -248,17 +248,29 @@ replicaRouter.post('/replica/generate', async (req, res) => {
   try {
     const email = getEmail(req, res); if (!email) return; // getEmail 已含白名单校验
     const { sourceVideoId = null, options = {}, assets = {}, language = 'en-US', aspectRatio = '9:16', previewUrl = '', product = {}, scriptText = '', models = {} } = req.body || {};
-    const promptCheck = validateRequiredCreativePrompt(options.creativePrompt || options.userPrompt || options.prompt || '');
-    if (!promptCheck.ok) return res.status(400).json({ success: false, code: 'PROMPT_REQUIRED', message: promptCheck.message });
-    const mergedOptions = { ...options, creativePrompt: promptCheck.value, language, aspectRatio, models };
+    const isShowcase = options.genMode === 'showcase';
+    const showcaseImgCount = [...new Set([...(Array.isArray(assets.product_image_ids) ? assets.product_image_ids : []), assets.product_image_id].filter(Boolean))].length;
+    // 多图串烧不需要创意提示词(口播由商品信息自动生成)；复刻则强制要
+    let creativePrompt = options.creativePrompt || '';
+    if (!isShowcase) {
+      const promptCheck = validateRequiredCreativePrompt(options.creativePrompt || options.userPrompt || options.prompt || '');
+      if (!promptCheck.ok) return res.status(400).json({ success: false, code: 'PROMPT_REQUIRED', message: promptCheck.message });
+      creativePrompt = promptCheck.value;
+    }
+    if (isShowcase && showcaseImgCount < 2) return res.status(400).json({ success: false, code: 'SHOWCASE_NEED_IMAGES', message: '多图串烧需上传至少 2 张商品图' });
+    const mergedOptions = { ...options, creativePrompt, language, aspectRatio, models };
 
-    // 成片秒数：用户选了固定时长用它；否则(跟源)用源视频时长(前端读取上传视频得到)，封顶 45s；动作复刻成片上限 15s
-    let outputSec = Number(mergedOptions.targetDurationSec) > 0
-      ? Number(mergedOptions.targetDurationSec)
-      : Math.min(45, Number(mergedOptions.sourceDurationSec) || 12);
-    if (mergedOptions.replicaMode === 'motion') outputSec = Math.min(15, outputSec);
-    // 按成片秒数 + 所选模型估价
-    const { cost, breakdown } = estimateCost(mergedOptions, outputSec);
+    // 成片秒数 + 估价：多图串烧按「图数×4秒」计费(不含出图费)；复刻按时长(固定/跟源,封顶45s,动作复刻≤15s)。
+    let cost, breakdown;
+    if (isShowcase) {
+      ({ cost, breakdown } = estimateShowcaseCost(showcaseImgCount, mergedOptions));
+    } else {
+      let outputSec = Number(mergedOptions.targetDurationSec) > 0
+        ? Number(mergedOptions.targetDurationSec)
+        : Math.min(45, Number(mergedOptions.sourceDurationSec) || 12);
+      if (mergedOptions.replicaMode === 'motion') outputSec = Math.min(15, outputSec);
+      ({ cost, breakdown } = estimateCost(mergedOptions, outputSec));
+    }
 
     // 余额预检（用户不存在/积分不足直接拦截，不建任务）
     const balance = await getPoints(email);
@@ -383,9 +395,13 @@ replicaRouter.get('/replica/voice-sample', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// POST /api/replica/estimate  body: { models, targetDurationSec, sourceDurationSec } —— 预估价（不扣费）
+// POST /api/replica/estimate  body: { models, targetDurationSec, sourceDurationSec, genMode, imageCount } —— 预估价（不扣费）
 replicaRouter.post('/replica/estimate', (req, res) => {
   const b = req.body || {};
+  if (b.genMode === 'showcase') {
+    const { cost, breakdown } = estimateShowcaseCost(b.imageCount, { models: b.models || {} });
+    return res.json({ success: true, cost, breakdown });
+  }
   let outputSec = Number(b.targetDurationSec) > 0 ? Number(b.targetDurationSec) : Math.min(45, Number(b.sourceDurationSec) || 12);
   if (b.replicaMode === 'motion') outputSec = Math.min(15, outputSec);
   const { cost, breakdown } = estimateCost({ models: b.models || {} }, outputSec);

@@ -892,7 +892,8 @@ export async function runReplicaPipeline(task, ctx) {
     // (实测口红5图只体现第1张)。这条改为：每张图直接 i2v 成一个动态镜头(图即首帧、literally 出现)、
     // 时长按图数给够(每镜4s=Seedance最短计费档,不浪费)、口播逐镜一句、拼成一条。
     // 一致性天然(都是用户同一商品的图)、无跨镜漂移(不生成新人物,只让用户的图动起来)。
-    if (!regen && productUrls.length >= 2 && fal.isConfigured()) {
+    // 显式触发：仅当用户在工作台选了「多图串烧」模式(genMode=showcase)——不再"传≥2张就隐式变长变贵"。
+    if (!regen && opts.genMode === 'showcase' && productUrls.length >= 2 && fal.isConfigured()) {
       try {
         const nImg = productUrls.length;
         const perShot = 4; // Seedance i2v 最短按4s计费,每镜固定4s不浪费;N张→N×4秒(2张8s、5张20s)
