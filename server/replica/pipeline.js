@@ -886,6 +886,100 @@ export async function runReplicaPipeline(task, ctx) {
       };
     }
 
+    // ── 多图逐图成镜串烧(用户拍板:每张图都出现) ──
+    // 用户上传多张商品图(≥2)时意图是"每张都出现、串成一条"(微信用户原始需求 + 用户当面拍板)。
+    // 一段式 reference-to-video 会把多图当"同一主体的参考"综合成一条、天生不逐张轮播
+    // (实测口红5图只体现第1张)。这条改为：每张图直接 i2v 成一个动态镜头(图即首帧、literally 出现)、
+    // 时长按图数给够(每镜4s=Seedance最短计费档,不浪费)、口播逐镜一句、拼成一条。
+    // 一致性天然(都是用户同一商品的图)、无跨镜漂移(不生成新人物,只让用户的图动起来)。
+    if (!regen && productUrls.length >= 2 && fal.isConfigured()) {
+      try {
+        const nImg = productUrls.length;
+        const perShot = 4; // Seedance i2v 最短按4s计费,每镜固定4s不浪费;N张→N×4秒(2张8s、5张20s)
+        await setStep(1, { status: 'running', note: `多图串烧：${nImg}张图逐图成镜` });
+        // 口播：每张图一句卖点(也用于字幕)。LLM 写,看不到图无妨——都是同一商品的不同展示。
+        let lines = [];
+        if (llm.isConfigured()) {
+          try {
+            const np = `为电商带货短视频写正好 ${nImg} 句口播,每句≤14字、口语化有网感,依次介绍同一件商品(同款不同展示画面)的卖点(也用于字幕)。每句内部用逗号分隔语义单元(如「一抹酒红色，复古又高级」),绝不写无标点长句——否则配音会把词读断。商品：${product.name || ''}；${productDesc || '(见图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}\n${langRule}\n只输出 JSON 数组：["句1",...](正好 ${nImg} 句)。`;
+            const arr = llm.parseJson(await llm.generateText(np, { maxTokens: 1500, timeoutMs: 60000 }));
+            if (Array.isArray(arr)) lines = arr.map((t) => compactText(t, 28)).filter(Boolean).slice(0, nImg);
+          } catch (e) { notes.push('串烧口播跳过: ' + String(e?.message || e).split('\n')[0].slice(0, 40)); }
+        }
+        await setStep(1, { status: 'succeeded', note: `串烧脚本(${lines.length}句口播)` });
+
+        // 逐图 i2v(并发)：每张图各成一个动态镜头。运镜为主、主体稳,防漂浮/畸变;过姿态清洗防分身。
+        await setStep(3, { status: 'running', note: `逐图生成动态镜头(${nImg}个，约2-4分钟)` });
+        const motionBase = sanitizeMotion('镜头缓慢推近或轻柔环绕,商品质感与光泽自然呈现,画面高级电商质感;主体保持自然稳定,不漂浮不变形,不凭空出现多余物体或人物');
+        const clipUrls = await Promise.all(productUrls.map((u, i) =>
+          fal.imageToVideo(u, motionBase, { duration: perShot, maxPollingMs: 300000 })
+            .catch((e) => { notes.push(`镜头${i + 1} i2v失败: ${String(e?.message || e).split('\n')[0].slice(0, 40)}`); return null; })
+        ));
+        const okClips = clipUrls.map((u, i) => ({ u, i })).filter((x) => x.u);
+        if (!okClips.length) throw new Error('逐图成镜全部失败');
+        await setStep(3, { status: 'succeeded', note: `Seedance·多图串烧(${okClips.length}镜)` });
+
+        // 下载各镜
+        const clipPaths = [];
+        for (const { u, i } of okClips) {
+          const cp = join(work, `mi_${i}.mp4`);
+          await download(u, cp);
+          clipPaths.push({ path: cp, i });
+        }
+
+        // 配音(逐镜一句,全成或全降级——composeVideo 在 ttsOk 时要求每镜都有音轨)
+        const canVoice = opts.generate_voice !== false && clipPaths.every(({ i }) => (lines[i] || '').trim());
+        const sceneAudios = [];
+        let ttsOk = false;
+        if (canVoice) {
+          await setStep(2, { status: 'running' });
+          const voiceCfg = resolveVoice(opts.ttsVoice || process.env.TTS_VOICE || 'presenter_female');
+          try {
+            for (const { i } of clipPaths) {
+              const buf = await ttsSynthesize(lines[i], voiceCfg);
+              const ap = join(work, `mia_${i}.mp3`);
+              writeFileSync(ap, buf);
+              sceneAudios.push({ path: ap, duration: (await ff.probe(ap)).duration || perShot });
+            }
+            ttsOk = true;
+            await setStep(2, { status: 'succeeded' });
+          } catch (e) {
+            sceneAudios.length = 0;
+            notes.push('串烧配音降级(无声): ' + String(e?.message || e).split('\n')[0].slice(0, 40));
+            await setStep(2, { status: 'skipped', note: '配音失败→保留画面' });
+          }
+        } else {
+          await setStep(2, { status: 'skipped', note: opts.generate_voice !== false ? '无口播内容' : '未配 AI 音（字幕仍可用）' });
+        }
+
+        // 每镜时长：有口播则给口播时长(留0.4s尾),否则 perShot
+        const segDurs = clipPaths.map(({ i }, k) => Math.max(perShot, (sceneAudios[k]?.duration || 0) + 0.4));
+        const mScenes = clipPaths.map(({ i }) => ({ type: 'showcase', text: lines[i] || '', visual: `多图串烧·第${i + 1}张`, withModel: false, personMode: 'none' }));
+        await setStep(4, { status: 'running' });
+        const comp = await composeVideo({ work, scenes: mScenes, sceneDurations: segDurs, sceneClips: clipPaths.map((c) => c.path), sceneAudios: sceneAudios.length ? sceneAudios : clipPaths.map(() => ({ duration: 0 })), ttsOk, analysis, opts, notes });
+        const videoUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'video.mp4'), readFileSync(comp.finalPath), 'video/mp4');
+        const coverUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'cover.jpg'), readFileSync(comp.coverPath), 'image/jpeg');
+        const subtitleUrl = await uploadBuffer(makePath(task.user_email, 'generated', 'subs.srt'), readFileSync(comp.srtPath), 'text/plain');
+        const gv = await insertRow('generated_videos', {
+          user_email: task.user_email, task_id: task.id, source_video_id: task.source_video_id || null,
+          video_url: videoUrl, cover_url: coverUrl, subtitle_url: subtitleUrl, duration: comp.duration,
+        });
+        await setStep(4, { status: 'succeeded' });
+        notes.push(`多图逐图成镜串烧：${okClips.length}张图依次成镜、串成一条(${Math.round(comp.duration)}秒)`);
+        clearVideoBreaker();
+        return {
+          generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
+          usedAI: true, ttsOk, shots: mScenes, sceneImages: productUrls.slice(), sceneClips: okClips.map((c) => c.u), sceneDurations: segDurs,
+          usedProvider: 'Seedance·多图串烧', sourceShots: analysis?.shots || null, styleFingerprint: null,
+          replicated: false, notes,
+        };
+      } catch (e) {
+        const m = String(e?.message || e).split('\n')[0].slice(0, 90);
+        if (looksLikeNoBalance(m)) { tripVideoBreaker(); notifyAdmin('视频模型没额度了', '多图串烧余额耗尽。'); throw new Error('视频模型没额度了，请联系管理员充值。本次积分已自动退还。'); }
+        notes.push('多图串烧失败→回退一段式/多镜头: ' + m);
+      }
+    }
+
     // ── 一段式智能(creatok 式架构)：≤15s 整段一次生成 ──
     // 流程：LLM 写整段导演脚本(结构重写,不1:1) → Seedance reference-to-video 只喂商品/模特图(不喂源视频,
     // 规避真人footage审核) → 按口播句切段配音/字幕 → 统一合成。一致性是单次生成天然带的(无跨镜漂移)，
@@ -929,7 +1023,7 @@ export async function runReplicaPipeline(task, ctx) {
         const multiImgRule = productUrls.length > 1
           ? `\n5) 用户提供了 ${productUrls.length} 张商品图——【硬性分工】服装/商品的款式、领型、颜色、logo 等一切细节，全片只以第 1 张为准、从头到尾完全一致，绝不随场景变化；其余 ${productUrls.length - 1} 张只定义"场景"。${sceneListText}`
           : '';
-        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。每句内部务必用逗号分隔语义单元(如「一抹酒红色，复古又高级」)，绝不写无标点长句——否则配音会把词读断(实测「一抹酒红色」被读成「一抹酒/红色」)。`;
         // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
         let script = null;
         for (let attempt = 0; attempt < 2 && !script; attempt++) {
