@@ -903,13 +903,31 @@ export async function runReplicaPipeline(task, ctx) {
         await setStep(1, { status: 'running', note: `一段式：撰写整段导演脚本${oneshotMode === 'faithful' ? '(贴源)' : ''}` });
         const srcBrief = analysis
           ? `源爆款风格指纹：${styleFingerprint(analysis, null)}。源分镜概要：${(analysis.shots || []).slice(0, 8).map((s) => `#${s.index} ${s.shotType || ''} ${s.action || ''}`).join('；').slice(0, 600)}`
-          : '无参考视频，自行设计生活化场景。';
+          // 多图时禁止"自行设计场景"——那是它无视用户场景图、自创巴黎咖啡座的授权书(实测教训)
+          : (productUrls.length > 1 ? '无参考视频。场景一律以下方「场景清单」为准，绝不自行发明清单之外的场景。' : '无参考视频，自行设计生活化场景。');
         const modeRule = oneshotMode === 'faithful'
           ? '【贴源复刻】严格按照源视频的分镜顺序、构图、姿势、场景与节奏逐秒描述——目标是尽量"像源"，只把人物换成全新虚构模特、商品换成参考商品图这一件；不发明源里没有的场景或动作'
           : '【结构重写、绝不1:1照抄源】借鉴源的节奏/氛围/镜头语言，但场景与动作要有差异化的重写';
-        // 多图串视频：用户传了多张商品图(不同角度/使用场景) → 脚本按时间轴依次呈现
+        // 多图串视频：用户传了多张商品图(不同角度/使用场景) → 脚本按时间轴依次呈现。
+        // 【角色分离·实测教训①】服装/商品细节只认第1张——其余图只贡献场景,否则各段服装随图漂移(V领黑标款被带成全蕾丝款)。
+        // 【读图喂脚本·实测教训②】写脚本的 LLM 是文本盲、看不见场景图——必须先用视觉模型把每张场景图读成一句话
+        // 喂进脚本,否则脚本自创场景、成片跟用户传的场景对不上(实测自创了巴黎咖啡座)。
+        let sceneDescs = [];
+        if (productUrls.length > 1 && gemini.isConfigured()) {
+          try {
+            const dtxt = await gemini.analyzeImages(
+              '这些图展示同一商品在不同场景。逐张用一句话(≤25字)只描述"场景/环境/氛围"(不要描述商品/服装本身)。只输出 JSON 数组：["场景描述1","场景描述2",...]，顺序与图一致。',
+              productUrls.slice(1), { temperature: 0 });
+            const arr = gemini.parseJson(dtxt);
+            if (Array.isArray(arr)) sceneDescs = arr.map((s) => compactText(s, 32)).filter(Boolean);
+          } catch (e) { notes.push('场景图读取跳过: ' + String(e?.message || e).slice(0, 40)); }
+        }
+        const segSec = Math.round(outSec / Math.max(1, productUrls.length));
+        const sceneListText = sceneDescs.length
+          ? `场景清单(按出场顺序)：${sceneDescs.map((s, di) => `场景${di + 1}「${s}」`).join('、')}。请严格按此顺序编排时间轴(约每段 ${segSec} 秒)，每个场景都要出现，场景间用走动/转身等自然过渡。`
+          : `请按时间轴依次呈现其余 ${productUrls.length - 1} 张图对应的场景(约每段 ${segSec} 秒)，每个场景都要出现。`;
         const multiImgRule = productUrls.length > 1
-          ? `\n5) 用户提供了 ${productUrls.length} 张商品图，展示同一商品的不同角度/使用场景——请把它们串成一条连贯视频：按时间轴依次自然呈现各张图对应的角度或场景(如 0-${Math.round(outSec / productUrls.length)}秒呈现第1张的场景…)，过渡自然连贯，不要漏掉任何一张的内容。`
+          ? `\n5) 用户提供了 ${productUrls.length} 张商品图——【硬性分工】服装/商品的款式、领型、颜色、logo 等一切细节，全片只以第 1 张为准、从头到尾完全一致，绝不随场景变化；其余 ${productUrls.length - 1} 张只定义"场景"。${sceneListText}`
           : '';
         const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。`;
         // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
@@ -993,7 +1011,7 @@ export async function runReplicaPipeline(task, ctx) {
         // 参考图次序=权重：已质检的 hero(或商品图)排第 1——实测源帧排前面时商品款式会被源里的衣服带偏。
         // 多图串视频：全部商品图都进参考(总数≤9，源帧让位)。
         const refImgs = [...new Set([heroRefUrl || productUrl, ...productUrls, modelUrl, ...srcFrameUrls].filter(Boolean))].slice(0, 9);
-        const refRole = `参考图说明：第 1 张是${heroRefUrl ? '已质检的「模特穿着商品」基准图——人物与整套穿着以它为准(最高优先级)，服装细节同时严格对照商品官方图' : '商品图——商品/服装的款式、颜色、领型、袖型、logo、细节必须与它严格一致(最高优先级，绝不被源帧里的衣服带偏)'}；${productUrls.length > 1 ? `共 ${productUrls.length} 张商品图展示同一商品的不同角度/场景(视频按时间轴依次呈现这些场景)；` : ''}${modelUrl ? '模特图供人物长相参考；' : ''}${srcFrameUrls.length ? `最后的源视频画面帧——只参考构图、姿势、场景、光线与节奏，人物长相与身上衣服款式绝不照搬。` : ''}`;
+        const refRole = `参考图说明：第 1 张是${heroRefUrl ? '已质检的「模特穿着商品」基准图——人物与整套穿着以它为准(最高优先级)，服装细节同时严格对照商品官方图' : '商品图——商品/服装的款式、颜色、领型、袖型、logo、细节必须与它严格一致(最高优先级，绝不被源帧里的衣服带偏)'}；${productUrls.length > 1 ? `其余 ${productUrls.length - 1} 张商品图【只提供场景/环境/角度参考】(视频按时间轴依次呈现这些场景)——它们画面里的服装即使略有差异也一律忽略，全片服装只以第 1 张为准；` : ''}${modelUrl ? '模特图供人物长相参考；' : ''}${srcFrameUrls.length ? `最后的源视频画面帧——只参考构图、姿势、场景、光线与节奏，人物长相与身上衣服款式绝不照搬。` : ''}`;
         await setStep(3, { status: 'running', note: `一段式整段生成中（${outSec}秒，约 3-8 分钟）` });
         const oneUrl = await fal.referenceToVideo({
           prompt: (videoPrompt + refRole).slice(0, 1800),
