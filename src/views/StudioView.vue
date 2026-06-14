@@ -108,7 +108,7 @@
               <input class="field" v-model="sellingPoints" placeholder="卖点：省时，锋利，安全" />
             </div>
 
-            <div class="prompt-composer" :class="{ ready: promptReady }">
+            <div class="prompt-composer" v-if="genMode !== 'showcase'" :class="{ ready: promptReady }">
               <div class="prompt-composer-head">
                 <div>
                   <span class="prompt-kicker">生成提示词</span>
@@ -151,6 +151,11 @@
               <button v-else type="button" class="negative-summary" @click="showAdvancedPrompt = true">
                 避免项：{{ negativePrompt || '未填写' }}
               </button>
+            </div>
+            <div v-else class="prompt-composer showcase-prompt-note">
+              <span class="prompt-kicker">多图串烧 · 无需提示词</span>
+              <b>口播会自动生成</b>
+              <p>串烧按你上方填的<b>商品名 + 卖点</b>自动写口播；挂了参考爆款还会<b>借它的钩子和卖货节奏</b>。每张图各自成镜、依次串起来——不用手写提示词。</p>
             </div>
           </div>
 
