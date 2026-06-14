@@ -193,11 +193,12 @@ import { useRouter } from 'vue-router';
 import { safeJson } from '@/api/safeJson';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
-import thermosImg from '@/assets/img/thermos-temp-display.jpg';
-import earbudsImg from '@/assets/img/erji.png';
-import phoneImg from '@/assets/img/iphone.png';
-import phoneAltImg from '@/assets/img/iphone-2.png';
-import beautyImg from '@/assets/showcase-meizhuang.png';
+// 找爆款页用 440px 缩略版(非首页原图)——原图 1.8~2.7MB 给 146px 卡片用纯属浪费、进页面卡顿。缩略后约 6MB→0.5MB。
+import thermosImg from '@/assets/discover-thumbs/thermos.jpg';
+import earbudsImg from '@/assets/discover-thumbs/erji.png';
+import phoneImg from '@/assets/discover-thumbs/iphone.jpg';
+import phoneAltImg from '@/assets/discover-thumbs/iphone-2.jpg';
+import beautyImg from '@/assets/discover-thumbs/beauty.png';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -282,8 +283,8 @@ const CATS = [
   { name: '美妆个护', kw: 'beauty', image: beautyImg, desc: '试色、妆前、护肤套装' },
   { name: '数码 3C', kw: 'cool gadget', image: earbudsImg, desc: '耳机、支架、桌搭设备' },
   { name: '手机配件', kw: 'phone accessories', image: phoneAltImg, desc: '磁吸、保护壳、快充' },
-  { name: '服饰穿搭', kw: 'fashion outfit', image: '/omni-model-assets/female_outfits/female_outfit_1.png', desc: '试穿、搭配、同款复刻' },
-  { name: '厨房神器', kw: 'kitchen gadget', image: '/examples/poster/product-1.jpg', desc: '小家电、清洁、备餐工具' },
+  { name: '服饰穿搭', kw: 'fashion outfit', image: '/discover-thumbs/female_outfit_1.png', desc: '试穿、搭配、同款复刻' },
+  { name: '厨房神器', kw: 'kitchen gadget', image: '/discover-thumbs/product-1.jpg', desc: '小家电、清洁、备餐工具' },
 ];
 const HOW_STEPS = [
   { no: 1, text: '搜索爆款，先看平台热度和卖点' },
