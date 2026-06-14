@@ -195,10 +195,10 @@ import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
 // 找爆款页用 440px 缩略版(非首页原图)——原图 1.8~2.7MB 给 146px 卡片用纯属浪费、进页面卡顿。缩略后约 6MB→0.5MB。
 import thermosImg from '@/assets/discover-thumbs/thermos.jpg';
-import earbudsImg from '@/assets/discover-thumbs/erji.png';
+import earbudsImg from '@/assets/discover-thumbs/erji.jpg';
 import phoneImg from '@/assets/discover-thumbs/iphone.jpg';
 import phoneAltImg from '@/assets/discover-thumbs/iphone-2.jpg';
-import beautyImg from '@/assets/discover-thumbs/beauty.png';
+import beautyImg from '@/assets/discover-thumbs/beauty.jpg';
 
 const router = useRouter();
 const auth = useAuthStore();
