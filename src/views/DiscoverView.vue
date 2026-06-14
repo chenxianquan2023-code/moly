@@ -283,8 +283,8 @@ const CATS = [
   { name: '美妆个护', kw: 'beauty', image: beautyImg, desc: '试色、妆前、护肤套装' },
   { name: '数码 3C', kw: 'cool gadget', image: earbudsImg, desc: '耳机、支架、桌搭设备' },
   { name: '手机配件', kw: 'phone accessories', image: phoneAltImg, desc: '磁吸、保护壳、快充' },
-  { name: '服饰穿搭', kw: 'fashion outfit', image: '/discover-thumbs/female_outfit_1.png', desc: '试穿、搭配、同款复刻' },
-  { name: '厨房神器', kw: 'kitchen gadget', image: '/discover-thumbs/product-1.jpg', desc: '小家电、清洁、备餐工具' },
+  { name: '服饰穿搭', kw: 'fashion outfit', image: '/discover-thumbs/fashion.jpg', desc: '试穿、搭配、同款复刻' },
+  { name: '厨房神器', kw: 'kitchen gadget', image: '/discover-thumbs/kitchen.jpg', desc: '小家电、清洁、备餐工具' },
 ];
 const HOW_STEPS = [
   { no: 1, text: '搜索爆款，先看平台热度和卖点' },

@@ -152,10 +152,13 @@
                 避免项：{{ negativePrompt || '未填写' }}
               </button>
             </div>
-            <div v-else class="prompt-composer showcase-prompt-note">
-              <span class="prompt-kicker">多图串烧 · 无需提示词</span>
-              <b>口播会自动生成</b>
-              <p>串烧按你上方填的<b>商品名 + 卖点</b>自动写口播；挂了参考爆款还会<b>借它的钩子和卖货节奏</b>。每张图各自成镜、依次串起来——不用手写提示词。</p>
+            <div v-else class="showcase-prompt-note">
+              <div class="spn-icon">🎬</div>
+              <div class="spn-body">
+                <span class="spn-kicker">多图串烧 · 无需提示词</span>
+                <b class="spn-title">口播会自动生成</b>
+                <p class="spn-desc">串烧按你上方填的<b>商品名 + 卖点</b>自动写口播；挂了参考爆款还会<b>借它的钩子和卖货节奏</b>。每张图各自成镜、依次串起来，不用手写提示词。</p>
+              </div>
             </div>
           </div>
 
@@ -1378,6 +1381,14 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
   div { display:flex; flex-direction:column; gap:3px; min-width:0; }
   b { font-size:16px; color:#0f172a; line-height:1.3; }
 }
+.showcase-prompt-note { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; border:1px solid rgba(37,99,235,.18); border-radius:18px;
+  background:linear-gradient(180deg, rgba(239,246,255,.92), rgba(248,250,252,.7)); box-shadow:0 16px 34px -30px rgba(15,23,42,.45); }
+.showcase-prompt-note .spn-icon { flex:none; width:40px; height:40px; display:grid; place-items:center; font-size:20px; border-radius:12px; background:#fff; box-shadow:0 8px 18px -10px rgba(37,99,235,.55); }
+.showcase-prompt-note .spn-body { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.showcase-prompt-note .spn-kicker { font-size:11px; font-weight:800; color:#2563eb; letter-spacing:.4px; }
+.showcase-prompt-note .spn-title { font-size:15px; font-weight:800; color:#0f172a; line-height:1.3; }
+.showcase-prompt-note .spn-desc { margin:2px 0 0; font-size:13px; line-height:1.65; color:#475569; }
+.showcase-prompt-note .spn-desc b { color:#1d4ed8; font-weight:700; }
 .prompt-kicker { font-size:11px; font-weight:800; color:#2563eb; letter-spacing:0; }
 .prompt-guide-btn { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:34px; padding:0 12px; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#2563eb; font-size:13px; font-weight:700; cursor:pointer; transition:all .15s ease;
   &:not(:disabled):hover { background:#dbeafe; border-color:#93c5fd; }
