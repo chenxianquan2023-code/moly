@@ -191,7 +191,7 @@
 
             <div v-if="showAdvancedSettings" class="advanced-settings">
               <div class="model-opts" v-if="pricing">
-                <div class="model-row" v-if="sourceVideoAsset || refInspiration">
+                <div class="model-row" v-if="(sourceVideoAsset || refInspiration) && genMode !== 'showcase'">
                   <span class="model-label">复刻方式</span>
                   <div class="seg">
                     <button type="button" :class="{ active: replicaMode === 'smart' }" @click="replicaMode = 'smart'" title="智能复刻：参考源视频的风格/节奏，生成全新场景。任意商品都适用、更灵活。">智能</button>
@@ -199,7 +199,7 @@
                     <button type="button" :class="{ active: replicaMode === 'motion' }" @click="replicaMode = 'motion'" title="动作复刻：把参考视频的整段动作、运镜、节奏原样迁移给 AI 模特并换上你的商品。走位/演示类动作视频效果最佳。">动作复刻</button>
                   </div>
                 </div>
-                <p v-if="replicaMode === 'motion'" class="voice-hint motion-hint">
+                <p v-if="replicaMode === 'motion' && genMode !== 'showcase'" class="voice-hint motion-hint">
                   ⏱ <b>生成时间较长：约 5–25 分钟</b>（整段动作迁移走平台排队，明显慢于智能/贴帧的约 7 分钟；期间可离开页面，稍后在「历史」查看成片）。<br />
                   动作复刻：整段迁移参考视频的<b>动作、运镜和节奏</b>，模特换成 AI 虚构模特、商品换成你的。
                   需上传参考视频（超过 15 秒只取前 15 秒），成片 4–15 秒，不含口播和字幕，可保留源视频背景乐。<br />
@@ -215,7 +215,7 @@
                     </button>
                   </div>
                 </div>
-                <div class="model-row">
+                <div class="model-row" v-if="genMode !== 'showcase'">
                   <span class="model-label">画面质量</span>
                   <div class="seg">
                     <button v-for="im in pricing.image" :key="im.id" type="button"

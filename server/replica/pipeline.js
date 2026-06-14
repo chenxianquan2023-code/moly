@@ -917,15 +917,18 @@ export async function runReplicaPipeline(task, ctx) {
         await setStep(1, { status: 'succeeded', note: `串烧脚本(${lines.length}句口播${borrowViral ? '·借鉴爆款' : ''})` });
 
         // 逐图 i2v(并发)：每张图各成一个动态镜头。运镜为主、主体稳,防漂浮/畸变;过姿态清洗防分身。
-        await setStep(3, { status: 'running', note: `逐图生成动态镜头(${nImg}个，约2-4分钟)` });
+        // 视频引擎跟用户在「视频引擎」选的走(可灵更便宜)——否则会出现"选了可灵却用 Seedance 生成、按可灵计费"的错配。
+        const showcaseEngine = opts.models?.video === 'kling' ? fal.KLING_MODEL : fal.MODEL;
+        const engineLabel = opts.models?.video === 'kling' ? '可灵' : 'Seedance';
+        await setStep(3, { status: 'running', note: `逐图生成动态镜头(${nImg}个·${engineLabel}，约2-4分钟)` });
         const motionBase = sanitizeMotion('镜头缓慢推近或轻柔环绕,商品质感与光泽自然呈现,画面高级电商质感;主体保持自然稳定,不漂浮不变形,不凭空出现多余物体或人物');
         const clipUrls = await Promise.all(productUrls.map((u, i) =>
-          fal.imageToVideo(u, motionBase, { duration: perShot, maxPollingMs: 300000 })
+          fal.imageToVideo(u, motionBase, { model: showcaseEngine, duration: perShot, maxPollingMs: 300000 })
             .catch((e) => { notes.push(`镜头${i + 1} i2v失败: ${String(e?.message || e).split('\n')[0].slice(0, 40)}`); return null; })
         ));
         const okClips = clipUrls.map((u, i) => ({ u, i })).filter((x) => x.u);
         if (!okClips.length) throw new Error('逐图成镜全部失败');
-        await setStep(3, { status: 'succeeded', note: `Seedance·多图串烧(${okClips.length}镜)` });
+        await setStep(3, { status: 'succeeded', note: `${engineLabel}·多图串烧(${okClips.length}镜)` });
 
         // 下载各镜
         const clipPaths = [];
@@ -978,7 +981,7 @@ export async function runReplicaPipeline(task, ctx) {
         return {
           generatedVideoId: gv.id, videoUrl, coverUrl, subtitleUrl, duration: comp.duration,
           usedAI: true, ttsOk, shots: mScenes, sceneImages: productUrls.slice(), sceneClips: okClips.map((c) => c.u), sceneDurations: segDurs,
-          usedProvider: `Seedance·多图串烧${borrowViral ? '(借鉴爆款)' : ''}`, sourceShots: analysis?.shots || null, styleFingerprint: null,
+          usedProvider: `${engineLabel}·多图串烧${borrowViral ? '(借鉴爆款)' : ''}`, sourceShots: analysis?.shots || null, styleFingerprint: null,
           replicated: false, notes,
         };
       } catch (e) {
