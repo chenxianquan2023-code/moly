@@ -107,7 +107,7 @@ import PasswordInput from './PasswordInput.vue';
 import { useVerification } from '@/composables/useVerification';
 import { useAuthStore } from '@/stores/auth';
 import * as api from '@/api/auth';
-import { validateEmail, validateCode, validatePassword } from '@/utils/validators';
+import { validateEmail, validateCode } from '@/utils/validators';
 import type { RegionMode } from '@/types/auth.types';
 
 // regionMode 保留以兼容父组件传参；海外站统一邮箱登录，不再分区
@@ -235,8 +235,8 @@ async function handleSubmit() {
     return;
   }
 
-  const r2 = validatePassword(password.value);
-  if (!r2.valid) { passwordError.value = r2.message ?? '请输入正确的密码'; return; }
+  // 登录只校验非空——密码格式(长度/字母数字)是注册时的要求,登录处校验会误拦合法/历史密码
+  if (!password.value) { passwordError.value = '请输入密码'; return; }
   submitting.value = true;
   try {
     const res = await api.login({ account: email.value.trim(), password: password.value });
