@@ -536,9 +536,9 @@ const DEFAULT_PRICING = {
   ],
 };
 const DEFAULT_PACKAGES = [
-  { id: 'starter', label: '体验包', credits: 100, bonus: 0, priceYuan: 9.9 },
-  { id: 'basic', label: '基础包', credits: 500, bonus: 50, priceYuan: 49 },
-  { id: 'pro', label: '专业包', credits: 1500, bonus: 300, priceYuan: 99 },
+  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19 },
+  { id: 'basic', label: '标准包', credits: 1000, bonus: 150, priceYuan: 99 },
+  { id: 'pro', label: '专业包', credits: 3200, bonus: 400, priceYuan: 299 },
 ];
 const pricing = ref<any>(DEFAULT_PRICING);
 const packages = ref<any[]>(DEFAULT_PACKAGES);

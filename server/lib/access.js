@@ -8,8 +8,9 @@
 // 公测开放注册(2026-06 用户拍板)：人人可注册，新用户送小额体验积分。
 // 回滚开关：Railway 设 OPEN_REGISTRATION=false 即恢复邀请制白名单。
 export const OPEN_REGISTRATION = String(process.env.OPEN_REGISTRATION ?? 'true') !== 'false';
-// 新用户赠送：公测降为 100(防撸羊毛)。注意：若 Railway 已设 FREE_CREDITS 环境变量,需在面板同步改
-export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 100);
+// 新用户赠送：200=够免费做出第一条(8秒标准片≈180分)，转化命门。邮箱验证已挡批量撸羊毛。
+// 注意：若 Railway 已设 FREE_CREDITS 环境变量,改这里无效,需在 Railway 面板把它改成 200。
+export const FREE_CREDITS = Number(process.env.FREE_CREDITS || 200);
 export const TEST_EMAIL = String(process.env.TEST_EMAIL || 'tester@moly.app').trim().toLowerCase();
 
 /** 是否为可无限充值的测试账号 */
