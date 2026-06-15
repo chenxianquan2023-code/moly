@@ -12,6 +12,7 @@ import { addPoints, getPoints } from '../lib/points.js';
 import { RECHARGE_PACKAGES } from './pricing.js';
 import * as hupi from '../lib/hupi.js';
 import * as xorpay from '../lib/xorpay.js';
+import * as wechatpay from '../lib/wechatpay.js';
 
 export const payRouter = Router();
 
@@ -20,7 +21,17 @@ const CHANNELS = new Set(['wechat', 'alipay']);
 
 // 供应商自动选择：配了 XorPay(资金走官方通道结算,更稳)优先；否则虎皮椒。可换、可并存。
 const useXorpay = () => xorpay.isConfigured();
-const channelConfigured = (channel) => (useXorpay() ? xorpay.isPayConfigured() : hupi.isPayConfigured(channel));
+// 通道级选择：微信通道优先「官方微信支付」(资金腾讯直结、最稳)，未配则回退 XorPay/虎皮椒；支付宝走 XorPay/虎皮椒。
+const channelConfigured = (channel) =>
+  (channel === 'wechat' && wechatpay.isPayConfigured('wechat')) ||
+  (useXorpay() ? xorpay.isPayConfigured() : hupi.isPayConfigured(channel));
+function pickProvider(channel) {
+  if (channel === 'wechat' && wechatpay.isPayConfigured('wechat')) {
+    return { provider: wechatpay, notifyUrl: `${BASE_URL}/api/pay/notify-wxpay` };
+  }
+  if (useXorpay()) return { provider: xorpay, notifyUrl: `${BASE_URL}/api/pay/notify-xorpay` };
+  return { provider: hupi, notifyUrl: `${BASE_URL}/api/pay/notify/${channel}` };
+}
 
 // POST /api/pay/create  body: { userEmail, packageId, channel }
 payRouter.post('/pay/create', async (req, res) => {
@@ -50,8 +61,7 @@ payRouter.post('/pay/create', async (req, res) => {
       return res.status(503).json({ success: false, message: '订单系统未初始化(recharge_orders 表缺失)，请联系管理员。' });
     }
 
-    const provider = useXorpay() ? xorpay : hupi;
-    const notifyUrl = useXorpay() ? `${BASE_URL}/api/pay/notify-xorpay` : `${BASE_URL}/api/pay/notify/${channel}`;
+    const { provider, notifyUrl } = pickProvider(channel);
     const { payUrl, qrUrl } = await provider.createPayment({
       tradeOrderId: order.id,
       amountYuan: pkg.priceYuan,
@@ -100,6 +110,24 @@ payRouter.post('/pay/notify-xorpay', express.urlencoded({ extended: false }), as
   }
 });
 
+// POST /api/pay/notify-wxpay —— 官方微信支付 V3 异步回调(JSON)。用 APIv3 密钥解密(=验真,密钥仅微信持有) → 幂等加分 → 回 {code:SUCCESS}。
+payRouter.post('/pay/notify-wxpay', express.json({ type: '*/*' }), async (req, res) => {
+  try {
+    const data = wechatpay.decryptNotify(req.body || {});
+    if (!data) {
+      console.error('[pay/notify-wxpay] 解密失败/非法回调', JSON.stringify(req.body || {}).slice(0, 160));
+      return res.status(401).json({ code: 'FAIL', message: '解密失败' });
+    }
+    if (data.trade_state !== 'SUCCESS') return res.json({ code: 'SUCCESS' }); // 非成功态：确认收到、不入账
+    const r = await settleOrder(String(data.out_trade_no || ''), String(data.transaction_id || ''));
+    if (r === 'unknown') console.error('[pay/notify-wxpay] 查无订单', data.out_trade_no);
+    res.json({ code: 'SUCCESS' });
+  } catch (e) {
+    console.error('[pay/notify-wxpay]', e.message);
+    res.status(500).json({ code: 'FAIL', message: '处理失败' }); // 让微信重试
+  }
+});
+
 // POST /api/pay/notify/:channel —— 虎皮椒异步回调(表单编码)。验签 → 幂等加分 → 回 'success' 停止重试。
 payRouter.post('/pay/notify/:channel', express.urlencoded({ extended: false }), async (req, res) => {
   try {
@@ -140,6 +168,6 @@ payRouter.get('/pay/channels', (req, res) => {
     success: true,
     wechat: channelConfigured('wechat'),
     alipay: channelConfigured('alipay'),
-    provider: useXorpay() ? 'xorpay' : (hupi.isPayConfigured('wechat') || hupi.isPayConfigured('alipay')) ? 'hupi' : 'none',
+    provider: wechatpay.isPayConfigured('wechat') ? 'wechatpay-official' : useXorpay() ? 'xorpay' : (hupi.isPayConfigured('wechat') || hupi.isPayConfigured('alipay')) ? 'hupi' : 'none',
   });
 });
