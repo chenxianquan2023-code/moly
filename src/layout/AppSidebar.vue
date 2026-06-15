@@ -17,6 +17,9 @@
         <router-link to="/history" class="nav-item" :class="{ active: isActive('/history') }">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg></span><span class="lb">历史</span>
         </router-link>
+        <router-link v-if="isAdmin" to="/admin" class="nav-item" :class="{ active: isActive('/admin') }">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v5c0 4.5 3.2 7.8 8 9 4.8-1.2 8-4.5 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="lb">管理</span>
+        </router-link>
       </nav>
 
       <!-- 我的：钉在左下角 -->
@@ -81,19 +84,26 @@ const initial = computed(() => (auth.email || auth.phone || 'U').trim().charAt(0
 function logout() { auth.logout(); router.push('/'); }
 
 const DEFAULT_PACKAGES = [
-  { id: 'starter', label: '体验包', credits: 100, bonus: 0, priceYuan: 9.9 },
-  { id: 'basic', label: '基础包', credits: 500, bonus: 50, priceYuan: 49 },
-  { id: 'pro', label: '专业包', credits: 1500, bonus: 300, priceYuan: 99 },
+  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19 },
+  { id: 'basic', label: '标准包', credits: 1000, bonus: 150, priceYuan: 99 },
+  { id: 'pro', label: '专业包', credits: 3200, bonus: 400, priceYuan: 299 },
 ];
 const packages = ref<any[]>(DEFAULT_PACKAGES);
 const recharging = ref('');
+const isAdmin = ref(false);
 
 onMounted(async () => {
   try {
     const j = await (await fetch('/api/replica/pricing')).json();
     if (j.success && j.packages) packages.value = j.packages;
   } catch { /* 用默认套餐 */ }
-  if (auth.isLoggedIn && auth.email) auth.fetchPointsFromServer(auth.email);
+  if (auth.isLoggedIn && auth.email) {
+    auth.fetchPointsFromServer(auth.email);
+    try {
+      const a = await (await fetch(`/api/admin/check?email=${encodeURIComponent(auth.email)}`)).json();
+      isAdmin.value = !!a.isAdmin;
+    } catch { /* 非管理员 */ }
+  }
 });
 
 async function recharge(pkg: any) {

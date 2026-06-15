@@ -214,7 +214,8 @@ const router = createRouter({
             children: [
                 { path: '', name: 'studio', component: () => import('../views/StudioView.vue') },
                 { path: '/discover', name: 'discover', component: () => import('../views/DiscoverView.vue') },
-                { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') }
+                { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue') },
+                { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue') }
             ]
         },
         {

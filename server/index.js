@@ -20,6 +20,7 @@ import https from 'https';
 import { replicaRouter } from './replica/routes.js';
 import { discoverRouter } from './replica/discover.js';
 import { payRouter } from './replica/pay.js';
+import { adminRouter } from './replica/admin.js';
 import { FREE_CREDITS, isAllowed, allowlistSize } from './lib/access.js';
 
 // 内测期：仅白名单账号可注册/登录，其余拒绝（防无限注册薅体验额度）
@@ -926,6 +927,7 @@ app.use('/api', replicaRouter);
 app.use('/api', discoverRouter);
 // 真实支付（聚合支付·虎皮椒：微信/支付宝）
 app.use('/api', payRouter);
+app.use('/api', adminRouter);
 
 // 生产环境：托管前端打包后的静态文件
 const distPath = join(__dirname, '..', 'dist');
