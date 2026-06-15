@@ -21,6 +21,10 @@ async function runActor(actorId, input, timeoutMs = 180000) {
   });
   if (!res.ok) {
     const t = await res.text();
+    // 仅在像"超额/欠费"的错误时推预警(避免单个视频失败也刷屏)
+    if (res.status === 402 || res.status === 403 || /usage|quota|credit|limit|payment|exceed/i.test(t)) {
+      try { const { notifyAdmin } = await import('./alert.js'); notifyAdmin('找爆款抓取失败(Apify 可能超额)', `Apify ${res.status}: ${t.slice(0, 120)}。可能月度用量/额度用尽,找爆款会失败,请检查 Apify 账户。`); } catch { /* 预警失败不阻断 */ }
+    }
     throw new Error(`Apify ${actorId} ${res.status}: ${t.slice(0, 160)}`);
   }
   const items = await res.json();

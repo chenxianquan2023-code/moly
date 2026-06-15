@@ -87,7 +87,11 @@ async function volcanoTTS(text, { voice = 'zh_female_yuanqinvyou_moon_bigtts', s
     signal: AbortSignal.timeout(60000),
   });
   const j = await res.json();
-  if (j.code !== 3000 || !j.data) throw new Error(`火山 TTS 失败: ${j.message || j.code || JSON.stringify(j).slice(0, 160)}`);
+  if (j.code !== 3000 || !j.data) {
+    // 配音失败(持续失败常见为火山余额不足/账户异常)→ 推预警。配音本身会降级为无声、不阻断生成。
+    try { const { notifyAdmin } = await import('../../lib/alert.js'); notifyAdmin('配音(火山TTS)失败', `火山 TTS: ${String(j.message || j.code || '').slice(0, 100)}。配音降级为无声;若持续失败请检查火山账户余额。`); } catch { /* 预警失败不阻断 */ }
+    throw new Error(`火山 TTS 失败: ${j.message || j.code || JSON.stringify(j).slice(0, 160)}`);
+  }
   return Buffer.from(j.data, 'base64');
 }
 

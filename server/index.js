@@ -163,7 +163,15 @@ function codeEmailHtml(code) {
 </div>`;
 }
 
+// 邮件发送失败(常见:Brevo 免费额度 300/天用尽)→ 验证码/重置发不出、影响注册登录。失败即推飞书预警。
 async function sendEmail(to, subject, text, html) {
+  try { return await _sendEmailRaw(to, subject, text, html); }
+  catch (e) {
+    try { const { notifyAdmin } = await import('./lib/alert.js'); notifyAdmin('邮件发送失败(验证码/重置发不出)', `收件 ${to}：${String(e?.message || e).slice(0, 120)}。常见为 Brevo 配额用尽或账户异常，请尽快检查邮件服务。`); } catch { /* 预警失败不阻断 */ }
+    throw e;
+  }
+}
+async function _sendEmailRaw(to, subject, text, html) {
   // 优先 Brevo
   if (BREVO_API_KEY) {
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
