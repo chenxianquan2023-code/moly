@@ -960,22 +960,8 @@ const server = app.listen(PORT, () => {
     reapOrphanTasks(3);
     setInterval(() => reapOrphanTasks(20), 10 * 60 * 1000);
   }).catch((e) => console.error('[reaper] 加载失败:', e?.message || e));
-
-  // 余额哨兵：每 3 小时探一次视频引擎(fal)是否还能接单——耗尽时主动推预警(即使此刻没人生成)。
-  // 仅在配了告警 webhook(ALERT_WEBHOOK_URL)时启用,否则探了也没法通知、白费探测开销。
-  import('./lib/alert.js').then(async ({ notifyAdmin, isAlertWebhookConfigured }) => {
-    if (!isAlertWebhookConfigured()) return;
-    const { probeBalance } = await import('./replica/ai/fal.js');
-    let wasOk = true;
-    const check = async () => {
-      try {
-        const ok = await probeBalance();
-        if (ok === false && wasOk) { wasOk = false; notifyAdmin('视频引擎(fal)余额耗尽', 'fal 已无法接受生成请求,新任务会失败。请尽快充值。'); }
-        else if (ok === true) wasOk = true;
-      } catch { /* 网络异常→忽略,不误报 */ }
-    };
-    setInterval(check, 3 * 60 * 60 * 1000); // 每 3 小时
-  }).catch(() => {});
+  // 注:不做 fal 定时余额探针——probeBalance 会真提交一次生成再尽力取消,有扣费风险;
+  // 而"fal 没钱"在用户真生成失败时已免费即时报警(pipeline notifyAdmin),无需额外花钱探测。
 });
 
 // WebSocket：手机扫码上传完成通知
