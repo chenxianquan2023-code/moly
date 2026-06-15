@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { addPoints, getPoints } from '../lib/points.js';
+import { selectRows } from '../lib/supabase.js';
 import { RECHARGE_PACKAGES } from './pricing.js';
 
 export const adminRouter = Router();
@@ -62,6 +63,34 @@ adminRouter.post('/admin/grant', async (req, res) => {
     const points = await addPoints(target, amt, `管理员充值(by ${who}${reason ? ': ' + String(reason).slice(0, 40) : ''})`);
     console.log(`[admin] ${who} → ${target} +${amt} = ${points}`);
     res.json({ success: true, email: target, added: amt, points });
+  } catch (e) {
+    res.status(500).json({ success: false, message: String(e.message || e).slice(0, 160) });
+  }
+});
+
+// GET /api/admin/consumption?adminSecret=&days=30 —— 每个用户的消费情况(需密钥)
+adminRouter.get('/admin/consumption', async (req, res) => {
+  if (!secretOk(req.query?.adminSecret)) return res.status(403).json({ success: false, message: '管理员密钥无效或后台未配置 ADMIN_SECRET' });
+  try {
+    const days = Math.min(365, Math.max(1, Number(req.query?.days) || 30));
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    // 窗口内生成任务 → 按用户聚合消费(credits_charged=实际扣的积分)
+    const tasks = await selectRows('generation_tasks', `created_at=gte.${encodeURIComponent(since)}&select=user_email,credits_charged,status,created_at&order=created_at.desc&limit=5000`);
+    const byUser = {};
+    for (const t of (tasks || [])) {
+      const e = String(t.user_email || '').toLowerCase(); if (!e) continue;
+      if (!byUser[e]) byUser[e] = { email: e, tasks: 0, succeeded: 0, spent: 0, lastActive: t.created_at };
+      byUser[e].tasks += 1;
+      byUser[e].spent += (t.credits_charged || 0);
+      if (t.status === 'succeeded') byUser[e].succeeded += 1;
+      if (t.created_at > byUser[e].lastActive) byUser[e].lastActive = t.created_at;
+    }
+    const users = await selectRows('moly_users', 'select=email,points');
+    const balMap = Object.fromEntries((users || []).map((u) => [String(u.email).toLowerCase(), u.points]));
+    const rows = Object.values(byUser)
+      .map((r) => ({ ...r, balance: balMap[r.email] ?? null }))
+      .sort((a, b) => b.spent - a.spent);
+    res.json({ success: true, days, totalSpent: rows.reduce((s, r) => s + r.spent, 0), totalUsers: rows.length, users: rows.slice(0, 200) });
   } catch (e) {
     res.status(500).json({ success: false, message: String(e.message || e).slice(0, 160) });
   }

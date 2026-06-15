@@ -54,6 +54,34 @@
           <span class="lb">余额 {{ g.points }}</span>
         </div>
       </div>
+
+      <div class="card">
+        <div class="cons-head">
+          <h2>用户消费 · 近 {{ consDays }} 天</h2>
+          <div class="cons-ctrl">
+            <select v-model.number="consDays" @change="loadConsumption">
+              <option :value="7">近 7 天</option>
+              <option :value="30">近 30 天</option>
+              <option :value="90">近 90 天</option>
+            </select>
+            <button type="button" class="btn ghost" :disabled="consLoading || !secret" @click="loadConsumption">{{ consLoading ? '加载中…' : '刷新' }}</button>
+          </div>
+        </div>
+        <p v-if="!secret" class="cons-tip">填好上方「管理员密钥」后点「刷新」查看。</p>
+        <template v-else-if="consumption.length">
+          <p class="cons-total">合计消费 <b>{{ consTotal }}</b> 积分 · <b>{{ consumption.length }}</b> 个活跃用户（按消费排序，取前 200）</p>
+          <div class="cons-table">
+            <div class="cons-row cons-th"><span>用户</span><span>消费</span><span>成功/总</span><span>余额</span></div>
+            <div v-for="u in consumption" :key="u.email" class="cons-row">
+              <span class="cu" :title="u.email">{{ u.email }}</span>
+              <span class="cs">{{ u.spent }}</span>
+              <span class="ct">{{ u.succeeded }}/{{ u.tasks }}</span>
+              <span class="cb">{{ u.balance ?? '—' }}</span>
+            </div>
+          </div>
+        </template>
+        <p v-else class="cons-tip">该时间段暂无消费记录。</p>
+      </div>
     </template>
   </div>
 </template>
@@ -75,8 +103,23 @@ const busy = ref(false);
 const msg = ref('');
 const msgType = ref<'ok' | 'err'>('ok');
 const log = ref<any[]>([]);
+const consumption = ref<any[]>([]);
+const consTotal = ref(0);
+const consDays = ref(30);
+const consLoading = ref(false);
 
 const canGrant = computed(() => !!secret.value && !!targetEmail.value && !!amount.value && amount.value > 0);
+
+async function loadConsumption() {
+  if (!secret.value) return;
+  consLoading.value = true;
+  try {
+    const r = await fetch(`/api/admin/consumption?adminSecret=${encodeURIComponent(secret.value)}&days=${consDays.value}`);
+    const j = await r.json();
+    if (j.success) { consumption.value = j.users || []; consTotal.value = j.totalSpent || 0; }
+  } catch { /* ignore */ }
+  finally { consLoading.value = false; }
+}
 
 function saveSecret() { try { localStorage.setItem('moly_admin_secret', secret.value); } catch { /* ignore */ } }
 
@@ -88,6 +131,7 @@ onMounted(async () => {
     isAdmin.value = !!a.isAdmin;
     enabled.value = !!a.enabled;
     presets.value = a.presets || [];
+    if (isAdmin.value && secret.value) loadConsumption();
   } catch { /* ignore */ }
 });
 
@@ -149,4 +193,13 @@ async function grant() {
 .logrow { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid #f1f5f9; font-size:13px;
   .le { flex:1; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .la { color:#16a34a; font-weight:700; } .lb { color:#94a3b8; }
 }
+.cons-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; h2 { margin:0; } }
+.cons-ctrl { display:flex; gap:8px; align-items:center; select { padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; background:#fff; } .btn { padding:8px 14px; font-size:13px; } }
+.cons-tip { font-size:13px; color:#94a3b8; padding:8px 0; }
+.cons-total { font-size:13px; color:#475569; margin:0 0 10px; b { color:#2563eb; } }
+.cons-table { display:flex; flex-direction:column; }
+.cons-row { display:grid; grid-template-columns: 1fr 70px 70px 70px; gap:8px; align-items:center; padding:9px 0; border-top:1px solid #f1f5f9; font-size:13px;
+  .cu { color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .cs { color:#dc2626; font-weight:700; text-align:right; } .ct { color:#64748b; text-align:right; } .cb { color:#16a34a; font-weight:600; text-align:right; }
+}
+.cons-row.cons-th { border-top:none; color:#94a3b8; font-weight:700; font-size:12px; span:not(.cu){ text-align:right; } }
 </style>
