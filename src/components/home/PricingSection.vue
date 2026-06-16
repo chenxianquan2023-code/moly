@@ -30,7 +30,7 @@
           <div class="pr-est-row"><span>长 18秒</span><b :class="{ z: p.v18 === 0 }">{{ p.v18 }} 条</b></div>
         </div>
 
-        <router-link to="/studio" class="pr-btn">去充值</router-link>
+        <button type="button" class="pr-btn" @click="goRecharge">去充值</button>
       </div>
     </div>
 
@@ -40,6 +40,18 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
+import { useUiStore } from '@/stores/ui';
+
+const router = useRouter();
+const auth = useAuthStore();
+const ui = useUiStore();
+function goRecharge() {
+  if (!auth.isLoggedIn) { router.push('/login'); return; }
+  ui.openRecharge();
+  router.push('/studio');
+}
 
 // 单条成本(积分)：基础20 + Seedance 20/秒 × 秒数。与后端 pricing 一致。
 const COST = { v8: 180, v12: 260, v18: 380 };
@@ -80,8 +92,8 @@ onMounted(async () => {
 .pr-sub { font-size: 15px; color: #64748b; margin: 10px 0 0; }
 .pr-rate { display: inline-block; margin-top: 18px; padding: 9px 20px; border-radius: 999px; background: #fff; border: 1px solid #e2e8f0; font-size: 14px; color: #475569; box-shadow: 0 10px 26px -20px rgba(15,23,42,.4); b { color: #0f172a; } }
 
-.pr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: start; }
-.pr-card { position: relative; background: #fff; border: 1px solid #eef2f7; border-radius: 22px; padding: 30px 24px 26px; text-align: center; box-shadow: 0 24px 50px -40px rgba(15,23,42,.5); transition: transform .2s ease, box-shadow .2s ease; }
+.pr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: stretch; }
+.pr-card { position: relative; display: flex; flex-direction: column; background: #fff; border: 1px solid #eef2f7; border-radius: 22px; padding: 30px 24px 26px; text-align: center; box-shadow: 0 24px 50px -40px rgba(15,23,42,.5); transition: transform .2s ease, box-shadow .2s ease; }
 .pr-card:hover { transform: translateY(-4px); box-shadow: 0 30px 60px -38px rgba(37,99,235,.45); }
 .pr-card.hot { border: 2px solid #4f46e5; box-shadow: 0 30px 60px -34px rgba(79,70,229,.5); }
 .pr-badge { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: linear-gradient(135deg,#6366f1,#4f46e5); color: #fff; font-size: 13px; font-weight: 800; padding: 7px 18px; border-radius: 999px; box-shadow: 0 10px 22px -10px rgba(79,70,229,.6); }
@@ -97,7 +109,7 @@ onMounted(async () => {
 .pr-est { margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
 .pr-est-h { font-size: 13px; color: #94a3b8; }
 .pr-est-row { display: flex; justify-content: space-between; align-items: center; margin-top: 11px; font-size: 14px; color: #475569; b { color: #16a34a; font-weight: 800; &.z { color: #cbd5e1; } } }
-.pr-btn { display: block; margin-top: 22px; padding: 12px; border-radius: 12px; background: #f1f5f9; color: #334155; font-weight: 700; font-size: 14px; text-decoration: none; transition: all .18s ease; &:hover { background: #2563eb; color: #fff; } }
+.pr-btn { display: block; width: 100%; margin-top: auto; padding: 12px; border-radius: 12px; border: none; cursor: pointer; background: #f1f5f9; color: #334155; font-weight: 700; font-size: 14px; text-decoration: none; transition: all .18s ease; &:hover { background: #2563eb; color: #fff; } }
 .pr-card.hot .pr-btn { background: linear-gradient(135deg,#2563eb,#4f46e5); color: #fff; }
 .pr-foot { text-align: center; margin-top: 30px; font-size: 13px; color: #94a3b8; b { color: #64748b; } }
 
