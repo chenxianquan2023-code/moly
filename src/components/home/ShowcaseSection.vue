@@ -59,11 +59,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import thermosImg from '@/assets/img/thermos-temp-display.jpg';
-import earbudsImg from '@/assets/img/erji.png';
-import phoneImg from '@/assets/img/iphone.png';
-import phoneAltImg from '@/assets/img/iphone-2.png';
-import imgMeizhuang from '@/assets/showcase-meizhuang.png';
+// 主页橱窗图：自家生成的无品牌精致竖图(替换 Marshall/苹果真品牌+文字海报)
+import thermosImg from '@/assets/home-thumbs/thermos.jpg';
+import earbudsImg from '@/assets/home-thumbs/earbuds.jpg';
+import phoneImg from '@/assets/home-thumbs/phone.jpg';
+import phoneAltImg from '@/assets/home-thumbs/desk.jpg';
+import imgMeizhuang from '@/assets/home-thumbs/beauty.jpg';
+import foodImg from '@/assets/home-thumbs/food.jpg';
 
 type ShowcaseItem = {
   url: string;
@@ -97,7 +99,7 @@ const items: ShowcaseItem[] = [
     points: ['开箱镜头', '降噪对比', '通勤佩戴'],
   },
   {
-    url: '/examples/poster/product-3.jpg',
+    url: imgMeizhuang,
     cat: '美妆个护',
     product: '夏日补水精华液',
     cap: '夏天妆前补水，一瓶拍出清透感',
@@ -113,7 +115,7 @@ const items: ShowcaseItem[] = [
     points: ['桌搭改造', '磁吸特写', '角度切换'],
   },
   {
-    url: '/examples/poster/product-1.jpg',
+    url: foodImg,
     cat: '食品生鲜',
     product: '麻辣小龙虾尾',
     cap: '夜宵镜头一出，食欲感马上起来',
