@@ -5,6 +5,7 @@
     <ProductShowcase />
     <ShowcaseSection />
     <SocialProof />
+    <PricingSection />
     <Footer />
   </div>
 </template>
@@ -15,6 +16,7 @@ import FeaturesSection from '@/components/home/FeaturesSection.vue';
 import ProductShowcase from '@/components/home/ProductShowcase.vue';
 import ShowcaseSection from '@/components/home/ShowcaseSection.vue';
 import SocialProof from '@/components/home/SocialProof.vue';
+import PricingSection from '@/components/home/PricingSection.vue';
 import Footer from '@/components/home/Footer.vue';
 </script>
 

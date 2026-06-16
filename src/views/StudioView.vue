@@ -536,9 +536,10 @@ const DEFAULT_PRICING = {
   ],
 };
 const DEFAULT_PACKAGES = [
-  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19 },
-  { id: 'basic', label: '标准包', credits: 1000, bonus: 150, priceYuan: 99 },
-  { id: 'pro', label: '专业包', credits: 3200, bonus: 400, priceYuan: 299 },
+  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19.9 },
+  { id: 'basic', label: '创作包', credits: 690, bonus: 110, priceYuan: 69 },
+  { id: 'pro', label: '热门包', credits: 1990, bonus: 610, priceYuan: 199 },
+  { id: 'flagship', label: '旗舰包', credits: 4990, bonus: 2010, priceYuan: 499 },
 ];
 const pricing = ref<any>(DEFAULT_PRICING);
 const packages = ref<any[]>(DEFAULT_PACKAGES);

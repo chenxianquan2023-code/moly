@@ -75,9 +75,10 @@ export function pricingTable() {
 }
 
 // 充值套餐（MVP：支付网关待接入，下单后体验直充）
-// 定价(2026-06 拍板)：底价压到 ~¥0.083/积分,即使重度用 Seedance(260分/12s)单条 ¥21.6 vs 成本 ¥14 仍约 35% 毛利兜底。
+// 定价(2026-06)：1元=10积分牌价,越大越便宜。originalYuan=划线原价(营销锚)。popular=主推。
 export const RECHARGE_PACKAGES = [
-  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19 },
-  { id: 'basic', label: '标准包', credits: 1000, bonus: 150, priceYuan: 99 },
-  { id: 'pro', label: '专业包', credits: 3200, bonus: 400, priceYuan: 299 },
+  { id: 'starter', label: '体验包', credits: 200, bonus: 0, priceYuan: 19.9, originalYuan: 20, tag: '先试一条' },
+  { id: 'basic', label: '创作包', credits: 690, bonus: 110, priceYuan: 69, originalYuan: 80, tag: '日常够用' },
+  { id: 'pro', label: '热门包', credits: 1990, bonus: 610, priceYuan: 199, originalYuan: 260, tag: '单价跳水最猛', popular: true },
+  { id: 'flagship', label: '旗舰包', credits: 4990, bonus: 2010, priceYuan: 499, originalYuan: 700, tag: '批量产出' },
 ];
