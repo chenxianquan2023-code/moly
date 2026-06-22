@@ -48,18 +48,24 @@
       <div class="modal">
         <div class="modal-head"><b>{{ auth.isTester ? '积分充值' : '内测体验额度' }}</b><button type="button" class="modal-x" @click="ui.closeRecharge()">×</button></div>
         <p v-if="ui.rechargeMsg" class="modal-msg">{{ ui.rechargeMsg }}</p>
-        <template v-if="auth.isTester">
+        <template v-if="payStep === 'pkg'">
           <div class="pkgs">
-            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="!!recharging" @click="recharge(p)">
+            <button v-for="p in packages" :key="p.id" type="button" class="pkg" :disabled="paying || !!recharging" @click="recharge(p)">
               <span class="pkg-credits">{{ p.credits + p.bonus }}<em>积分</em></span>
               <span v-if="p.bonus" class="pkg-bonus">含赠 {{ p.bonus }}</span>
               <span class="pkg-price">¥{{ p.priceYuan }}</span>
-              <span v-if="recharging === p.id" class="pkg-spin" />
+              <span v-if="recharging === p.id || (paying && !payOrder)" class="pkg-spin" />
             </button>
           </div>
-          <p class="modal-foot">当前余额 {{ auth.points }} 积分 · 测试账号可无限充值</p>
+          <p class="modal-foot">当前余额 {{ auth.points }} 积分{{ auth.isTester ? ' · 测试账号直充' : '' }}</p>
         </template>
-        <p v-else class="modal-tip">内测期间每位用户固定 <b>320 积分</b> 体验额度，暂不支持充值。<br>当前余额 <b>{{ auth.points }}</b> 积分。<br>正式上线后将开放充值，敬请期待 🙌</p>
+        <template v-else-if="payStep === 'qr'">
+          <p class="pay-sub">请用{{ payOrder?.channel === 'wechat' ? '微信' : '支付宝' }}扫码支付 <b>¥{{ payOrder?.amountYuan }}</b>（到账 {{ payOrder?.credits }} 积分）</p>
+          <img v-if="payOrder?.qrUrl" :src="payOrder.qrUrl" alt="支付二维码" class="pay-qr" />
+          <a v-else-if="payOrder?.payUrl" :href="payOrder.payUrl" target="_blank" rel="noopener" class="pay-link">点此打开支付</a>
+          <p class="modal-foot">支付完成后自动到账，请稍候…</p>
+        </template>
+        <p v-else class="pay-done">✅ 支付成功，已到账 <b>{{ payOrder?.credits }}</b> 积分！当前余额 <b>{{ auth.points }}</b>。</p>
         <button v-if="auth.isLoggedIn" type="button" class="modal-logout" @click="logout">退出登录</button>
       </div>
     </div>
@@ -67,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
@@ -107,7 +113,38 @@ onMounted(async () => {
   }
 });
 
+// 真支付：下单→出二维码→轮询到账。测试号仍走直充。
+const payStep = ref<'pkg' | 'qr' | 'done'>('pkg');
+const payOrder = ref<any>(null);
+const paying = ref(false);
+let payTimer: any = null;
+
+watch(() => ui.showRecharge, (v) => {
+  if (!v) { if (payTimer) { clearInterval(payTimer); payTimer = null; } payStep.value = 'pkg'; payOrder.value = null; }
+});
+
 async function recharge(pkg: any) {
+  if (auth.isTester) { return rechargeTester(pkg); }
+  paying.value = true; ui.rechargeMsg = '';
+  try {
+    const ch = await (await fetch('/api/pay/channels')).json().catch(() => ({}));
+    const channel = ch.alipay ? 'alipay' : (ch.wechat ? 'wechat' : 'alipay');
+    const r = await fetch('/api/pay/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, packageId: pkg.id, channel }) });
+    const j = await r.json();
+    if (!j.success) { ui.rechargeMsg = j.message || '下单失败'; return; }
+    payOrder.value = { ...j, channel }; payStep.value = 'qr';
+    payTimer = setInterval(pollPay, 3000);
+  } catch { ui.rechargeMsg = '网络错误，请重试'; }
+  finally { paying.value = false; }
+}
+async function pollPay() {
+  if (!payOrder.value?.orderId) return;
+  try {
+    const j = await (await fetch(`/api/pay/order?orderId=${encodeURIComponent(payOrder.value.orderId)}`)).json();
+    if (j.status === 'paid') { if (payTimer) { clearInterval(payTimer); payTimer = null; } if (auth.email) await auth.fetchPointsFromServer(auth.email); payStep.value = 'done'; }
+  } catch { /* 下一轮再试 */ }
+}
+async function rechargeTester(pkg: any) {
   recharging.value = pkg.id;
   try {
     const r = await fetch('/api/replica/recharge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userEmail: auth.email, packageId: pkg.id }) });
@@ -213,5 +250,9 @@ async function recharge(pkg: any) {
 .pkg-spin { position:absolute; right:16px; width:16px; height:16px; border:2px solid var(--color-border); border-top-color:var(--color-primary); border-radius:50%; animation:spin .8s linear infinite; }
 .modal-foot { font-size:11px; color:var(--color-text-tertiary); text-align:center; margin:14px 0 0; }
 .modal-tip { font-size:14px; line-height:1.75; color: var(--color-text-secondary); text-align:center; padding:6px 4px 2px; b { color: var(--color-primary); font-weight:700; } }
+.pay-sub { font-size:14px; color:var(--color-text-secondary); text-align:center; margin:0 0 6px; b { color:var(--color-primary); font-weight:800; } }
+.pay-qr { width:220px; height:220px; display:block; margin:14px auto; border-radius:12px; border:1px solid var(--color-border-light); }
+.pay-link { display:block; text-align:center; margin:14px auto; color:var(--color-primary); font-weight:700; }
+.pay-done { font-size:15px; line-height:1.8; color:#065f46; background:#ecfdf5; border-radius:12px; padding:18px; text-align:center; b { color:#16a34a; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
