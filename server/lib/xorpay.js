@@ -19,7 +19,9 @@ const SECRET = process.env.XORPAY_SECRET || '';
 const md5 = (s) => crypto.createHash('md5').update(s, 'utf8').digest('hex').toLowerCase();
 
 export const isConfigured = () => !!(AID && SECRET);
-export const isPayConfigured = () => isConfigured(); // 双通道同一对密钥(支付宝是否开通由 XorPay 后台决定)
+// 只放开你在 XorPay 后台已开通的通道：XORPAY_CHANNELS=alipay(逗号分隔);不设=两个都放开。
+const ENABLED = String(process.env.XORPAY_CHANNELS || 'wechat,alipay').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+export const isPayConfigured = (channel) => isConfigured() && (!channel || ENABLED.includes(channel));
 
 /** 创建支付单 → { payUrl(手机可点跳转,微信native无), qrUrl(dataURL二维码图) } */
 export async function createPayment({ tradeOrderId, amountYuan, title, channel, notifyUrl }) {

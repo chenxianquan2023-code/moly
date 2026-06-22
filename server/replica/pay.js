@@ -24,7 +24,7 @@ const useXorpay = () => xorpay.isConfigured();
 // 通道级选择：微信通道优先「官方微信支付」(资金腾讯直结、最稳)，未配则回退 XorPay/虎皮椒；支付宝走 XorPay/虎皮椒。
 const channelConfigured = (channel) =>
   (channel === 'wechat' && wechatpay.isPayConfigured('wechat')) ||
-  (useXorpay() ? xorpay.isPayConfigured() : hupi.isPayConfigured(channel));
+  (useXorpay() ? xorpay.isPayConfigured(channel) : hupi.isPayConfigured(channel));
 function pickProvider(channel) {
   if (channel === 'wechat' && wechatpay.isPayConfigured('wechat')) {
     return { provider: wechatpay, notifyUrl: `${BASE_URL}/api/pay/notify-wxpay` };
