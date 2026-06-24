@@ -348,7 +348,16 @@
               </li>
             </ul>
             <p v-if="task?.status !== 'failed'" class="gen-hint">⏳ 生成期间可以放心去忙别的，完成后这里会自动出现成片，请不要关闭页面。</p>
-            <p v-if="task?.status === 'failed'" class="fail">生成失败：{{ task.error_message }}</p>
+            <div v-if="task?.status === 'failed'" class="fail-card">
+              <div class="fail-emoji">{{ failView.icon }}</div>
+              <b class="fail-title">{{ failView.title }}</b>
+              <p class="fail-detail">{{ failView.detail }}</p>
+              <div class="fail-actions">
+                <button type="button" class="fail-retry" :disabled="generating" @click="generate()">🔄 重新生成</button>
+                <button v-if="failView.changeImage" type="button" class="fail-secondary" @click="scrollToTopForm()">换商品图 / 改描述</button>
+              </div>
+              <small class="fail-refund">本次积分已自动退还</small>
+            </div>
           </div>
         </div>
       </div>
@@ -702,6 +711,32 @@ const elapsedText = computed(() => {
   const s = elapsed.value % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 });
+// 失败提示分流：后端给的 output_json.code(CONTENT/RETRY) 优先，老任务无 code 时按 error_message 关键词兜底判断。
+// 给用户的是"他能干啥"，不再甩"联系管理员/充值"这种内部话术。
+const failView = computed(() => {
+  const t: any = task.value;
+  if (!t || t.status !== 'failed') return { icon: '', title: '', detail: '', changeImage: false };
+  const raw = String(t.error_message || '');
+  const isContent = (t.output_json?.code === 'CONTENT') || /审核|安全|敏感|暴露|身体|违规|safety|prohibited/i.test(raw);
+  if (isContent) {
+    return {
+      icon: '🛡️',
+      title: '这次的画面没通过内容安全策略',
+      detail: (raw && raw.length < 130) ? raw : '常见于真人贴身/暴露类镜头。建议换一张更生活化的商品图、或把描述写得衣着覆盖多一些，再试一次。',
+      changeImage: true,
+    };
+  }
+  // RETRY / 未知：瞬时繁忙，歇会儿重试即可（今早出图抽风就是这类）
+  return {
+    icon: '😮‍💨',
+    title: '生成服务刚才有点忙，这条没出成',
+    detail: '积分已全额退还。歇 1–2 分钟点「重新生成」通常就好 🙏',
+    changeImage: false,
+  };
+});
+function scrollToTopForm() {
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { window.scrollTo(0, 0); }
+}
 function startProgressUx() {
   stopProgressUx();
   elapsed.value = 0;
@@ -1000,7 +1035,7 @@ function pollTask(taskId: string) {
         if (j.task.status === 'failed') {
           generating.value = false; stopProgressUx();
           if (auth.email) auth.fetchPointsFromServer(auth.email); // 失败已自动退款，刷新余额
-          alert(j.task.error_message || '生成失败，请稍后重试或联系管理员');
+          // 不再弹裸 alert：失败卡片(含友好文案+一键重新生成)会自动渲染(task.status==='failed' 驱动)
           return;
         }
       }
@@ -1518,6 +1553,16 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
     }
   }
   .fail { color: var(--color-error); font-size:13px; text-align:center; }
+  .fail-card { display:flex; flex-direction:column; align-items:center; gap:8px; max-width:340px; margin:4px auto 0; padding:18px 16px;
+    background:rgba(254,242,242,.7); border:1px solid rgba(239,68,68,.22); border-radius:var(--radius-lg); text-align:center; }
+  .fail-emoji { font-size:30px; line-height:1; }
+  .fail-title { font-size:15px; font-weight:700; color: var(--color-text-primary); }
+  .fail-detail { margin:0; font-size:13px; line-height:1.6; color: var(--color-text-secondary); }
+  .fail-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+  .fail-retry { padding:9px 22px; border:none; border-radius:var(--radius-md); background:linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; font-weight:600; font-size:14px; cursor:pointer; box-shadow:0 8px 18px -8px rgba(37,99,235,.5);
+    &:disabled{ opacity:.55; cursor:not-allowed; } }
+  .fail-secondary { padding:9px 18px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:#fff; color: var(--color-text-secondary); font-size:13px; cursor:pointer; }
+  .fail-refund { color: var(--color-text-tertiary); font-size:12px; }
 }
 
 .login-panel { display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:28px; padding:18px; background:rgba(255,255,255,.6); border:1px solid rgba(37,99,235,.14); border-radius:var(--radius-xl); backdrop-filter: blur(10px); box-shadow: 0 10px 30px -18px rgba(37,99,235,.3); }

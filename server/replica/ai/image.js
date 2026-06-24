@@ -78,9 +78,14 @@ export async function generate(prompt, refs = [], opts = {}) {
     try { return await fn(prompt, refs, opts); }
     catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 700 * (i + 1))); }
   }
-  // 所选模型失败（如 GPT Image 超时）→ 退回 Gemini 再试，别整镜降级成原图
-  if (provider !== 'gemini') {
-    try { return await geminiImage(prompt, refs, opts); } catch (e2) { lastErr = e2; }
+  // 跨厂商兜底：主厂商两次都失败 → 换一家完全不同的出图服务再试，避免单家(ezmodel/fal)抽风/限流/空响应
+  // 时整镜降级成原图。gemini(ezmodel) ⇄ seedream(fal) 互为后备；其余 provider 回 gemini。
+  // 注意：旧逻辑写成 `if (provider !== 'gemini')`，意味着默认 gemini 时根本没有跨厂商兜底——
+  // 正是 2026-06-24 上游 Gemini 抽风、5 镜全废的放大器，这里补上。
+  const fallback = provider === 'gemini' ? 'seedream' : 'gemini';
+  const fb = PROVIDERS[fallback];
+  if (fb && fb !== fn) {
+    try { return await fb(prompt, refs, opts); } catch (e2) { lastErr = e2; }
   }
   throw lastErr;
 }

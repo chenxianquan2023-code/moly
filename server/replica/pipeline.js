@@ -1525,8 +1525,10 @@ export async function runReplicaPipeline(task, ctx) {
             c = await image.generate(genPrompt, genRefs, { aspectRatio: '9:16', provider: opts.models?.image });
           } catch (e1) {
             const m1 = String(e1.message || e1);
-            // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次
-            if (/safety|rejected|敏感|sensitive|policy|blocked/i.test(m1)) {
+            // 安全系统拦截（贴身/敏感品常见）→ 换中性措辞、仅用商品图重试一次。
+            // "未返回图片/空响应"也并入：Gemini 出图被安全层静默拒绝时往往不报 safety、直接回空，
+            // 旧正则漏判 → 直接降级失败(正是 2026-06-24 5 镜全废的现象)；这里也给它一次中性重试。
+            if (/safety|rejected|敏感|sensitive|policy|blocked|prohibited|未返回图片|空响应|empty/i.test(m1)) {
               const safePrompt = isAnonymous
                 ? `电商带货竖版匿名试用图(9:16)：${s.visual}。${anonymousSubjectRule(s, productText, sourceShot)}不含裸露或敏感内容；商品与参考图一致、清晰，真实生活化试用场景。${qualityCue}。`
                 : `电商带货竖版产品静物图(9:16)：${s.visual}。仅展示商品本身，构图干净、背景明亮整洁、得体专业，不含任何人物裸露或敏感内容。商品与参考图一致、清晰、光线明亮、电商质感。${qualityCue}。`;
@@ -1610,8 +1612,15 @@ export async function runReplicaPipeline(task, ctx) {
       return vp;
     };
 
-    // 阶段一：先并行出全部底图（Gemini 出图，互不干扰、快）
-    const animBases = await Promise.all(scenes.map((_, i) => makeSceneImage(i)));
+    // 阶段一：先出全部底图（Gemini 出图）。限并发(默认5)：旧的无界 Promise.all 在 10+ 镜时
+    // 会一次性把全部请求砸向 ezmodel 网关，自己把尾延迟/限流压出来(实测8并发尾延迟已到34s)，
+    // 反而更易触发上游抽风。限到 5 既快又稳；≤5 镜行为不变。
+    const IMAGE_CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY) || 5;
+    const animBases = new Array(scenes.length);
+    let nextImg = 0;
+    await Promise.all(Array.from({ length: Math.min(IMAGE_CONCURRENCY, scenes.length) }, async () => {
+      while (nextImg < scenes.length) { const i = nextImg++; animBases[i] = await makeSceneImage(i); }
+    }));
     // 阶段二：底图都好了再跑视频动画。fal 喂 URL、不跨境上传、实测并行(2条总耗时≈单条)，
     // 所以把所有镜头一次性丢给 fal 并行跑 → 视频阶段从"N批×2分钟"压到"≈1条2分钟"，整片提速一半。
     // (旧值 2 是可灵时代防上传挤爆用的，fal 无此问题。可灵兜底虽串行但已退居其次。)
@@ -1647,10 +1656,14 @@ export async function runReplicaPipeline(task, ctx) {
       // 视频引擎因余额耗尽全军覆没 → 熔断，让后续请求在 preflight 处秒拒，别再让人白等十几分钟
       if (!usedAI && noBalance) tripVideoBreaker();
       if (noBalance) {
+        // 管理员收到真话(去充值)，但用户只看友好提示——别把"充值/联系管理员"这种内部动作甩给顾客
         notifyAdmin(`${what}没额度了`, `${what === '视频模型' ? '视频引擎(fal 主 / 可灵兜底)' : '出图/文案(ezmodel)'}余额耗尽，已有用户生成被中止并退款。请尽快充值。`);
-        throw new Error(`${what}没额度了，请联系管理员充值。本次积分已自动退还。`);
+        throw new Error('生成服务暂时繁忙，本条已中止、积分已全额退还，请稍后重试。');
       }
-      throw new Error(`${what}暂时不可用，已中止生成。请稍后重试或联系管理员处理，本次积分已自动退还。`);
+      // 非欠费(出图空响应/超时/上游抽风)：以前这条静默 throw、你收不到任何告警，只能等用户截图。
+      // 现在也推一条飞书告警，带最近几条 notes 方便你判断是上游抽风还是内容安全。
+      notifyAdmin(`${what}连续失败`, `${what}多次失败致用户生成被中止并退款(非欠费，疑似上游抽风/超时/空响应或内容安全)。近因: ${notes.slice(-4).join(' | ').slice(0, 200)}`);
+      throw new Error('生成服务刚才有点忙，本条没出成、积分已全额退还，歇一两分钟点「重新生成」通常就好。');
     }
     clearVideoBreaker(); // 走到这=本次视频引擎正常出片 → 解除熔断（充值后自愈）
     await setStep(3, { status: usedAI ? 'succeeded' : 'skipped', note: usedAI ? `视频源: ${usedProvider}` : '降级:静态画面' });
@@ -1802,6 +1815,14 @@ export async function runReplicaPipeline(task, ctx) {
   } catch (e) {
     // 失败时把诊断 notes 挂到错误上，让任务运行器存进 DB——否则一抛错 notes 就丢了，失败成黑盒
     try { if (e && Array.isArray(notes)) e.notes = notes.slice(-15); } catch { /* ignore */ }
+    // 给错误派生一个机器可读 code，前端据此决定提示文案与按钮：
+    //  CONTENT=内容/审核类(同样输入重试也会失败→引导换图/改描述)；RETRY=瞬时/繁忙(歇会儿重试即可)
+    try {
+      if (e && !e.code) {
+        const m = String(e.message || e);
+        e.code = /审核|安全|敏感|暴露|身体|违规|safety|prohibited|policy|blocked/i.test(m) ? 'CONTENT' : 'RETRY';
+      }
+    } catch { /* ignore */ }
     throw e;
   } finally {
     try { rmSync(work, { recursive: true, force: true }); } catch {}

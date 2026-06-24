@@ -10,11 +10,14 @@ const API_KEY = process.env.GEMINI_API_KEY || '';
 const BASE_URL = process.env.GEMINI_BASE_URL || 'https://www.ezmodel.cloud';
 const ANALYSIS_MODEL = process.env.GEMINI_ANALYSIS_MODEL || 'gemini-3.1-flash-image-preview';
 const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image-preview';
+// 单次请求超时：旧值 600000(10分钟)会把上游一次抽风放大成"用户干等十几分钟卡死"。
+// 出图正常 15~35s，给 90s 已很宽裕；超了就快速失败→交给 image.js 的重试/跨厂商兜底，绝不再长时间挂起。
+const TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS) || 90000;
 
 let _client;
 function client() {
   if (!API_KEY) throw new Error('缺少 GEMINI_API_KEY');
-  if (!_client) _client = new GoogleGenAI({ apiKey: API_KEY, httpOptions: { baseUrl: BASE_URL, timeout: 600000 } });
+  if (!_client) _client = new GoogleGenAI({ apiKey: API_KEY, httpOptions: { baseUrl: BASE_URL, timeout: TIMEOUT_MS } });
   return _client;
 }
 
