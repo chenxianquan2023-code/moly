@@ -556,6 +556,53 @@ export function snapToBeats(durations, beats, { minScene = 1.8, tolerance = 0.5,
   return out;
 }
 
+// 从源视频音轨提取背景乐：循环铺满到成片时长、统一音量(0.9)、结尾淡出。返回 bgm 路径或 null。
+// WS1：不再依赖 ttsOk——有无配音都提取，最终音量由下面的混音阶段决定（治"有配音=全程死寂"）。
+async function extractSourceBgm({ work, totalDur, notes }) {
+  if (!existsSync(join(work, 'src.mp4'))) return null;
+  const bgmPath = join(work, 'bgm.mp3');
+  const fadeSt = Math.max(0, totalDur - 1).toFixed(2);
+  try {
+    // -stream_loop -1：源音乐比成片短就循环铺满，保证覆盖全片、不被 -shortest 砍尾
+    // loudnorm 归一到 -16 LUFS：源音乐忽大忽小时也有一致的可听响度，配音停顿处才填得满死寂(已实测)
+    await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(totalDur),
+      '-af', `loudnorm=I=-16:TP=-1.5,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+    return bgmPath;
+  } catch (e) { notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); return null; }
+}
+
+// 把人声铺满成片时长(WS2 防 -shortest 砍掉后段镜头)，再与 BGM 混音：
+// BGM 经 sidechaincompress ducking——人声响时自动下潜、人声停顿时回升填补死寂(WS1/WS5)。
+// 降级链：ducking → 固定压低 amix → 纯人声。返回最终音轨路径。
+async function buildMixedAudio({ work, voicePath, bgmPath, totalDur, bedVolume = 0.7, notes }) {
+  // 人声末尾补静音垫满到成片时长，保证 addAudio -shortest 不会砍掉最后的镜头
+  let voiceFinal = voicePath;
+  try {
+    const vp = join(work, 'voice_pad.mp3');
+    await ff.ffmpeg(['-y', '-i', voicePath, '-af', `apad,atrim=0:${totalDur.toFixed(3)}`, '-c:a', 'mp3', vp]);
+    voiceFinal = vp;
+  } catch { /* 补齐失败用原人声 */ }
+  if (!bgmPath) return voiceFinal;
+  const fmt = 'aformat=sample_rates=44100:channel_layouts=stereo';
+  const mixed = join(work, 'mixed.mp3');
+  // 首选：ducking 混音（人声驱动 BGM 下潜，停顿处 BGM 回升）
+  try {
+    // voice 必须 asplit 成两路：一路触发 sidechain ducking、一路进最终 amix(同一标签不能消费两次)
+    await ff.ffmpeg(['-y', '-i', voiceFinal, '-i', bgmPath, '-filter_complex',
+      `[0:a]${fmt},asplit=2[v1][v2];[1:a]${fmt},volume=${bedVolume}[bg];[bg][v1]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=300[duck];[v2][duck]amix=inputs=2:duration=longest:normalize=0[a]`,
+      '-map', '[a]', '-c:a', 'mp3', mixed]);
+    notes.push('配音 + 背景乐(ducking)');
+    return mixed;
+  } catch { /* 降级固定压低 */ }
+  try {
+    await ff.ffmpeg(['-y', '-i', voiceFinal, '-i', bgmPath, '-filter_complex',
+      `[0:a]${fmt}[v];[1:a]${fmt},volume=${bedVolume}[bg];[v][bg]amix=inputs=2:duration=longest:normalize=0[a]`,
+      '-map', '[a]', '-c:a', 'mp3', mixed]);
+    notes.push('配音 + 背景乐(固定压低)');
+    return mixed;
+  } catch { notes.push('混音失败,纯配音'); return voiceFinal; }
+}
+
 /**
  * 合成成片：纯 ffmpeg（裁剪+拼接+字幕+背景乐+配音+淡出+封面），不含 AI、不上传。
  * 返回本地路径，便于离线测试 + 复用于"换单镜/重做"的重新合成。
@@ -585,15 +632,11 @@ export async function composeVideo({ work, scenes, sceneDurations, sceneClips, s
   }).join('\n');
   writeFileSync(join(work, 'subs.srt'), srt);
 
+  const totalDur = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
+  // 背景乐：取源视频音轨循环铺满全片。WS1——去掉旧的 !ttsOk 短路，有无配音都铺，音量交给混音阶段。
   let bgmPath = null;
-  if (opts.generate_music !== false && !ttsOk && existsSync(join(work, 'src.mp4'))) {
-    try {
-      const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
-      bgmPath = join(work, 'bgm.mp3');
-      const fadeSt = Math.max(0, total - 1).toFixed(2);
-      // -stream_loop -1：源音乐若比成片短就循环铺满，保证覆盖全片，不被 -shortest 砍尾
-      await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
-    } catch (e) { bgmPath = null; notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
+  if (opts.generate_music !== false && opts.bgmMode !== 'never') {
+    bgmPath = await extractSourceBgm({ work, totalDur, notes });
   }
 
   let staged = concatPath;
@@ -609,16 +652,8 @@ export async function composeVideo({ work, scenes, sceneDurations, sceneClips, s
     const voice = join(work, 'voice.mp3');
     await ff.ffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', alist, '-c', 'copy', voice]);
     const av = join(work, 'av.mp4');
-    if (bgmPath) {
-      const mixed = join(work, 'mixed.mp3');
-      try {
-        await ff.ffmpeg(['-y', '-i', voice, '-i', bgmPath, '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]', '-map', '[a]', '-c:a', 'mp3', mixed]);
-        await ff.addAudio(concatPath, mixed, av);
-        notes.push('配音 + 源视频背景乐');
-      } catch { await ff.addAudio(concatPath, voice, av); }
-    } else {
-      await ff.addAudio(concatPath, voice, av);
-    }
+    const mixedAudio = await buildMixedAudio({ work, voicePath: voice, bgmPath, totalDur, notes });
+    await ff.addAudio(concatPath, mixedAudio, av);
     staged = av;
   } else if (bgmPath) {
     const av = join(work, 'av_bgm.mp4');
@@ -1705,16 +1740,11 @@ export async function runReplicaPipeline(task, ctx) {
     }).join('\n');
     writeFileSync(join(work, 'subs.srt'), srt);
 
-    // 背景乐：开了「背景音乐」且有参考源视频时，取源视频音轨（有配音则压低做轻背景乐、淡出）
+    const totalDur = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
+    // 背景乐：取源视频音轨循环铺满全片。WS1——去掉旧的 !ttsOk 短路，有无配音都铺，音量交给混音阶段。
     let bgmPath = null;
-    if (opts.generate_music !== false && !ttsOk && existsSync(join(work, 'src.mp4'))) {
-      try {
-        const total = (await ff.probe(concatPath)).duration || sceneDurations.reduce((a, b) => a + (b || 0), 0) || 8;
-        bgmPath = join(work, 'bgm.mp3');
-        const fadeSt = Math.max(0, total - 1).toFixed(2);
-        // -stream_loop -1：源音乐若比成片短就循环铺满，保证背景乐覆盖全片，视频不会被 -shortest 砍尾
-        await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(total), '-af', `volume=${ttsOk ? 0.22 : 0.9},afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
-      } catch (e) { bgmPath = null; notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); }
+    if (opts.generate_music !== false && opts.bgmMode !== 'never') {
+      bgmPath = await extractSourceBgm({ work, totalDur, notes });
     }
 
     let staged = concatPath;
@@ -1730,17 +1760,8 @@ export async function runReplicaPipeline(task, ctx) {
       const voice = join(work, 'voice.mp3');
       await ff.ffmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', alist, '-c', 'copy', voice]);
       const av = join(work, 'av.mp4');
-      if (bgmPath) {
-        // 配音 + 背景乐混音（配音为主，背景乐已压低；normalize=0 不自动衰减人声）
-        const mixed = join(work, 'mixed.mp3');
-        try {
-          await ff.ffmpeg(['-y', '-i', voice, '-i', bgmPath, '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]', '-map', '[a]', '-c:a', 'mp3', mixed]);
-          await ff.addAudio(concatPath, mixed, av);
-          notes.push('配音 + 源视频背景乐');
-        } catch { await ff.addAudio(concatPath, voice, av); }
-      } else {
-        await ff.addAudio(concatPath, voice, av);
-      }
+      const mixedAudio = await buildMixedAudio({ work, voicePath: voice, bgmPath, totalDur, notes });
+      await ff.addAudio(concatPath, mixedAudio, av);
       staged = av;
     } else if (bgmPath) {
       const av = join(work, 'av_bgm.mp4');
