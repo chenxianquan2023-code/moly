@@ -102,6 +102,25 @@ create table if not exists public.face_consents (
 );
 create index if not exists idx_face_consents_user on public.face_consents(user_email);
 
+-- WS4：内置免版税 BGM 曲库（Pixabay CC0 / Mixkit 等，合规可商用；license 字段可追溯备平台审核）
+create table if not exists public.bgm_library (
+  id            uuid primary key default gen_random_uuid(),
+  title         text not null,
+  artist        text,
+  mood          text[] not null default '{}',   -- 活力/温暖/激励/治愈/科技
+  genre         text,
+  tempo_bpm     int,
+  duration      numeric,
+  measured_lufs numeric,                         -- 入库时离线测；运行时据此归一(混音前)
+  license_type  text not null,                   -- 'pixabay_cc0' | 'mixkit'
+  source_url    text,
+  attribution   text,
+  file_url      text not null,                   -- Supabase storage /bgm-library/
+  active        boolean not null default true,
+  created_at    timestamptz not null default now()
+);
+create index if not exists idx_bgm_library_active on public.bgm_library(active);
+
 -- 自动维护 updated_at
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
@@ -125,3 +144,4 @@ alter table public.video_analysis    enable row level security;
 alter table public.generation_tasks  enable row level security;
 alter table public.generated_videos  enable row level security;
 alter table public.face_consents     enable row level security;
+alter table public.bgm_library       enable row level security;

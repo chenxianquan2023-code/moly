@@ -559,16 +559,33 @@ export function snapToBeats(durations, beats, { minScene = 1.8, tolerance = 0.5,
 // 从源视频音轨提取背景乐：循环铺满到成片时长、统一音量(0.9)、结尾淡出。返回 bgm 路径或 null。
 // WS1：不再依赖 ttsOk——有无配音都提取，最终音量由下面的混音阶段决定（治"有配音=全程死寂"）。
 async function extractSourceBgm({ work, totalDur, notes }) {
-  if (!existsSync(join(work, 'src.mp4'))) return null;
+  // BGM 源优先级(WS4)：用户上传/库选曲(已预下载为 bgm_custom.*) > 源视频音轨
+  const custom = ['mp3', 'wav', 'm4a', 'aac', 'ogg'].map((e) => join(work, `bgm_custom.${e}`)).find((p) => existsSync(p));
+  const input = custom || (existsSync(join(work, 'src.mp4')) ? join(work, 'src.mp4') : null);
+  if (!input) return null;
   const bgmPath = join(work, 'bgm.mp3');
   const fadeSt = Math.max(0, totalDur - 1).toFixed(2);
   try {
-    // -stream_loop -1：源音乐比成片短就循环铺满，保证覆盖全片、不被 -shortest 砍尾
-    // loudnorm 归一到 -16 LUFS：源音乐忽大忽小时也有一致的可听响度，配音停顿处才填得满死寂(已实测)
-    await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', join(work, 'src.mp4'), '-vn', '-t', String(totalDur),
+    // -stream_loop -1 循环铺满全片(不被 -shortest 砍尾)；loudnorm 归一到 -16 LUFS(忽大忽小也填得满死寂,已实测)
+    await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', input, '-vn', '-t', String(totalDur),
       '-af', `loudnorm=I=-16:TP=-1.5,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+    if (custom) notes.push('背景乐：用户自选/上传曲库');
     return bgmPath;
   } catch (e) { notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); return null; }
+}
+
+// WS4：把用户上传(custom_bgm_asset_id)或库选曲(bgm_library_id)的 BGM 预下载到 work/bgm_custom.*，
+// 供 extractSourceBgm 优先取用。未选/失败则静默回退源视频音轨，绝不阻断生成。
+async function resolveCustomBgm({ work, opts, notes }) {
+  if (opts.generate_music === false || opts.bgmMode === 'never') return;
+  try {
+    let url = null;
+    if (opts.custom_bgm_asset_id) url = (await getById('assets', opts.custom_bgm_asset_id))?.file_url || null;
+    else if (opts.bgm_library_id) url = (await getById('bgm_library', opts.bgm_library_id))?.file_url || null;
+    if (!url) return;
+    const ext = (url.split('?')[0].match(/\.(mp3|wav|m4a|aac|ogg)$/i)?.[1] || 'mp3').toLowerCase();
+    await download(url, join(work, `bgm_custom.${ext}`));
+  } catch (e) { notes.push('自选BGM下载失败,回退源音乐: ' + String(e.message || e).split('\n')[0].slice(0, 40)); }
 }
 
 // 把人声铺满成片时长(WS2 防 -shortest 砍掉后段镜头)，再与 BGM 混音：
@@ -711,6 +728,8 @@ export async function runReplicaPipeline(task, ctx) {
     const input = task.input_json || {};
     const opts = task.options_json || {};
     const assets = input.assets || {};
+    // WS4：用户上传/库选曲的 BGM 预下载到 work（供后面合成时 extractSourceBgm 优先取用，早于任何 compose）
+    await resolveCustomBgm({ work, opts, notes });
     const product = input.product || {};
     // 换单镜：input.regen = { origTaskId, sceneIndex }。从原任务 output_json 取回每镜底图/动画片缓存，
     // 只重生 sceneIndex 那一镜，其余镜直接复用缓存（不重跑解析/导演/出图/视频引擎），再整体重新合成。

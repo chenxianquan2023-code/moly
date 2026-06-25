@@ -24,7 +24,7 @@ const BETA_DENY = '内测阶段仅向受邀账号开放，如需试用请联系�
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // PRD: ≤200MB
 
-const ASSET_TYPES = ['product_image', 'outfit_image', 'model_image', 'face_image', 'pose_reference', 'source_video'];
+const ASSET_TYPES = ['product_image', 'outfit_image', 'model_image', 'face_image', 'pose_reference', 'source_video', 'bgm_audio'];
 const MIN_CREATIVE_PROMPT_LENGTH = 6;
 
 export const replicaRouter = Router();
@@ -240,6 +240,14 @@ ${sceneRule}
   } finally {
     if (work) { try { rmSync(work, { recursive: true, force: true }); } catch { /* ignore */ } }
   }
+});
+
+// GET /api/replica/bgm-library —— 内置免版税曲库列表(前端选曲器用；曲库为空时返回空数组不报错)
+replicaRouter.get('/replica/bgm-library', async (req, res) => {
+  try {
+    const tracks = await selectRows('bgm_library', 'active=eq.true&order=created_at.desc&select=id,title,artist,mood,genre,tempo_bpm,duration,license_type,attribution,file_url');
+    res.json({ success: true, tracks: tracks || [] });
+  } catch (e) { res.status(500).json({ success: false, message: e.message || 'BGM 库读取失败', tracks: [] }); }
 });
 
 // ── 一键复刻 ──────────────────────────────────────────────────
