@@ -767,7 +767,7 @@ async function fetchTrending() {
   fetchingTrending.value = true;
   bgmTab.value = 'trending';
   try {
-    const r = await fetch('/api/replica/bgm-fetch-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) });
+    const r = await fetch('/api/replica/bgm-fetch-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw, userEmail: auth.email }) });
     const j = await safeJson(r);
     if (j.success) { await refreshBgmLibrary(); if (!j.added) alert('这批没抓到新爆款，点「🔥 刷新爆款」再来一次或换个关键词'); }
     else alert(j.message || '抓取失败');
