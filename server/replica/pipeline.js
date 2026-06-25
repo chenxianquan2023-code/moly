@@ -558,18 +558,28 @@ export function snapToBeats(durations, beats, { minScene = 1.8, tolerance = 0.5,
 
 // 从源视频音轨提取背景乐：循环铺满到成片时长、统一音量(0.9)、结尾淡出。返回 bgm 路径或 null。
 // WS1：不再依赖 ttsOk——有无配音都提取，最终音量由下面的混音阶段决定（治"有配音=全程死寂"）。
-async function extractSourceBgm({ work, totalDur, notes }) {
+async function extractSourceBgm({ work, totalDur, notes, stripVocals = false }) {
   // BGM 源优先级(WS4)：用户上传/库选曲(已预下载为 bgm_custom.*) > 源视频音轨
   const custom = ['mp3', 'wav', 'm4a', 'aac', 'ogg'].map((e) => join(work, `bgm_custom.${e}`)).find((p) => existsSync(p));
   const input = custom || (existsSync(join(work, 'src.mp4')) ? join(work, 'src.mp4') : null);
   if (!input) return null;
   const bgmPath = join(work, 'bgm.mp3');
   const fadeSt = Math.max(0, totalDur - 1).toFixed(2);
+  // 人声削减(卡拉OK式)：仅对「源视频音轨」(非用户上传/库曲)且为立体声时做——立体声里人声多在中置，
+  // L-R 差分可削掉中置人声、保留两侧音乐(让爆款音乐 + 你的AI配音不打架)。单声道做差会变静音，必须跳过。
+  let karaoke = '';
+  if (stripVocals && !custom) {
+    let ch = 1;
+    try { ch = (await ff.probe(input)).raw?.streams?.find((s) => s.codec_type === 'audio')?.channels || 1; } catch { ch = 1; }
+    if (ch >= 2) karaoke = 'pan=stereo|c0=c0-c1|c1=c1-c0,';
+    else notes.push('源音轨为单声道，无法削减原口播，保留原声');
+  }
   try {
     // -stream_loop -1 循环铺满全片(不被 -shortest 砍尾)；loudnorm 归一到 -16 LUFS(忽大忽小也填得满死寂,已实测)
     await ff.ffmpeg(['-y', '-stream_loop', '-1', '-i', input, '-vn', '-t', String(totalDur),
-      '-af', `loudnorm=I=-16:TP=-1.5,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
+      '-af', `${karaoke}loudnorm=I=-16:TP=-1.5,afade=t=out:st=${fadeSt}:d=1`, '-c:a', 'mp3', bgmPath]);
     if (custom) notes.push('背景乐：用户自选/上传曲库');
+    else if (karaoke) notes.push('背景乐：源视频音轨(已削减原口播)');
     return bgmPath;
   } catch (e) { notes.push('背景乐降级: ' + String(e.message || e).split('\n')[0].slice(0, 50)); return null; }
 }
@@ -653,7 +663,7 @@ export async function composeVideo({ work, scenes, sceneDurations, sceneClips, s
   // 背景乐：取源视频音轨循环铺满全片。WS1——去掉旧的 !ttsOk 短路，有无配音都铺，音量交给混音阶段。
   let bgmPath = null;
   if (opts.generate_music !== false && opts.bgmMode !== 'never') {
-    bgmPath = await extractSourceBgm({ work, totalDur, notes });
+    bgmPath = await extractSourceBgm({ work, totalDur, notes, stripVocals: opts.stripVocals !== false && ttsOk });
   }
 
   let staged = concatPath;
@@ -1770,7 +1780,7 @@ export async function runReplicaPipeline(task, ctx) {
     // 背景乐：取源视频音轨循环铺满全片。WS1——去掉旧的 !ttsOk 短路，有无配音都铺，音量交给混音阶段。
     let bgmPath = null;
     if (opts.generate_music !== false && opts.bgmMode !== 'never') {
-      bgmPath = await extractSourceBgm({ work, totalDur, notes });
+      bgmPath = await extractSourceBgm({ work, totalDur, notes, stripVocals: opts.stripVocals !== false && ttsOk });
     }
 
     let staged = concatPath;

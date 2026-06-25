@@ -268,6 +268,7 @@
                   <span class="vt-name">{{ customBgmAsset ? ('♪ ' + customBgmAsset.name) : '点此上传 mp3/wav（≤10MB）' }}</span>
                   <input type="file" accept="audio/*" @change="uploadBgm" hidden />
                 </label>
+                <label v-if="bgmSource === 'source' && generateVoice" class="bgm-opt bgm-strip"><input type="checkbox" v-model="stripSourceVocals" /><span />去掉源视频原声（只留音乐，去掉博主说话；立体声才生效）</label>
               </div>
               <!-- WS7：配音/背景乐提示词（AI 建议预填、可改可空） -->
               <div v-if="generateVoice" class="voice-pick audio-prompt">
@@ -416,17 +417,20 @@
       </div>
     </div>
 
-    <!-- WS4：背景乐选曲器 -->
+    <!-- WS4：背景乐选曲器（复用音色卡片布局 vp-grid/vp-card） -->
     <div v-if="showBgmPicker" class="vp-mask" @click.self="showBgmPicker = false">
       <div class="vp-modal">
         <div class="vp-head"><b>选择背景音乐</b><button type="button" class="vp-x" @click="showBgmPicker = false">×</button></div>
         <p v-if="!bgmLibrary.length" class="vp-empty">曲库即将上线 🎵 现在可改用「上传我的」，放你自己的背景音乐。</p>
-        <div v-else class="vp-list">
-          <div v-for="t in bgmLibrary" :key="t.id" class="vp-item" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
-            <span class="vp-name">♪ {{ t.title }}</span>
-            <span class="vp-desc">{{ (t.mood || []).join('/') }}<template v-if="t.license_type"> · {{ t.license_type }}</template></span>
-            <span class="vp-play" title="试听" @click.stop="auditionBgm(t)">▶</span>
-          </div>
+        <div v-else class="vp-grid">
+          <button v-for="t in bgmLibrary" :key="t.id" type="button" class="vp-card" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
+            <span class="vp-card-top">
+              <span class="vp-gender f">♪</span>
+              <span class="vp-play" title="试听" @click.stop="auditionBgm(t)">▶</span>
+            </span>
+            <span class="vp-card-name">{{ t.title }}</span>
+            <span class="vp-card-desc">{{ (t.mood || []).join('/') }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -650,6 +654,7 @@ const generateMusic = ref(true); // 背景乐总开关（WS1 后可与 AI 配音
 const language = ref('zh-CN');
 // WS4 背景乐：来源 source(跟源视频)/library(曲库)/upload(上传) + 上传素材 + 选中曲库曲 + 曲库列表
 const bgmSource = ref('source');
+const stripSourceVocals = ref(true); // 跟源视频时默认削掉原博主说话、只留音乐(立体声才生效)
 const customBgmAsset = ref<any>(null);
 const selectedBgmTrack = ref<any>(null);
 const bgmLibrary = ref<any[]>([]);
@@ -1053,7 +1058,7 @@ function buildGenBody(sourceVideoId: any) {
       model_image_id: modelAsset.value?.id || null,
     },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, custom_bgm_asset_id: (generateMusic.value && bgmSource.value === 'upload') ? customBgmAsset.value?.id : undefined, bgm_library_id: (generateMusic.value && bgmSource.value === 'library') ? selectedBgmTrack.value?.id : undefined, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim(), voicePrompt: (generateVoice.value && voicePromptText.value.trim()) ? voicePromptText.value.trim() : undefined, bgmPrompt: (generateMusic.value && bgmPromptText.value.trim()) ? bgmPromptText.value.trim() : undefined },
+    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, custom_bgm_asset_id: (generateMusic.value && bgmSource.value === 'upload') ? customBgmAsset.value?.id : undefined, bgm_library_id: (generateMusic.value && bgmSource.value === 'library') ? selectedBgmTrack.value?.id : undefined, stripVocals: bgmSource.value === 'source' ? stripSourceVocals.value : undefined, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim(), voicePrompt: (generateVoice.value && voicePromptText.value.trim()) ? voicePromptText.value.trim() : undefined, bgmPrompt: (generateMusic.value && bgmPromptText.value.trim()) ? bgmPromptText.value.trim() : undefined },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
