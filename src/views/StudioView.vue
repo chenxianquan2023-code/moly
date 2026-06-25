@@ -418,15 +418,20 @@
     </div>
 
     <!-- WS4：背景乐选曲器（复用音色卡片布局 vp-grid/vp-card） -->
-    <div v-if="showBgmPicker" class="vp-mask" @click.self="showBgmPicker = false">
+    <div v-if="showBgmPicker" class="vp-mask" @click.self="closeBgmPicker">
       <div class="vp-modal">
-        <div class="vp-head"><b>选择背景音乐</b><button type="button" class="vp-x" @click="showBgmPicker = false">×</button></div>
-        <p v-if="!bgmLibrary.length" class="vp-empty">曲库即将上线 🎵 现在可改用「上传我的」，放你自己的背景音乐。</p>
+        <div class="vp-head"><b>选择背景音乐</b><button type="button" class="vp-x" @click="closeBgmPicker">×</button></div>
+        <div class="vp-trending">
+          <input v-model="trendingKeyword" class="vp-search" placeholder="输入关键词找爆款音乐，如 好物 / 美妆 / 穿搭…" @keyup.enter="fetchTrending" />
+          <button type="button" class="vp-done" :disabled="fetchingTrending" @click="fetchTrending">{{ fetchingTrending ? '抓取中…' : '🔥 找爆款' }}</button>
+        </div>
+        <p v-if="fetchingTrending" class="vp-tip">正在去 TikTok 抓「{{ trendingKeyword }}」的热门音乐，约 30–90 秒，请稍候…</p>
+        <p v-if="!bgmLibrary.length" class="vp-empty">还没有曲子 🎵 上面输入关键词点「找爆款」抓一批，或改用「上传我的」。</p>
         <div v-else class="vp-grid">
           <button v-for="t in bgmLibrary" :key="t.id" type="button" class="vp-card" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
             <span class="vp-card-top">
               <span class="vp-gender f">♪</span>
-              <span class="vp-play" title="试听" @click.stop="auditionBgm(t)">▶</span>
+              <span class="vp-play" title="试听/停止" @click.stop="auditionBgm(t)">{{ playingBgmId === t.id ? '⏸' : '▶' }}</span>
             </span>
             <span class="vp-card-name">{{ t.title }}</span>
             <span class="vp-card-desc">{{ (t.mood || []).join('/') }}</span>
@@ -660,6 +665,9 @@ const selectedBgmTrack = ref<any>(null);
 const bgmLibrary = ref<any[]>([]);
 const showBgmPicker = ref(false);
 let _bgmAudio: HTMLAudioElement | null = null;
+const playingBgmId = ref('');        // 当前试听中的曲 id（▶/⏸ 切换 + 防一直播放）
+const trendingKeyword = ref('');     // 「找爆款」关键词
+const fetchingTrending = ref(false);
 // WS7 音频提示词（AI 建议预填、用户可写 → 后端据此调口播语气/选曲）
 const voicePromptText = ref('');
 const bgmPromptText = ref('');
@@ -721,12 +729,36 @@ function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; 
 // WS4 背景乐选曲/上传/试听
 async function openBgmPicker() {
   showBgmPicker.value = true;
-  if (!bgmLibrary.value.length) {
-    try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { bgmLibrary.value = []; }
-  }
+  if (!bgmLibrary.value.length) await refreshBgmLibrary();
 }
-function selectBgmTrack(t: any) { selectedBgmTrack.value = t; bgmSource.value = 'library'; showBgmPicker.value = false; }
-function auditionBgm(t: any) { try { if (_bgmAudio) _bgmAudio.pause(); _bgmAudio = new Audio(t.file_url); _bgmAudio.play(); } catch { /* 忽略试听失败 */ } }
+async function refreshBgmLibrary() {
+  try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { /* 保留旧列表 */ }
+}
+function stopBgmAudio() { if (_bgmAudio) { _bgmAudio.pause(); _bgmAudio = null; } playingBgmId.value = ''; }
+function closeBgmPicker() { stopBgmAudio(); showBgmPicker.value = false; }
+function selectBgmTrack(t: any) { stopBgmAudio(); selectedBgmTrack.value = t; bgmSource.value = 'library'; showBgmPicker.value = false; }
+function auditionBgm(t: any) {
+  if (_bgmAudio && playingBgmId.value === t.id) { stopBgmAudio(); return; } // 再点同一首=停止
+  stopBgmAudio();
+  try {
+    _bgmAudio = new Audio(t.file_url);
+    playingBgmId.value = t.id;
+    _bgmAudio.onended = () => { playingBgmId.value = ''; };
+    _bgmAudio.play().catch(() => { playingBgmId.value = ''; });
+  } catch { playingBgmId.value = ''; }
+}
+async function fetchTrending() {
+  const kw = trendingKeyword.value.trim();
+  if (!kw || fetchingTrending.value) return;
+  fetchingTrending.value = true;
+  try {
+    const r = await fetch('/api/replica/bgm-fetch-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) });
+    const j = await safeJson(r);
+    if (j.success) { await refreshBgmLibrary(); if (!j.added) alert('没抓到新的热门曲，换个关键词再试'); }
+    else alert(j.message || '抓取失败');
+  } catch { alert('抓取失败，请重试'); }
+  finally { fetchingTrending.value = false; }
+}
 async function uploadBgm(e: Event) {
   const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
   if (f.size > 10 * 1024 * 1024) { alert('背景音乐最大 10MB'); return; }
@@ -1736,6 +1768,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .audio-prompt .ap-hint { font-weight:400; font-size:11px; color:var(--color-text-tertiary); }
 .ap-input { width:100%; padding:9px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); font-size:13px; line-height:1.5; resize:vertical; font-family:inherit; background:#fff; box-sizing:border-box; }
 .ap-input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+.vp-trending { display:flex; gap:8px; margin-bottom:10px; }
+.vp-trending .vp-search { flex:1; margin:0; }
+.vp-tip { font-size:12px; color:var(--color-text-tertiary); margin:0 0 8px; }
 .voice-trigger {
   display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px; text-align:left;
   border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.85);

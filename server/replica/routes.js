@@ -256,6 +256,18 @@ replicaRouter.get('/replica/bgm-library', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message || 'BGM 库读取失败', tracks: [] }); }
 });
 
+// POST /api/replica/bgm-fetch-trending —— 按关键词现场抓 TikTok 热门 sound 入曲库(Apify，约 30-90s)
+replicaRouter.post('/replica/bgm-fetch-trending', async (req, res) => {
+  try {
+    const email = getEmail(req, res); if (!email) return;
+    const keyword = String(req.body?.keyword || '').trim();
+    if (!keyword) return res.status(400).json({ success: false, message: '请输入关键词' });
+    const { fetchTrendingToLibrary } = await import('./bgmTrending.js');
+    const r = await fetchTrendingToLibrary(keyword, { max: 8 });
+    res.json({ success: true, added: r.added, tracks: r.tracks });
+  } catch (e) { res.status(500).json({ success: false, message: e.message || '抓取失败' }); }
+});
+
 // ── 一键复刻 ──────────────────────────────────────────────────
 // POST /api/replica/generate
 replicaRouter.post('/replica/generate', async (req, res) => {
