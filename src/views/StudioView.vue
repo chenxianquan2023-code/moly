@@ -417,25 +417,31 @@
       </div>
     </div>
 
-    <!-- WS4：背景乐选曲器（复用音色卡片布局 vp-grid/vp-card） -->
-    <div v-if="showBgmPicker" class="vp-mask" @click.self="closeBgmPicker">
-      <div class="vp-modal">
-        <div class="vp-head"><b>选择背景音乐</b><button type="button" class="vp-x" @click="closeBgmPicker">×</button></div>
-        <div class="vp-trending">
-          <input v-model="trendingKeyword" class="vp-search" placeholder="输入关键词找爆款音乐，如 好物 / 美妆 / 穿搭…" @keyup.enter="fetchTrending" />
-          <button type="button" class="vp-done" :disabled="fetchingTrending" @click="fetchTrending">{{ fetchingTrending ? '抓取中…' : '🔥 找爆款' }}</button>
+    <!-- 背景乐选曲器（爆款榜 / 我的曲库 两个 Tab，打开默认显示爆款、可一键刷新） -->
+    <div v-if="showBgmPicker" class="bgm-mask" @click.self="closeBgmPicker">
+      <div class="bgm-modal">
+        <div class="bgm-head"><b>背景音乐</b><button type="button" class="bgm-x" @click="closeBgmPicker">×</button></div>
+        <div class="bgm-tabs">
+          <button type="button" :class="{ active: bgmTab === 'trending' }" @click="bgmTab = 'trending'">🔥 抖音爆款</button>
+          <button type="button" :class="{ active: bgmTab === 'library' }" @click="bgmTab = 'library'">🎵 我的曲库</button>
         </div>
-        <p v-if="fetchingTrending" class="vp-tip">正在去 TikTok 抓「{{ trendingKeyword }}」的热门音乐，约 30–90 秒，请稍候…</p>
-        <p v-if="!bgmLibrary.length" class="vp-empty">还没有曲子 🎵 上面输入关键词点「找爆款」抓一批，或改用「上传我的」。</p>
-        <div v-else class="vp-grid">
-          <button v-for="t in bgmLibrary" :key="t.id" type="button" class="vp-card" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
-            <span class="vp-card-top">
-              <span class="vp-gender f">♪</span>
-              <span class="vp-play" title="试听/停止" @click.stop="auditionBgm(t)">{{ playingBgmId === t.id ? '⏸' : '▶' }}</span>
-            </span>
-            <span class="vp-card-name">{{ t.title }}</span>
-            <span class="vp-card-desc">{{ (t.mood || []).join('/') }}</span>
-          </button>
+        <div class="bgm-bar">
+          <input v-model="trendingKeyword" placeholder="按风格找，如 好物 / 美妆 / 卡点…（留空＝当下热门）" @keyup.enter="fetchTrending" />
+          <button type="button" :disabled="fetchingTrending" @click="fetchTrending">{{ fetchingTrending ? '抓取中…' : '🔥 刷新爆款' }}</button>
+        </div>
+        <p v-if="fetchingTrending" class="bgm-loading">正在去 TikTok 抓最新爆款音乐，约 30–90 秒，请稍候…</p>
+        <div class="bgm-list">
+          <div v-for="t in shownTracks" :key="t.id" class="bgm-row" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
+            <button type="button" class="bgm-play" :class="{ playing: playingBgmId === t.id }" @click.stop="auditionBgm(t)">{{ playingBgmId === t.id ? '⏸' : '▶' }}</button>
+            <div class="bgm-meta">
+              <span class="bgm-title">{{ t.title }}</span>
+              <span class="bgm-sub">{{ t.artist || (t.mood || []).join(' / ') || '背景乐' }}</span>
+            </div>
+            <span v-if="t.license_type === 'tiktok_trending'" class="bgm-badge hot">🔥 爆款</span>
+            <span v-else class="bgm-badge">免版税</span>
+            <span v-if="selectedBgmTrack && selectedBgmTrack.id === t.id" class="bgm-check">✓</span>
+          </div>
+          <p v-if="!shownTracks.length && !fetchingTrending" class="bgm-empty">{{ bgmTab === 'trending' ? '还没抓爆款 — 点上面「🔥 刷新爆款」拉一批当下热门' : '曲库还没有曲子' }}</p>
         </div>
       </div>
     </div>
@@ -666,8 +672,11 @@ const bgmLibrary = ref<any[]>([]);
 const showBgmPicker = ref(false);
 let _bgmAudio: HTMLAudioElement | null = null;
 const playingBgmId = ref('');        // 当前试听中的曲 id（▶/⏸ 切换 + 防一直播放）
-const trendingKeyword = ref('');     // 「找爆款」关键词
+const trendingKeyword = ref('');     // 「找爆款」关键词（留空=默认热门）
 const fetchingTrending = ref(false);
+const bgmTab = ref('trending');      // 选曲器 Tab：trending(抖音爆款) / library(我的曲库)
+const shownTracks = computed(() => bgmLibrary.value.filter((t: any) =>
+  bgmTab.value === 'trending' ? t.license_type === 'tiktok_trending' : t.license_type !== 'tiktok_trending'));
 // WS7 音频提示词（AI 建议预填、用户可写 → 后端据此调口播语气/选曲）
 const voicePromptText = ref('');
 const bgmPromptText = ref('');
@@ -729,7 +738,10 @@ function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; 
 // WS4 背景乐选曲/上传/试听
 async function openBgmPicker() {
   showBgmPicker.value = true;
+  bgmTab.value = 'trending';
   if (!bgmLibrary.value.length) await refreshBgmLibrary();
+  // 打开就显示爆款：若库里还没有任何爆款，自动去抓一批(不用用户手动搜)
+  if (!bgmLibrary.value.some((t: any) => t.license_type === 'tiktok_trending') && !fetchingTrending.value) fetchTrending();
 }
 async function refreshBgmLibrary() {
   try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { /* 保留旧列表 */ }
@@ -747,14 +759,17 @@ function auditionBgm(t: any) {
     _bgmAudio.play().catch(() => { playingBgmId.value = ''; });
   } catch { playingBgmId.value = ''; }
 }
+const TRENDING_DEFAULTS = ['好物', '美妆', '穿搭', 'vlog', '卡点', 'viral'];
 async function fetchTrending() {
-  const kw = trendingKeyword.value.trim();
-  if (!kw || fetchingTrending.value) return;
+  if (fetchingTrending.value) return;
+  // 留空＝默认拉当下热门(随机一个泛词)，不强制用户输关键词
+  const kw = trendingKeyword.value.trim() || TRENDING_DEFAULTS[Math.floor(Math.random() * TRENDING_DEFAULTS.length)];
   fetchingTrending.value = true;
+  bgmTab.value = 'trending';
   try {
     const r = await fetch('/api/replica/bgm-fetch-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw }) });
     const j = await safeJson(r);
-    if (j.success) { await refreshBgmLibrary(); if (!j.added) alert('没抓到新的热门曲，换个关键词再试'); }
+    if (j.success) { await refreshBgmLibrary(); if (!j.added) alert('这批没抓到新爆款，点「🔥 刷新爆款」再来一次或换个关键词'); }
     else alert(j.message || '抓取失败');
   } catch { alert('抓取失败，请重试'); }
   finally { fetchingTrending.value = false; }
@@ -1768,9 +1783,34 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .audio-prompt .ap-hint { font-weight:400; font-size:11px; color:var(--color-text-tertiary); }
 .ap-input { width:100%; padding:9px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); font-size:13px; line-height:1.5; resize:vertical; font-family:inherit; background:#fff; box-sizing:border-box; }
 .ap-input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-.vp-trending { display:flex; gap:8px; margin-bottom:10px; }
-.vp-trending .vp-search { flex:1; margin:0; }
-.vp-tip { font-size:12px; color:var(--color-text-tertiary); margin:0 0 8px; }
+/* 背景乐选曲器（重做：爆款榜列表） */
+.bgm-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+.bgm-modal { width:min(560px,92vw); max-height:82vh; display:flex; flex-direction:column; background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(15,23,42,.5); overflow:hidden; }
+.bgm-head { display:flex; align-items:center; justify-content:space-between; padding:18px 22px 12px; }
+.bgm-head b { font-size:18px; }
+.bgm-x { width:32px; height:32px; border:none; border-radius:50%; background:#f1f5f9; font-size:18px; color:var(--color-text-secondary); cursor:pointer; }
+.bgm-tabs { display:flex; gap:8px; padding:0 22px; }
+.bgm-tabs button { flex:1; padding:9px 0; border:none; border-radius:10px; background:#f1f5f9; font-size:14px; font-weight:600; color:var(--color-text-secondary); cursor:pointer; transition:.15s; }
+.bgm-tabs button.active { background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; }
+.bgm-bar { display:flex; gap:8px; padding:14px 22px 10px; }
+.bgm-bar input { flex:1; min-width:0; padding:10px 14px; border:1px solid var(--color-border); border-radius:12px; font-size:13px; background:#fff; }
+.bgm-bar input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+.bgm-bar button { flex:none; padding:0 16px; border:none; border-radius:12px; background:linear-gradient(135deg,#f97316,#ef4444); color:#fff; font-weight:700; font-size:13px; white-space:nowrap; cursor:pointer; }
+.bgm-bar button:disabled { opacity:.6; cursor:not-allowed; }
+.bgm-loading { margin:0 22px 6px; font-size:12px; color:var(--color-text-tertiary); }
+.bgm-list { flex:1; overflow-y:auto; padding:6px 14px 18px; }
+.bgm-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; cursor:pointer; transition:.12s; }
+.bgm-row:hover { background:#f8fafc; }
+.bgm-row.active { background:rgba(37,99,235,.08); box-shadow:inset 0 0 0 1.5px var(--color-primary); }
+.bgm-play { flex:none; width:38px; height:38px; border:none; border-radius:50%; background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.bgm-play.playing { background:linear-gradient(135deg,#f97316,#ef4444); }
+.bgm-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.bgm-title { font-size:14px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bgm-sub { font-size:12px; color:var(--color-text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bgm-badge { flex:none; font-size:11px; padding:3px 8px; border-radius:999px; background:#f1f5f9; color:var(--color-text-secondary); }
+.bgm-badge.hot { background:rgba(239,68,68,.12); color:#ef4444; font-weight:600; }
+.bgm-check { flex:none; color:var(--color-primary); font-weight:700; }
+.bgm-empty { text-align:center; color:var(--color-text-tertiary); font-size:13px; padding:30px 10px; }
 .voice-trigger {
   display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px; text-align:left;
   border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.85);
