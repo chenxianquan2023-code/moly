@@ -606,14 +606,14 @@ async function buildMixedAudio({ work, voicePath, bgmPath, totalDur, bedVolume =
   try {
     // voice 必须 asplit 成两路：一路触发 sidechain ducking、一路进最终 amix(同一标签不能消费两次)
     await ff.ffmpeg(['-y', '-i', voiceFinal, '-i', bgmPath, '-filter_complex',
-      `[0:a]${fmt},asplit=2[v1][v2];[1:a]${fmt},volume=${bedVolume}[bg];[bg][v1]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=300[duck];[v2][duck]amix=inputs=2:duration=longest:normalize=0[a]`,
+      `[0:a]${fmt},asplit=2[v1][v2];[1:a]${fmt},volume=${bedVolume}[bg];[bg][v1]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=300[duck];[v2][duck]amix=inputs=2:duration=longest:normalize=0[mix];[mix]loudnorm=I=-14:TP=-1.5[a]`,
       '-map', '[a]', '-c:a', 'mp3', mixed]);
     notes.push('配音 + 背景乐(ducking)');
     return mixed;
   } catch { /* 降级固定压低 */ }
   try {
     await ff.ffmpeg(['-y', '-i', voiceFinal, '-i', bgmPath, '-filter_complex',
-      `[0:a]${fmt}[v];[1:a]${fmt},volume=${bedVolume}[bg];[v][bg]amix=inputs=2:duration=longest:normalize=0[a]`,
+      `[0:a]${fmt}[v];[1:a]${fmt},volume=${bedVolume}[bg];[v][bg]amix=inputs=2:duration=longest:normalize=0[mix];[mix]loudnorm=I=-14:TP=-1.5[a]`,
       '-map', '[a]', '-c:a', 'mp3', mixed]);
     notes.push('配音 + 背景乐(固定压低)');
     return mixed;
@@ -789,6 +789,10 @@ export async function runReplicaPipeline(task, ctx) {
       creativePrompt: opts.creativePrompt || opts.userPrompt || opts.prompt || '',
       negativePrompt: opts.negativePrompt || opts.avoidPrompt || '',
     });
+    // WS7：用户的「配音提示词」→ 口播文案语气指令(只调语气/节奏，不改卖点与商品事实)
+    const voiceToneRule = opts.voicePrompt
+      ? `【配音语气·用户指定】让口播文案的措辞、口语化程度与节奏贴合这种配音风格：「${compactText(opts.voicePrompt, 160)}」；保持卖点与商品事实不变，只调语气与节奏。`
+      : '';
 
     // ── 1. 解析爆款视频（有源视频时分析其分镜结构，供导演参考）──
     await setStep(0, { status: 'running' });
@@ -962,7 +966,7 @@ export async function runReplicaPipeline(task, ctx) {
         let lines = [];
         if (llm.isConfigured()) {
           try {
-            const np = `为电商带货短视频写正好 ${nImg} 句口播,每句≤14字、口语化有网感,依次介绍同一件商品(同款不同展示画面)的卖点(也用于字幕)。每句内部用逗号分隔语义单元(如「一抹酒红色，复古又高级」),绝不写无标点长句——否则配音会把词读断。商品：${product.name || ''}；${productDesc || '(见图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${viralBrief}\n${langRule}\n只输出 JSON 数组：["句1",...](正好 ${nImg} 句)。`;
+            const np = `为电商带货短视频写正好 ${nImg} 句口播,每句≤14字、口语化有网感,依次介绍同一件商品(同款不同展示画面)的卖点(也用于字幕)。每句内部用逗号分隔语义单元(如「一抹酒红色，复古又高级」),绝不写无标点长句——否则配音会把词读断。商品：${product.name || ''}；${productDesc || '(见图)'}。${product.sellingPoints?.length ? '卖点：' + product.sellingPoints.join('、') + '。' : ''}${viralBrief}${voiceToneRule}\n${langRule}\n只输出 JSON 数组：["句1",...](正好 ${nImg} 句)。`;
             const arr = llm.parseJson(await llm.generateText(np, { maxTokens: 1500, timeoutMs: 60000 }));
             if (Array.isArray(arr)) lines = arr.map((t) => compactText(t, 28)).filter(Boolean).slice(0, nImg);
           } catch (e) { notes.push('串烧口播跳过: ' + String(e?.message || e).split('\n')[0].slice(0, 40)); }
@@ -1089,7 +1093,7 @@ export async function runReplicaPipeline(task, ctx) {
         const multiImgRule = productUrls.length > 1
           ? `\n5) 用户提供了 ${productUrls.length} 张商品图——【硬性分工】服装/商品的款式、领型、颜色、logo 等一切细节，全片只以第 1 张为准、从头到尾完全一致，绝不随场景变化；其余 ${productUrls.length - 1} 张只定义"场景"。${sceneListText}`
           : '';
-        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。每句内部务必用逗号分隔语义单元(如「一抹酒红色，复古又高级」)，绝不写无标点长句——否则配音会把词读断(实测「一抹酒红色」被读成「一抹酒/红色」)。`;
+        const scriptPrompt = `你是顶级电商短视频导演。为下面的商品写一段供 AI 一次性整段生成的 ${outSec} 秒竖版(9:16)带货视频导演脚本。\n商品：${product.name || ''}；${productDesc || ''}。卖点：${(product.sellingPoints || []).join('、')}。\n${srcBrief}\n要求：1) ${modeRule}；2) 全片一个连续场景、一位虚构模特(${productClass.isGarment ? '身穿参考商品图里的这一件，全程同一身、绝不换装' : '自然地使用/手持/佩戴参考商品图里的这一件商品'})，不切换场景不换人；3) 按秒分拍描述动作与运镜(如 0-3秒…3-7秒…)，动作自然连续像真人实拍，运镜专业(缓推/跟拍/环绕等)；4) 模特着装完整得体、发型与妆容从第一秒到最后一秒保持一致(不得扎发变披发)、肢体解剖正确、画面无任何文字水印。${multiImgRule}${userDirection}${voiceToneRule}\n只输出 JSON(不要 markdown)：{"videoPrompt":"150-300字的整段导演描述(中文，含环境/光线/模特/逐秒动作与运镜/质感)","narration":["口播句1","口播句2"]}。narration 用「${langName}」，每句≤16字、共${outSec >= 10 ? '2-3' : '1-2'}句、口语化有网感(也用于字幕)。每句内部务必用逗号分隔语义单元(如「一抹酒红色，复古又高级」)，绝不写无标点长句——否则配音会把词读断(实测「一抹酒红色」被读成「一抹酒/红色」)。`;
         // 脚本生成 2 次重试——LLM 偶发坏 JSON 是实测过的回退主因(瞬时抖动,重试即愈)
         let script = null;
         for (let attempt = 0; attempt < 2 && !script; attempt++) {

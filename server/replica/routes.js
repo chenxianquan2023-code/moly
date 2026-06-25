@@ -108,6 +108,12 @@ export function normalizePromptGuide(raw = {}) {
     scenarios: scenarios.slice(0, 3),
     creativePrompt: compactGuideText(source.creativePrompt || primary.prompt, 800),
     negativePrompt: compactGuideText(source.negativePrompt || '不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素。', 500),
+    // WS7：音频方向建议（配音/BGM 提示词 + BGM 心情标签），前端预填到可编辑的音频提示词框
+    audioDirection: {
+      voicePrompt: compactGuideText(source.audioDirection?.voicePrompt, 220),
+      bgmPrompt: compactGuideText(source.audioDirection?.bgmPrompt, 160),
+      suggestedBgmMood: compactGuideText(source.audioDirection?.suggestedBgmMood, 40),
+    },
   };
 }
 
@@ -228,7 +234,7 @@ replicaRouter.post('/replica/prompt-guide', async (req, res) => {
       : `没有参考视频：3 个方案可以自由设定生活化场景，风格明显不同。`;
     const prompt = `你是电商短视频导演。请根据商品图和参考视频帧，为图生视频写一份提示词向导。必须只输出 JSON，不要 markdown。语言：${language}。商品信息：${product?.name || ''}；卖点：${Array.isArray(product?.sellingPoints) ? product.sellingPoints.join('、') : ''}。
 ${sceneRule}
-输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"audience":"目标受众","videoType":"UGC 种草/测评/教程/带货等","scenarios":[{"title":"方案标题","subject":"主体：谁在什么场景使用/展示商品","lighting":"光线：自然光/棚光/夜景等","camera":"镜头：POV/自拍/桌面俯拍/手持跟拍等","actions":["动作1","动作2","动作3","动作4","动作5"],"tags":["Raw UGC","Authentic","Lifestyle"],"prompt":"按该方案生成视频的一段完整提示词，100-220字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现"}],"creativePrompt":"默认推荐方案的完整提示词","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰"}。scenarios 必须给 3 个。`;
+输出 schema：{"productName":"更准确的商品名","category":"商品类目","sellingPoints":["卖点1","卖点2","卖点3"],"audience":"目标受众","videoType":"UGC 种草/测评/教程/带货等","scenarios":[{"title":"方案标题","subject":"主体：谁在什么场景使用/展示商品","lighting":"光线：自然光/棚光/夜景等","camera":"镜头：POV/自拍/桌面俯拍/手持跟拍等","actions":["动作1","动作2","动作3","动作4","动作5"],"tags":["Raw UGC","Authentic","Lifestyle"],"prompt":"按该方案生成视频的一段完整提示词，100-220字，说明要保留参考视频哪些场景、构图、动作，并说明商品如何自然出现"}],"creativePrompt":"默认推荐方案的完整提示词","negativePrompt":"一段禁止事项，40-120字，包含不要裸露、不要换商品、不要多手/畸形、不要生成与商品无关元素；若商品是包/首饰/墨镜等配饰，要强调保留参考视频穿搭，只替换/展示配饰","audioDirection":{"voicePrompt":"理想配音的人话描述:人设/语气/语速/情绪走向,60-120字(如'活泼甜美的年轻女声,语速偏快,开场兴奋收尾有号召力')","bgmPrompt":"理想背景音乐的人话描述:曲风/节奏/情绪/氛围,40-80字","suggestedBgmMood":"活力|温暖|激励|治愈|科技 之一"}}。scenarios 必须给 3 个；audioDirection 必给。`;
     const txt = await gemini.analyzeImages(prompt, images, { temperature: 0.3 });
     const guide = normalizePromptGuide(gemini.parseJson(txt));
     res.json({

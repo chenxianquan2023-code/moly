@@ -269,6 +269,15 @@
                   <input type="file" accept="audio/*" @change="uploadBgm" hidden />
                 </label>
               </div>
+              <!-- WS7：配音/背景乐提示词（AI 建议预填、可改可空） -->
+              <div v-if="generateVoice" class="voice-pick audio-prompt">
+                <span class="model-label">配音提示词 <em class="ap-hint">可空 · 点「AI 填写建议」会自动填</em></span>
+                <textarea v-model="voicePromptText" class="ap-input" rows="2" placeholder="想要的配音风格：人设/语气/语速/情绪，如「活泼甜美的年轻女声，语速偏快，开场兴奋」"></textarea>
+              </div>
+              <div v-if="generateMusic" class="voice-pick audio-prompt">
+                <span class="model-label">背景乐提示词 <em class="ap-hint">可空 · 配合曲库挑最贴的曲</em></span>
+                <textarea v-model="bgmPromptText" class="ap-input" rows="2" placeholder="想要的背景乐：曲风/节奏/情绪，如「轻快流行电子，节奏明快，少女好物分享感」"></textarea>
+              </div>
             </div>
           </div>
 
@@ -646,6 +655,9 @@ const selectedBgmTrack = ref<any>(null);
 const bgmLibrary = ref<any[]>([]);
 const showBgmPicker = ref(false);
 let _bgmAudio: HTMLAudioElement | null = null;
+// WS7 音频提示词（AI 建议预填、用户可写 → 后端据此调口播语气/选曲）
+const voicePromptText = ref('');
+const bgmPromptText = ref('');
 const LANGS = [{ code: 'zh-CN', label: '中文' }, { code: 'en-US', label: '英文' }, { code: 'ja-JP', label: '日语' }, { code: 'es-ES', label: '西语' }];
 const targetDuration = ref(0); // 0=跟源视频；否则目标总秒数
 const DURATIONS = [{ v: 0, label: '跟源' }, { v: 8, label: '短·8秒' }, { v: 12, label: '标准·12秒' }, { v: 18, label: '长·18秒' }];
@@ -888,6 +900,8 @@ function applyPromptGuide() {
   if (Array.isArray(g.sellingPoints) && g.sellingPoints.length) sellingPoints.value = g.sellingPoints.join('，');
   if (guideFinalPrompt.value.trim()) creativePrompt.value = guideFinalPrompt.value.trim();
   if (guideNegativePrompt.value.trim()) negativePrompt.value = guideNegativePrompt.value.trim();
+  if (g.audioDirection?.voicePrompt && !voicePromptText.value.trim()) voicePromptText.value = g.audioDirection.voicePrompt;
+  if (g.audioDirection?.bgmPrompt && !bgmPromptText.value.trim()) bgmPromptText.value = g.audioDirection.bgmPrompt;
   showPromptGuide.value = false;
 }
 
@@ -934,6 +948,8 @@ async function autoFillPromptSilently() {
     if (guideNegativePrompt.value.trim() && (!negativePrompt.value.trim() || negativePrompt.value === DEFAULT_NEGATIVE_PROMPT)) {
       negativePrompt.value = guideNegativePrompt.value.trim();
     }
+    if (g.audioDirection?.voicePrompt && !voicePromptText.value.trim()) voicePromptText.value = g.audioDirection.voicePrompt;
+    if (g.audioDirection?.bgmPrompt && !bgmPromptText.value.trim()) bgmPromptText.value = g.audioDirection.bgmPrompt;
   } catch { /* 静默失败：不打扰用户，仍可手动点「AI 填写建议」 */ }
   finally { guidingPrompt.value = false; }
 }
@@ -1037,7 +1053,7 @@ function buildGenBody(sourceVideoId: any) {
       model_image_id: modelAsset.value?.id || null,
     },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, custom_bgm_asset_id: (generateMusic.value && bgmSource.value === 'upload') ? customBgmAsset.value?.id : undefined, bgm_library_id: (generateMusic.value && bgmSource.value === 'library') ? selectedBgmTrack.value?.id : undefined, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
+    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, custom_bgm_asset_id: (generateMusic.value && bgmSource.value === 'upload') ? customBgmAsset.value?.id : undefined, bgm_library_id: (generateMusic.value && bgmSource.value === 'library') ? selectedBgmTrack.value?.id : undefined, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim(), voicePrompt: (generateVoice.value && voicePromptText.value.trim()) ? voicePromptText.value.trim() : undefined, bgmPrompt: (generateMusic.value && bgmPromptText.value.trim()) ? bgmPromptText.value.trim() : undefined },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
@@ -1712,6 +1728,9 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .bgm-opt { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--color-text-secondary); cursor:pointer; }
 .bgm-opt input { accent-color: var(--color-primary); }
 .bgm-upload { cursor:pointer; }
+.audio-prompt .ap-hint { font-weight:400; font-size:11px; color:var(--color-text-tertiary); }
+.ap-input { width:100%; padding:9px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); font-size:13px; line-height:1.5; resize:vertical; font-family:inherit; background:#fff; box-sizing:border-box; }
+.ap-input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
 .voice-trigger {
   display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px; text-align:left;
   border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.85);
