@@ -236,10 +236,11 @@
               <div class="switches">
                 <label class="switch"><input type="checkbox" v-model="generateVoice" /><span />AI 配音</label>
                 <label class="switch"><input type="checkbox" v-model="generateSubtitle" /><span />字幕</label>
-                <label class="switch" :class="{ disabled: generateVoice }"><input type="checkbox" v-model="generateMusic" :disabled="generateVoice" /><span />复刻源视频背景乐</label>
+                <label class="switch"><input type="checkbox" v-model="generateMusic" /><span />背景音乐</label>
               </div>
-              <p v-if="generateVoice" class="voice-hint">已开启 AI 配音：成片采用 AI 人声，不叠加参考视频原声，避免声音重叠。</p>
-              <p v-else-if="generateMusic" class="voice-hint">成片采用参考视频的背景音乐（需上传参考视频），不含 AI 配音。</p>
+              <p v-if="generateVoice && generateMusic" class="voice-hint">AI 配音 + 背景乐：配音为主，背景乐会在人声处自动压低、停顿处回升，不会盖住人声。</p>
+              <p v-else-if="generateVoice" class="voice-hint">已开启 AI 配音：成片采用 AI 人声。</p>
+              <p v-else-if="generateMusic" class="voice-hint">成片采用背景音乐，不含 AI 配音。</p>
               <p v-else class="voice-hint">成片不含音频，仅保留画面与字幕脚本，可自行后期配音、配乐。</p>
               <div v-if="generateVoice && voices.length" class="voice-pick">
                 <span class="model-label">配音音色</span>
@@ -250,6 +251,23 @@
                   <span class="vt-play" title="试听当前音色" @click.stop="currentVoice && auditionVoice(currentVoice)">▶</span>
                   <span class="vt-more">换音色 ▾</span>
                 </button>
+              </div>
+              <!-- WS4：背景乐来源（跟源视频 / 曲库 / 上传） -->
+              <div v-if="generateMusic" class="voice-pick bgm-pick">
+                <span class="model-label">背景乐来源</span>
+                <div class="bgm-opts">
+                  <label class="bgm-opt"><input type="radio" value="source" v-model="bgmSource" /><span />跟随参考视频</label>
+                  <label class="bgm-opt"><input type="radio" value="library" v-model="bgmSource" /><span />曲库</label>
+                  <label class="bgm-opt"><input type="radio" value="upload" v-model="bgmSource" /><span />上传我的</label>
+                </div>
+                <button v-if="bgmSource === 'library'" type="button" class="voice-trigger" @click="openBgmPicker">
+                  <span class="vt-name">{{ selectedBgmTrack ? ('♪ ' + selectedBgmTrack.title) : '选择曲库音乐…' }}</span>
+                  <span class="vt-more">选曲 ▾</span>
+                </button>
+                <label v-else-if="bgmSource === 'upload'" class="voice-trigger bgm-upload">
+                  <span class="vt-name">{{ customBgmAsset ? ('♪ ' + customBgmAsset.name) : '点此上传 mp3/wav（≤10MB）' }}</span>
+                  <input type="file" accept="audio/*" @change="uploadBgm" hidden />
+                </label>
               </div>
             </div>
           </div>
@@ -385,6 +403,21 @@
         <div class="vp-foot">
           <span>{{ langLabel }} · 共 {{ filteredVoices.length }} 个 · 点卡片选用，点 ▶ 试听</span>
           <button type="button" class="vp-done" @click="showVoicePicker = false">完成</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WS4：背景乐选曲器 -->
+    <div v-if="showBgmPicker" class="vp-mask" @click.self="showBgmPicker = false">
+      <div class="vp-modal">
+        <div class="vp-head"><b>选择背景音乐</b><button type="button" class="vp-x" @click="showBgmPicker = false">×</button></div>
+        <p v-if="!bgmLibrary.length" class="vp-empty">曲库即将上线 🎵 现在可改用「上传我的」，放你自己的背景音乐。</p>
+        <div v-else class="vp-list">
+          <div v-for="t in bgmLibrary" :key="t.id" class="vp-item" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
+            <span class="vp-name">♪ {{ t.title }}</span>
+            <span class="vp-desc">{{ (t.mood || []).join('/') }}<template v-if="t.license_type"> · {{ t.license_type }}</template></span>
+            <span class="vp-play" title="试听" @click.stop="auditionBgm(t)">▶</span>
+          </div>
         </div>
       </div>
     </div>
@@ -604,8 +637,15 @@ const guideScenarios = computed<PromptGuideScenario[]>(() => Array.isArray(promp
 
 const generateVoice = ref(true);
 const generateSubtitle = ref(true);
-const generateMusic = ref(true); // 没配音时用源爆款视频的音乐当背景乐
+const generateMusic = ref(true); // 背景乐总开关（WS1 后可与 AI 配音共存）
 const language = ref('zh-CN');
+// WS4 背景乐：来源 source(跟源视频)/library(曲库)/upload(上传) + 上传素材 + 选中曲库曲 + 曲库列表
+const bgmSource = ref('source');
+const customBgmAsset = ref<any>(null);
+const selectedBgmTrack = ref<any>(null);
+const bgmLibrary = ref<any[]>([]);
+const showBgmPicker = ref(false);
+let _bgmAudio: HTMLAudioElement | null = null;
 const LANGS = [{ code: 'zh-CN', label: '中文' }, { code: 'en-US', label: '英文' }, { code: 'ja-JP', label: '日语' }, { code: 'es-ES', label: '西语' }];
 const targetDuration = ref(0); // 0=跟源视频；否则目标总秒数
 const DURATIONS = [{ v: 0, label: '跟源' }, { v: 8, label: '短·8秒' }, { v: 12, label: '标准·12秒' }, { v: 18, label: '长·18秒' }];
@@ -661,6 +701,21 @@ watch(() => productAssets.value.length, (n, old) => {
   }
 });
 function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; showVoicePicker.value = true; }
+// WS4 背景乐选曲/上传/试听
+async function openBgmPicker() {
+  showBgmPicker.value = true;
+  if (!bgmLibrary.value.length) {
+    try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { bgmLibrary.value = []; }
+  }
+}
+function selectBgmTrack(t: any) { selectedBgmTrack.value = t; bgmSource.value = 'library'; showBgmPicker.value = false; }
+function auditionBgm(t: any) { try { if (_bgmAudio) _bgmAudio.pause(); _bgmAudio = new Audio(t.file_url); _bgmAudio.play(); } catch { /* 忽略试听失败 */ } }
+async function uploadBgm(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
+  if (f.size > 10 * 1024 * 1024) { alert('背景音乐最大 10MB'); return; }
+  try { const asset = await uploadAsset(f, 'bgm_audio'); customBgmAsset.value = { id: asset.id, name: f.name }; bgmSource.value = 'upload'; }
+  catch (err: any) { alert('上传失败：' + (err.message || err)); }
+}
 
 const task = ref<any>(null);
 const result = ref<any>(null);
@@ -982,7 +1037,7 @@ function buildGenBody(sourceVideoId: any) {
       model_image_id: modelAsset.value?.id || null,
     },
     product: { name: productName.value || '本商品', sellingPoints: sellingPoints.value.split(/[,，]/).map(s => s.trim()).filter(Boolean) },
-    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
+    options: { genMode: genMode.value, generate_voice: generateVoice.value, generate_subtitle: generateSubtitle.value, ttsVoice: voice.value, generate_music: generateMusic.value, custom_bgm_asset_id: (generateMusic.value && bgmSource.value === 'upload') ? customBgmAsset.value?.id : undefined, bgm_library_id: (generateMusic.value && bgmSource.value === 'library') ? selectedBgmTrack.value?.id : undefined, targetDurationSec: genMode.value === 'showcase' ? showcaseImgCount.value * SHOWCASE_PER_SHOT : targetDuration.value, sourceDurationSec: Math.round(sourceDuration.value), replicaMode: replicaMode.value, creativePrompt: creativePromptText.value, negativePrompt: negativePrompt.value.trim() },
     models: { video: videoModel.value, image: imageModel.value },
     language: language.value, aspectRatio: '9:16',
   };
@@ -1653,6 +1708,10 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 }
 
 .voice-pick { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+.bgm-opts { display:flex; gap:14px; flex-wrap:wrap; }
+.bgm-opt { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--color-text-secondary); cursor:pointer; }
+.bgm-opt input { accent-color: var(--color-primary); }
+.bgm-upload { cursor:pointer; }
 .voice-trigger {
   display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px; text-align:left;
   border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.85);
