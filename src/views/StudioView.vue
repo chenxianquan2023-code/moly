@@ -740,8 +740,7 @@ async function openBgmPicker() {
   showBgmPicker.value = true;
   bgmTab.value = 'trending';
   if (!bgmLibrary.value.length) await refreshBgmLibrary();
-  // 打开就显示爆款：若库里还没有任何爆款，自动去抓一批(不用用户手动搜)
-  if (!bgmLibrary.value.some((t: any) => t.license_type === 'tiktok_trending') && !fetchingTrending.value) fetchTrending();
+  // 打开不自动抓(避免没登录时弹错、也避免每次开都花 Apify)；库里已有的爆款直接显示，更多点「🔥刷新爆款」
 }
 async function refreshBgmLibrary() {
   try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { /* 保留旧列表 */ }
@@ -762,6 +761,7 @@ function auditionBgm(t: any) {
 const TRENDING_DEFAULTS = ['好物', '美妆', '穿搭', 'vlog', '卡点', 'viral'];
 async function fetchTrending() {
   if (fetchingTrending.value) return;
+  if (!auth.isLoggedIn || !auth.email) { alert('请先登录后再抓取爆款音乐（抓取要走账号校验）'); return; }
   // 留空＝默认拉当下热门(随机一个泛词)，不强制用户输关键词
   const kw = trendingKeyword.value.trim() || TRENDING_DEFAULTS[Math.floor(Math.random() * TRENDING_DEFAULTS.length)];
   fetchingTrending.value = true;
