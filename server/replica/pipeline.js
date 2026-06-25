@@ -19,7 +19,7 @@ import * as seedance from './ai/seedance.js';
 import * as fal from './ai/fal.js';
 import * as image from './ai/image.js';
 import { synthesize as ttsSynthesize } from './ai/tts.js';
-import { resolveVoice } from './voices.js';
+import { resolveVoice, emotionOptsForScene, roleForIndex } from './voices.js';
 import { notifyAdmin } from '../lib/alert.js';
 
 const SOURCE_VIDEO_REFERENCE_MAX_SEC = 60;
@@ -982,7 +982,8 @@ export async function runReplicaPipeline(task, ctx) {
           const voiceCfg = resolveVoice(opts.ttsVoice || process.env.TTS_VOICE || 'presenter_female');
           try {
             for (const { i } of clipPaths) {
-              const buf = await ttsSynthesize(lines[i], voiceCfg);
+              const role = roleForIndex(i, clipPaths.length);
+              const buf = await ttsSynthesize(lines[i], { ...voiceCfg, ...emotionOptsForScene(role, voiceCfg) });
               const ap = join(work, `mia_${i}.mp3`);
               writeFileSync(ap, buf);
               sceneAudios.push({ path: ap, duration: (await ff.probe(ap)).duration || perShot });
@@ -1095,7 +1096,8 @@ export async function runReplicaPipeline(task, ctx) {
           const voiceCfg = resolveVoice(opts.ttsVoice || process.env.TTS_VOICE || 'presenter_female');
           try {
             for (let i = 0; i < narration.length; i++) {
-              const buf = await ttsSynthesize(narration[i], voiceCfg);
+              const role = roleForIndex(i, narration.length);
+              const buf = await ttsSynthesize(narration[i], { ...voiceCfg, ...emotionOptsForScene(role, voiceCfg) });
               const ap = join(work, `osa_${i}.mp3`);
               writeFileSync(ap, buf);
               sceneAudios.push({ path: ap, duration: (await ff.probe(ap)).duration || 3 });
@@ -1419,7 +1421,8 @@ export async function runReplicaPipeline(task, ctx) {
       const voiceCfg = resolveVoice(opts.ttsVoice || process.env.TTS_VOICE || 'presenter_female');
       try {
         for (let i = 0; i < scenes.length; i++) {
-          const buf = await ttsSynthesize(scenes[i].text, voiceCfg);
+          const role = scenes[i].type || roleForIndex(i, scenes.length);
+          const buf = await ttsSynthesize(scenes[i].text, { ...voiceCfg, ...emotionOptsForScene(role, voiceCfg) });
           const ap = join(work, `a_${i}.mp3`);
           writeFileSync(ap, buf);
           sceneAudios.push({ path: ap, duration: (await ff.probe(ap)).duration || 3 });

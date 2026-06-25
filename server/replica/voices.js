@@ -68,8 +68,31 @@ export function listVoices() {
   return out.map((v) => ({ ...v, langs: v.langs || PROVIDER_LANGS[v.provider] || ['zh-CN'] }));
 }
 
-/** 把音色 id 解析成 synthesize 需要的 {provider, voice, style} */
+/** 把音色 id 解析成 synthesize 需要的 {provider, voice, style, emotionCapable} */
 export function resolveVoice(id) {
   const v = ALL.find((x) => x.id === id) || ALL.find((x) => x.id === DEFAULT_VOICE) || MINIMAX_VOICES[0];
-  return { provider: v.provider, voice: v.voiceId, style: v.style || '' };
+  // 火山仅「moon 系」大模型音色支持多情感(已实测)；mars 系不支持。minimax/azure 各有 emotion/style。
+  const emotionCapable = v.provider === 'volcano' ? /moon_bigtts/.test(v.voiceId) : (v.provider === 'minimax' || v.provider === 'azure');
+  return { provider: v.provider, voice: v.voiceId, style: v.style || '', emotionCapable };
+}
+
+// 分镜角色 → 情感(WS3 逐镜情感)。火山 moon 系已实测支持 happy/excited/angry/sad；proof 留空=中性基线(不断言未验证的词)。
+const EMOTION_MAP = {
+  volcano: { hook: 'excited', demo: 'happy', proof: '', cta: 'excited' },
+  minimax: { hook: 'happy', demo: 'happy', proof: 'neutral', cta: 'happy' },
+  azure: { hook: 'cheerful', demo: 'chat', proof: 'calm', cta: 'cheerful' },
+};
+
+/** 分镜序号 → 角色(没有显式 role 时按位置兜底：首=hook 尾=cta 中=demo) */
+export function roleForIndex(i, total) {
+  return i === 0 ? 'hook' : (i >= total - 1 ? 'cta' : 'demo');
+}
+
+/** 按分镜角色给 synthesize 的情感 opts 补丁：volcano/minimax 用 emotion、azure 用 style。
+ *  不支持情感的音色(火山 mars 系)返回空补丁——保持中性、绝不报错。 */
+export function emotionOptsForScene(role, voiceCfg) {
+  if (!voiceCfg?.emotionCapable) return {};
+  const val = (EMOTION_MAP[voiceCfg.provider] || {})[role] || '';
+  if (!val) return {};
+  return voiceCfg.provider === 'azure' ? { style: val } : { emotion: val };
 }

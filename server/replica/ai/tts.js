@@ -69,19 +69,22 @@ export const volcanoConfigured = () => !!(process.env.VOLC_TTS_APPID && process.
  * 大模型音色形如 zh_female_yuanqinvyou_moon_bigtts，复用 openspeech /api/v1/tts 接口、cluster 仍为 volcano_tts。
  * 需要环境变量：VOLC_TTS_APPID、VOLC_TTS_TOKEN、VOLC_TTS_CLUSTER(默认 volcano_tts)。
  */
-async function volcanoTTS(text, { voice = 'zh_female_yuanqinvyou_moon_bigtts', speed = 1.0, encoding = 'mp3' } = {}) {
+async function volcanoTTS(text, { voice = 'zh_female_yuanqinvyou_moon_bigtts', speed = 1.0, encoding = 'mp3', emotion = '' } = {}) {
   const appid = process.env.VOLC_TTS_APPID;
   const token = process.env.VOLC_TTS_TOKEN;
   const cluster = process.env.VOLC_TTS_CLUSTER || 'volcano_tts';
   if (!appid || !token) throw new Error('缺少 VOLC_TTS_APPID / VOLC_TTS_TOKEN');
   const reqid = globalThis.crypto?.randomUUID?.() || String(Date.now());
+  // 火山「大模型」moon 系音色支持多情感(已实测 happy/excited/angry/sad 生效)；emotion 由上游按分镜角色注入。
+  const audio = { voice_type: voice, encoding, speed_ratio: speed, volume_ratio: 1.0, pitch_ratio: 1.0 };
+  if (emotion) { audio.emotion = emotion; audio.enable_emotion = true; }
   const res = await fetch('https://openspeech.bytedance.com/api/v1/tts', {
     method: 'POST',
     headers: { Authorization: `Bearer;${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       app: { appid, token, cluster },
       user: { uid: 'moly' },
-      audio: { voice_type: voice, encoding, speed_ratio: speed, volume_ratio: 1.0, pitch_ratio: 1.0 },
+      audio,
       request: { reqid, text, text_type: 'plain', operation: 'query' },
     }),
     signal: AbortSignal.timeout(60000),
