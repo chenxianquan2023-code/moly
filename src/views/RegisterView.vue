@@ -97,7 +97,7 @@ import { validatePhone, validateEmail, validateCode, validatePassword, validateP
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
-const { mode: regionMode, loading: regionLoading } = useRegion();
+const { loading: regionLoading } = useRegion();
 const { countdown, start: startCooldown } = useVerification(60);
 
 const registerType = ref<'phone' | 'email'>('email');

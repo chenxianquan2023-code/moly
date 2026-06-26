@@ -256,7 +256,10 @@
               <div v-if="generateMusic" class="voice-pick bgm-pick">
                 <span class="model-label">背景乐来源</span>
                 <div class="bgm-opts">
-                  <label class="bgm-opt"><input type="radio" value="source" v-model="bgmSource" /><span />跟随参考视频</label>
+                  <label class="bgm-opt" :class="{ disabled: !canUseSourceBgm }" :title="canUseSourceBgm ? '使用参考视频里的背景音乐' : '未上传参考视频时不可用'">
+                    <input type="radio" value="source" v-model="bgmSource" :disabled="!canUseSourceBgm" /><span />跟随参考视频
+                    <em v-if="!canUseSourceBgm">未上传参考视频时不可用</em>
+                  </label>
                   <label class="bgm-opt"><input type="radio" value="library" v-model="bgmSource" /><span />曲库</label>
                   <label class="bgm-opt"><input type="radio" value="upload" v-model="bgmSource" /><span />上传我的</label>
                 </div>
@@ -417,31 +420,97 @@
       </div>
     </div>
 
-    <!-- 背景乐选曲器（爆款榜 / 我的曲库 两个 Tab，打开默认显示爆款、可一键刷新） -->
+    <!-- 背景乐选曲器：音乐导演推荐 / 爆款类型 / 行业场景 / 转场音效 / 搜索兜底 -->
     <div v-if="showBgmPicker" class="bgm-mask" @click.self="closeBgmPicker">
       <div class="bgm-modal">
-        <div class="bgm-head"><b>背景音乐</b><button type="button" class="bgm-x" @click="closeBgmPicker">×</button></div>
-        <div class="bgm-tabs">
-          <button type="button" :class="{ active: bgmTab === 'trending' }" @click="bgmTab = 'trending'">🔥 抖音爆款</button>
-          <button type="button" :class="{ active: bgmTab === 'library' }" @click="bgmTab = 'library'">🎵 我的曲库</button>
-        </div>
-        <div class="bgm-bar">
-          <input v-model="trendingKeyword" placeholder="按风格找，如 好物 / 美妆 / 卡点…（留空＝当下热门）" @keyup.enter="fetchTrending" />
-          <button type="button" :disabled="fetchingTrending" @click="fetchTrending">{{ fetchingTrending ? '抓取中…' : '🔥 刷新爆款' }}</button>
-        </div>
-        <p v-if="fetchingTrending" class="bgm-loading">正在去 TikTok 抓最新爆款音乐，约 30–90 秒，请稍候…</p>
-        <div class="bgm-list">
-          <div v-for="t in shownTracks" :key="t.id" class="bgm-row" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
-            <button type="button" class="bgm-play" :class="{ playing: playingBgmId === t.id }" @click.stop="auditionBgm(t)">{{ playingBgmId === t.id ? '⏸' : '▶' }}</button>
-            <div class="bgm-meta">
-              <span class="bgm-title">{{ t.title }}</span>
-              <span class="bgm-sub">{{ t.artist || (t.mood || []).join(' / ') || '背景乐' }}</span>
-            </div>
-            <span v-if="t.license_type === 'tiktok_trending'" class="bgm-badge hot">🔥 爆款</span>
-            <span v-else class="bgm-badge">免版税</span>
-            <span v-if="selectedBgmTrack && selectedBgmTrack.id === t.id" class="bgm-check">✓</span>
+        <div class="bgm-head">
+          <div>
+            <span class="bgm-kicker">音乐导演</span>
+            <b>为这条视频选一首合适的背景音乐</b>
+            <p>先选方向，再试听曲目。生成时会自动压低背景乐，不盖住口播。</p>
           </div>
-          <p v-if="!shownTracks.length && !fetchingTrending" class="bgm-empty">{{ bgmTab === 'trending' ? '还没抓爆款 — 点上面「🔥 刷新爆款」拉一批当下热门' : '曲库还没有曲子' }}</p>
+          <button type="button" class="bgm-x" @click="closeBgmPicker">×</button>
+        </div>
+
+        <div class="bgm-current">
+          <span>已选音乐</span>
+          <b>{{ selectedBgmTrack ? selectedBgmTrack.title : '还未选择' }}</b>
+          <em>{{ selectedBgmTrack ? (selectedBgmTrack.artist || selectedBgmTrack.genre || '生成时使用这首') : '可以先试听，再选择一首用于成片' }}</em>
+        </div>
+
+        <div class="bgm-workspace">
+          <div class="bgm-rail">
+            <button v-for="tab in BGM_TABS" :key="tab.id" type="button" :class="{ active: bgmTab === tab.id }" @click="bgmTab = tab.id">
+              <b>{{ tab.label }}</b>
+              <span>{{ tab.desc }}</span>
+            </button>
+          </div>
+
+          <div class="bgm-panel">
+            <div v-if="bgmTab === 'recommend'" class="bgm-director">
+              <p class="bgm-director-copy">根据商品、提示词和 AI 音频建议，优先推荐不抢口播、能带动节奏的音乐方向。</p>
+              <div class="bgm-preset-grid compact">
+                <button v-for="p in aiRecommendedPresets" :key="p.id" type="button" class="bgm-preset" :class="{ active: selectedBgmPreset === p.id }" @click="selectBgmPreset(p)">
+                  <b>{{ p.title }}</b>
+                  <span>{{ p.desc }}</span>
+                  <em>按这个方向找爆款</em>
+                </button>
+              </div>
+            </div>
+            <div v-else-if="bgmTab === 'types'" class="bgm-preset-wrap">
+              <button v-for="p in BGM_TYPE_PRESETS" :key="p.id" type="button" class="bgm-preset" :class="{ active: selectedBgmPreset === p.id }" @click="selectBgmPreset(p)">
+                <b>{{ p.title }}</b>
+                <span>{{ p.desc }}</span>
+                <em>按这个方向找爆款</em>
+              </button>
+            </div>
+            <div v-else-if="bgmTab === 'industries'" class="bgm-preset-wrap">
+              <button v-for="p in BGM_INDUSTRY_PRESETS" :key="p.id" type="button" class="bgm-preset" :class="{ active: selectedBgmPreset === p.id }" @click="selectBgmPreset(p)">
+                <b>{{ p.title }}</b>
+                <span>{{ p.desc }}</span>
+                <em>按这个方向找爆款</em>
+              </button>
+            </div>
+            <div v-else-if="bgmTab === 'effects'" class="bgm-preset-wrap">
+              <button v-for="p in BGM_EFFECT_PRESETS" :key="p.id" type="button" class="bgm-preset" :class="{ active: selectedBgmPreset === p.id }" @click="selectBgmPreset(p)">
+                <b>{{ p.title }}</b>
+                <span>{{ p.desc }}</span>
+                <em>按这个方向找爆款</em>
+              </button>
+            </div>
+
+            <div v-if="bgmTab === 'trending' || selectedBgmPresetInfo" class="bgm-bar">
+              <input v-model="trendingKeyword" placeholder="按风格找，如 好物 / 美妆 / 卡点…（留空＝当下热门）" @keyup.enter="fetchTrending" />
+              <button type="button" :disabled="fetchingTrending" @click="selectedBgmPresetInfo ? fetchTrendingForPreset(selectedBgmPresetInfo) : fetchTrending()">{{ fetchingTrending ? '抓取中…' : '刷新爆款' }}</button>
+            </div>
+            <p v-if="selectedBgmPresetInfo && bgmTab !== 'trending'" class="bgm-preset-hint">
+              当前方向：{{ selectedBgmPresetInfo.title }}。可直接试听下方匹配曲，也可点刷新爆款补充这一类音乐。
+            </p>
+            <p v-if="fetchingTrending" class="bgm-loading">正在去 TikTok 抓最新爆款音乐，约 30–90 秒，请稍候…</p>
+            <div class="bgm-results-head" v-if="shownTrackCount || !fetchingTrending">
+              <div>
+                <b>匹配音乐</b>
+                <span>{{ shownTrackCountLabel }}</span>
+              </div>
+              <em v-if="shownTrackCount > 1">向下滚动查看更多</em>
+            </div>
+            <div class="bgm-list-wrap" :class="{ scrollable: shownTrackCount > 2 }">
+              <div class="bgm-list">
+                <div v-for="t in shownTracks" :key="t.id" class="bgm-row" :class="{ active: selectedBgmTrack && selectedBgmTrack.id === t.id }" @click="selectBgmTrack(t)">
+                  <button type="button" class="bgm-play" :class="{ playing: playingBgmId === t.id }" @click.stop="auditionBgm(t)">{{ playingBgmId === t.id ? '暂停' : '试听' }}</button>
+                  <div class="bgm-wave" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+                  <div class="bgm-meta">
+                    <span class="bgm-title">{{ t.title }}</span>
+                    <span class="bgm-sub">{{ t.artist || (t.mood || []).join(' / ') || '背景乐' }}</span>
+                  </div>
+                  <span v-if="t.license_type === 'tiktok_trending'" class="bgm-badge hot">爆款</span>
+                  <span v-else class="bgm-badge">免版税</span>
+                  <span class="bgm-use">{{ selectedBgmTrack && selectedBgmTrack.id === t.id ? '已选择' : '选择此音乐' }}</span>
+                </div>
+                <p v-if="!shownTracks.length && !fetchingTrending" class="bgm-empty">{{ bgmEmptyText }}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -664,7 +733,11 @@ const generateSubtitle = ref(true);
 const generateMusic = ref(true); // 背景乐总开关（WS1 后可与 AI 配音共存）
 const language = ref('zh-CN');
 // WS4 背景乐：来源 source(跟源视频)/library(曲库)/upload(上传) + 上传素材 + 选中曲库曲 + 曲库列表
-const bgmSource = ref('source');
+const bgmSource = ref('library');
+const canUseSourceBgm = computed(() => !!sourceVideoAsset.value);
+watch(canUseSourceBgm, (ok) => {
+  if (!ok && bgmSource.value === 'source') bgmSource.value = 'library';
+}, { immediate: true });
 const stripSourceVocals = ref(true); // 跟源视频时默认削掉原博主说话、只留音乐(立体声才生效)
 const customBgmAsset = ref<any>(null);
 const selectedBgmTrack = ref<any>(null);
@@ -674,9 +747,96 @@ let _bgmAudio: HTMLAudioElement | null = null;
 const playingBgmId = ref('');        // 当前试听中的曲 id（▶/⏸ 切换 + 防一直播放）
 const trendingKeyword = ref('');     // 「找爆款」关键词（留空=默认热门）
 const fetchingTrending = ref(false);
-const bgmTab = ref('trending');      // 选曲器 Tab：trending(抖音爆款) / library(我的曲库)
-const shownTracks = computed(() => bgmLibrary.value.filter((t: any) =>
-  bgmTab.value === 'trending' ? t.license_type === 'tiktok_trending' : t.license_type !== 'tiktok_trending'));
+type BgmTab = 'recommend' | 'types' | 'industries' | 'effects' | 'trending' | 'library';
+type BgmPreset = { id: string; title: string; desc: string; keyword: string; tokens: string[]; };
+const bgmTab = ref<BgmTab>('recommend');
+const selectedBgmPreset = ref('voice-bed');
+const BGM_TABS: { id: BgmTab; label: string; desc: string }[] = [
+  { id: 'recommend', label: '音乐导演推荐', desc: '按这条视频自动选方向' },
+  { id: 'types', label: '爆款类型', desc: '口播、卡点、种草、高级感' },
+  { id: 'industries', label: '行业场景', desc: '按品类快速找音乐' },
+  { id: 'effects', label: '转场音效', desc: '点击、闪光、定格、切换' },
+  { id: 'trending', label: '搜索爆款', desc: '知道关键词时直接搜' },
+  { id: 'library', label: '曲库', desc: '免版税和已入库音乐' },
+];
+const DISPLAYABLE_BGM_LICENSE_TYPES = new Set(['tiktok_trending', 'pixabay_cc0', 'mixkit']);
+function isDisplayableBgmTrack(track: any) {
+  return DISPLAYABLE_BGM_LICENSE_TYPES.has(String(track?.license_type || ''));
+}
+const BGM_TYPE_PRESETS: BgmPreset[] = [
+  { id: 'voice-bed', title: '口播垫乐', desc: '不抢人声，适合讲解带货', keyword: '口播 带货 背景音乐 不抢人声', tokens: ['口播', '带货', '背景', 'warm', 'ambient', '轻柔', '垫乐'] },
+  { id: 'beat-cut', title: '卡点转场', desc: '节奏明确，适合快剪展示', keyword: '卡点 转场 快剪 爆款音乐', tokens: ['卡点', '转场', '快剪', 'beat', 'dance', 'edm', 'viral'] },
+  { id: 'cute-seeding', title: '元气种草', desc: '少女感、好物分享、轻快', keyword: '元气 种草 好物 少女感 音乐', tokens: ['元气', '种草', '好物', '少女', 'cute', 'pop', '活力'] },
+  { id: 'premium', title: '高级质感', desc: '轻奢、服饰、香氛、家居', keyword: '高级感 轻奢 质感 背景音乐', tokens: ['高级', '轻奢', '质感', 'luxury', 'fashion', 'chill'] },
+  { id: 'healing-life', title: '治愈生活', desc: '家居日用、温暖慢节奏', keyword: '治愈 生活 家居 温暖 背景音乐', tokens: ['治愈', '生活', '家居', '温暖', 'healing', 'lofi'] },
+  { id: 'tech-cool', title: '科技数码', desc: '冷感电子、数码、工具类', keyword: '科技 数码 电子感 背景音乐', tokens: ['科技', '数码', '电子', 'tech', 'synth', 'future'] },
+];
+const BGM_INDUSTRY_PRESETS: BgmPreset[] = [
+  { id: 'beauty', title: '美妆护肤', desc: '清透、精致、种草感', keyword: '美妆 护肤 种草 背景音乐', tokens: ['美妆', '护肤', '口红', '面膜', '清透', 'beauty'] },
+  { id: 'fashion-bag', title: '穿搭包包', desc: 'OOTD、变装、配饰展示', keyword: '穿搭 包包 OOTD 变装 音乐', tokens: ['穿搭', '包包', '配饰', 'ootd', 'fashion', '变装'] },
+  { id: 'home-goods', title: '家居好物', desc: '生活感、干净、亲和', keyword: '家居 好物 生活感 背景音乐', tokens: ['家居', '好物', '厨房', '收纳', '生活', 'home'] },
+  { id: 'digital', title: '数码科技', desc: '电子节奏、效率、未来感', keyword: '数码 科技 产品展示 音乐', tokens: ['数码', '科技', '耳机', '手机', '充电', 'tech'] },
+  { id: 'food', title: '食品饮品', desc: '轻快、有食欲、日常', keyword: '食品 饮品 美食 轻快 音乐', tokens: ['食品', '饮品', '美食', '咖啡', 'food', '轻快'] },
+  { id: 'mom-baby', title: '母婴宠物', desc: '温柔、可爱、安全感', keyword: '母婴 宠物 可爱 温柔 背景音乐', tokens: ['母婴', '宠物', '宝宝', '可爱', '温柔', 'cute'] },
+];
+const BGM_EFFECT_PRESETS: BgmPreset[] = [
+  { id: 'whoosh', title: '转场音效', desc: '滑动、推拉、快切衔接', keyword: 'whoosh transition sound effect tiktok', tokens: ['whoosh', 'transition', '转场', 'swipe', 'swoosh'] },
+  { id: 'click-pop', title: '点击音效', desc: '点按、挂件、细节展示', keyword: 'click pop sound effect product video', tokens: ['click', 'pop', '点击', '清脆', 'tap'] },
+  { id: 'sparkle', title: '闪光音效', desc: '亮点、质感、bling 展示', keyword: 'sparkle bling sound effect', tokens: ['sparkle', 'bling', '闪光', '亮点'] },
+  { id: 'camera', title: '拍照定格', desc: '定格展示、对比前后', keyword: 'camera shutter sound effect tiktok', tokens: ['camera', 'shutter', '拍照', '定格'] },
+];
+const DEFAULT_BGM_PRESET = BGM_TYPE_PRESETS[0] as BgmPreset;
+const allBgmPresets = computed(() => [...BGM_TYPE_PRESETS, ...BGM_INDUSTRY_PRESETS, ...BGM_EFFECT_PRESETS]);
+const selectedBgmPresetInfo = computed(() => allBgmPresets.value.find((p) => p.id === selectedBgmPreset.value) || null);
+const bgmDirectorText = computed(() => [
+  productName.value,
+  sellingPoints.value,
+  creativePrompt.value,
+  voicePromptText.value,
+  bgmPromptText.value,
+  promptGuide.value?.audioDirection?.voicePrompt,
+  promptGuide.value?.audioDirection?.bgmPrompt,
+  promptGuide.value?.audioDirection?.suggestedBgmMood,
+].filter(Boolean).join(' ').toLowerCase());
+function presetScore(p: BgmPreset) {
+  const txt = bgmDirectorText.value;
+  return p.tokens.reduce((sum, token) => sum + (txt.includes(token.toLowerCase()) ? 2 : 0), 0)
+    + (txt.includes(p.title.toLowerCase()) ? 3 : 0);
+}
+const aiRecommendedPresets = computed<BgmPreset[]>(() => {
+  const ranked = [...BGM_TYPE_PRESETS, ...BGM_INDUSTRY_PRESETS]
+    .map((p, i) => ({ p, score: presetScore(p), i }))
+    .sort((a, b) => (b.score - a.score) || (a.i - b.i))
+    .map((x) => x.p);
+  const picked = ranked.slice(0, 3);
+  return picked.some((p) => p.id === 'voice-bed') ? picked : [DEFAULT_BGM_PRESET, ...picked.filter((p) => p.id !== 'voice-bed').slice(0, 2)];
+});
+function trackMatchesPreset(t: any, p: BgmPreset) {
+  const hay = [t.title, t.artist, t.genre, t.license_type, ...(Array.isArray(t.mood) ? t.mood : [])]
+    .filter(Boolean).join(' ').toLowerCase();
+  return p.tokens.some((token) => hay.includes(token.toLowerCase()));
+}
+const shownTracks = computed(() => {
+  if (bgmTab.value === 'library') return bgmLibrary.value.filter((t: any) => t.license_type !== 'tiktok_trending');
+  if (bgmTab.value === 'trending') return bgmLibrary.value.filter((t: any) => t.license_type === 'tiktok_trending');
+  const preset = selectedBgmPresetInfo.value;
+  const pool = bgmLibrary.value.filter((t: any) => bgmTab.value === 'effects' ? t.license_type === 'tiktok_trending' : true);
+  const matched = preset ? pool.filter((t: any) => trackMatchesPreset(t, preset)) : [];
+  if (matched.length) return matched;
+  if (bgmTab.value === 'recommend') {
+    const recIds = new Set(aiRecommendedPresets.value.map((p) => p.id));
+    return bgmLibrary.value.filter((t: any) => allBgmPresets.value.some((p) => recIds.has(p.id) && trackMatchesPreset(t, p))).slice(0, 12);
+  }
+  return pool.slice(0, 12);
+});
+const shownTrackCount = computed(() => shownTracks.value.length);
+const shownTrackCountLabel = computed(() => shownTrackCount.value ? `${shownTrackCount.value} 首可试听` : '暂无结果');
+const bgmEmptyText = computed(() => {
+  if (bgmTab.value === 'library') return '曲库还没有曲子，可先用爆款搜索或上传自己的音乐';
+  if (bgmTab.value === 'trending') return '还没抓爆款，点上面「刷新爆款」拉一批当下热门';
+  if (selectedBgmPresetInfo.value) return `暂时没有匹配「${selectedBgmPresetInfo.value.title}」的曲子，点「刷新爆款」补充这一类音乐`;
+  return '暂无推荐曲目，可切到搜索爆款或曲库';
+});
 // WS7 音频提示词（AI 建议预填、用户可写 → 后端据此调口播语气/选曲）
 const voicePromptText = ref('');
 const bgmPromptText = ref('');
@@ -738,16 +898,22 @@ function openVoicePicker() { voiceSearch.value = ''; voiceFilter.value = 'all'; 
 // WS4 背景乐选曲/上传/试听
 async function openBgmPicker() {
   showBgmPicker.value = true;
-  bgmTab.value = 'trending';
+  bgmTab.value = 'recommend';
+  selectedBgmPreset.value = aiRecommendedPresets.value[0]?.id || 'voice-bed';
+  trendingKeyword.value = selectedBgmPresetInfo.value?.keyword || '';
   if (!bgmLibrary.value.length) await refreshBgmLibrary();
   // 打开不自动抓(避免没登录时弹错、也避免每次开都花 Apify)；库里已有的爆款直接显示，更多点「🔥刷新爆款」
 }
 async function refreshBgmLibrary() {
-  try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = j.tracks || []; } catch { /* 保留旧列表 */ }
+  try { const r = await fetch('/api/replica/bgm-library'); const j = await safeJson(r); bgmLibrary.value = (j.tracks || []).filter(isDisplayableBgmTrack); } catch { /* 保留旧列表 */ }
 }
 function stopBgmAudio() { if (_bgmAudio) { _bgmAudio.pause(); _bgmAudio = null; } playingBgmId.value = ''; }
 function closeBgmPicker() { stopBgmAudio(); showBgmPicker.value = false; }
 function selectBgmTrack(t: any) { stopBgmAudio(); selectedBgmTrack.value = t; bgmSource.value = 'library'; showBgmPicker.value = false; }
+function selectBgmPreset(p: BgmPreset) {
+  selectedBgmPreset.value = p.id;
+  trendingKeyword.value = p.keyword;
+}
 function auditionBgm(t: any) {
   if (_bgmAudio && playingBgmId.value === t.id) { stopBgmAudio(); return; } // 再点同一首=停止
   stopBgmAudio();
@@ -759,13 +925,17 @@ function auditionBgm(t: any) {
   } catch { playingBgmId.value = ''; }
 }
 const TRENDING_DEFAULTS = ['好物', '美妆', '穿搭', 'vlog', '卡点', 'viral'];
+async function fetchTrendingForPreset(p: BgmPreset) {
+  selectBgmPreset(p);
+  await fetchTrending();
+}
 async function fetchTrending() {
   if (fetchingTrending.value) return;
   if (!auth.isLoggedIn || !auth.email) { alert('请先登录后再抓取爆款音乐（抓取要走账号校验）'); return; }
   // 留空＝默认拉当下热门(随机一个泛词)，不强制用户输关键词
-  const kw = trendingKeyword.value.trim() || TRENDING_DEFAULTS[Math.floor(Math.random() * TRENDING_DEFAULTS.length)];
+  const kw = trendingKeyword.value.trim() || selectedBgmPresetInfo.value?.keyword || TRENDING_DEFAULTS[Math.floor(Math.random() * TRENDING_DEFAULTS.length)];
   fetchingTrending.value = true;
-  bgmTab.value = 'trending';
+  if (bgmTab.value === 'library') bgmTab.value = 'trending';
   try {
     const r = await fetch('/api/replica/bgm-fetch-trending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keyword: kw, userEmail: auth.email }) });
     const j = await safeJson(r);
@@ -1049,10 +1219,11 @@ function readVideoDuration(file: File): Promise<number> {
 async function onFile(e: Event, assetType: string, slot: string) {
   const input = e.target as HTMLInputElement;
   const files = Array.from(input.files || []);
-  if (!files.length) return;
+  const firstFile = files[0];
+  if (!firstFile) return;
   try {
     if (assetType === 'source_video') {
-      const duration = await readVideoDuration(files[0]);
+      const duration = await readVideoDuration(firstFile);
       if (duration > MAX_SOURCE_VIDEO_SECONDS + 0.5) {
         alert(`爆款参考视频最多支持 ${MAX_SOURCE_VIDEO_SECONDS} 秒。当前视频约 ${Math.round(duration)} 秒，请先裁剪后再上传。`);
         input.value = '';
@@ -1072,7 +1243,7 @@ async function onFile(e: Event, assetType: string, slot: string) {
         productAssets.value = [...productAssets.value, asset];
       }
     } else {
-      const asset = await uploadAsset(files[0], assetType);
+      const asset = await uploadAsset(firstFile, assetType);
       if (slot === 'model') modelAsset.value = asset;
       else sourceVideoAsset.value = asset;
     }
@@ -1779,38 +1950,93 @@ onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer); stopProgressUx(); })
 .bgm-opts { display:flex; gap:14px; flex-wrap:wrap; }
 .bgm-opt { display:flex; align-items:center; gap:5px; font-size:13px; color:var(--color-text-secondary); cursor:pointer; }
 .bgm-opt input { accent-color: var(--color-primary); }
+.bgm-opt.disabled { color:#94a3b8; cursor:not-allowed; }
+.bgm-opt.disabled input { cursor:not-allowed; }
+.bgm-opt em { font-style:normal; font-size:11px; color:#94a3b8; }
 .bgm-upload { cursor:pointer; }
 .audio-prompt .ap-hint { font-weight:400; font-size:11px; color:var(--color-text-tertiary); }
 .ap-input { width:100%; padding:9px 12px; border:1px solid var(--color-border); border-radius:var(--radius-md); font-size:13px; line-height:1.5; resize:vertical; font-family:inherit; background:#fff; box-sizing:border-box; }
 .ap-input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-/* 背景乐选曲器（重做：爆款榜列表） */
-.bgm-mask { position:fixed; inset:0; background:rgba(15,23,42,.45); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
-.bgm-modal { width:min(560px,92vw); max-height:82vh; display:flex; flex-direction:column; background:#fff; border-radius:20px; box-shadow:0 30px 70px -20px rgba(15,23,42,.5); overflow:hidden; }
-.bgm-head { display:flex; align-items:center; justify-content:space-between; padding:18px 22px 12px; }
-.bgm-head b { font-size:18px; }
-.bgm-x { width:32px; height:32px; border:none; border-radius:50%; background:#f1f5f9; font-size:18px; color:var(--color-text-secondary); cursor:pointer; }
-.bgm-tabs { display:flex; gap:8px; padding:0 22px; }
-.bgm-tabs button { flex:1; padding:9px 0; border:none; border-radius:10px; background:#f1f5f9; font-size:14px; font-weight:600; color:var(--color-text-secondary); cursor:pointer; transition:.15s; }
-.bgm-tabs button.active { background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; }
-.bgm-bar { display:flex; gap:8px; padding:14px 22px 10px; }
-.bgm-bar input { flex:1; min-width:0; padding:10px 14px; border:1px solid var(--color-border); border-radius:12px; font-size:13px; background:#fff; }
+/* 背景乐选曲器：音乐导演工作台 */
+.bgm-mask { position:fixed; inset:0; background:rgba(15,23,42,.48); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; z-index:60; padding:20px; }
+.bgm-modal { width:min(920px,95vw); height:min(760px,86vh); display:flex; flex-direction:column; background:#fff; border-radius:20px; box-shadow:0 32px 80px -28px rgba(15,23,42,.58); overflow:hidden; border:1px solid rgba(226,232,240,.9); }
+.bgm-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:18px 24px 14px; border-bottom:1px solid #eef2f7; }
+.bgm-kicker { display:block; margin-bottom:4px; font-size:11px; font-weight:900; color:#2563eb; letter-spacing:0; }
+.bgm-head b { display:block; font-size:20px; line-height:1.25; color:#0f172a; }
+.bgm-head p { margin:6px 0 0; font-size:13px; color:#64748b; line-height:1.5; }
+.bgm-x { width:34px; height:34px; flex:none; border:none; border-radius:50%; background:#f1f5f9; font-size:20px; color:#475569; cursor:pointer; line-height:1; }
+.bgm-x:hover { background:#e2e8f0; color:#0f172a; }
+.bgm-current { margin:12px 24px 0; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:10px 13px; border:1px solid #dbeafe; border-radius:14px; background:linear-gradient(180deg,#eff6ff,#fff); }
+.bgm-current span { font-size:12px; font-weight:900; color:#2563eb; white-space:nowrap; }
+.bgm-current b { min-width:0; font-size:14px; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bgm-current em { min-width:0; font-style:normal; font-size:12px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bgm-workspace { flex:1; min-height:0; display:grid; grid-template-columns:220px minmax(0,1fr); gap:0; padding:12px 18px 18px; }
+.bgm-rail { padding:4px 12px 4px 0; border-right:1px solid #eef2f7; display:flex; flex-direction:column; gap:8px; overflow-y:auto; }
+.bgm-rail button { width:100%; padding:11px 12px; border:none; border-radius:12px; background:transparent; text-align:left; cursor:pointer; transition:.14s ease; }
+.bgm-rail button:hover { background:#f8fafc; }
+.bgm-rail button.active { background:#0f172a; box-shadow:0 12px 24px -18px rgba(15,23,42,.7); }
+.bgm-rail b { display:block; color:#0f172a; font-size:13px; line-height:1.25; margin-bottom:3px; }
+.bgm-rail span { display:block; color:#64748b; font-size:11.5px; line-height:1.35; }
+.bgm-rail button.active b, .bgm-rail button.active span { color:#fff; }
+.bgm-panel { min-width:0; min-height:0; display:flex; flex-direction:column; padding-left:18px; }
+.bgm-director { flex:none; }
+.bgm-director-copy { margin:0 0 10px; font-size:13px; line-height:1.55; color:#64748b; }
+.bgm-preset-wrap { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:188px; overflow-y:auto; padding-right:2px; }
+.bgm-preset-grid.compact { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.bgm-preset { min-width:0; padding:10px 11px; border:1px solid #e2e8f0; border-radius:14px; background:#fff; text-align:left; cursor:pointer; transition:.14s ease; box-shadow:0 8px 20px -18px rgba(15,23,42,.35); }
+.bgm-preset:hover { border-color:#93c5fd; background:#f8fbff; transform:translateY(-1px); }
+.bgm-preset.active { border-color:#2563eb; background:rgba(37,99,235,.08); box-shadow:inset 0 0 0 1px rgba(37,99,235,.16), 0 12px 22px -18px rgba(37,99,235,.6); }
+.bgm-preset b { display:block; color:#0f172a; font-size:14px; line-height:1.25; margin-bottom:4px; }
+.bgm-preset span { display:block; color:#64748b; font-size:12px; line-height:1.35; min-height:18px; }
+.bgm-preset em { display:inline-flex; margin-top:7px; font-style:normal; font-size:11px; font-weight:800; color:#2563eb; }
+.bgm-bar { flex:none; display:flex; gap:8px; padding:12px 0 8px; }
+.bgm-bar input { flex:1; min-width:0; padding:10px 13px; border:1px solid var(--color-border); border-radius:12px; font-size:13px; background:#fff; }
 .bgm-bar input:focus { border-color:var(--color-primary); outline:none; box-shadow:0 0 0 3px rgba(37,99,235,.12); }
-.bgm-bar button { flex:none; padding:0 16px; border:none; border-radius:12px; background:linear-gradient(135deg,#f97316,#ef4444); color:#fff; font-weight:700; font-size:13px; white-space:nowrap; cursor:pointer; }
+.bgm-bar button { flex:none; padding:0 16px; border:none; border-radius:12px; background:#0f172a; color:#fff; font-weight:800; font-size:13px; white-space:nowrap; cursor:pointer; }
 .bgm-bar button:disabled { opacity:.6; cursor:not-allowed; }
-.bgm-loading { margin:0 22px 6px; font-size:12px; color:var(--color-text-tertiary); }
-.bgm-list { flex:1; overflow-y:auto; padding:6px 14px 18px; }
-.bgm-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; cursor:pointer; transition:.12s; }
-.bgm-row:hover { background:#f8fafc; }
-.bgm-row.active { background:rgba(37,99,235,.08); box-shadow:inset 0 0 0 1.5px var(--color-primary); }
-.bgm-play { flex:none; width:38px; height:38px; border:none; border-radius:50%; background:linear-gradient(135deg,#2563eb,#7c3aed); color:#fff; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.bgm-play.playing { background:linear-gradient(135deg,#f97316,#ef4444); }
-.bgm-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.bgm-title { font-size:14px; font-weight:600; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.bgm-preset-hint { margin:0 0 8px; font-size:12px; line-height:1.45; color:#64748b; }
+.bgm-loading { margin:0 0 8px; font-size:12px; color:#64748b; }
+.bgm-results-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px; margin:3px 0 8px; padding:9px 12px; border:1px solid #eef2f7; border-radius:13px; background:#f8fafc; }
+.bgm-results-head b { display:block; color:#0f172a; font-size:13px; line-height:1.2; margin-bottom:2px; }
+.bgm-results-head span { display:block; color:#64748b; font-size:12px; line-height:1.2; }
+.bgm-results-head em { flex:none; font-style:normal; color:#2563eb; font-size:12px; font-weight:900; white-space:nowrap; }
+.bgm-list-wrap { position:relative; flex:1; min-height:220px; overflow:hidden; border-radius:15px; }
+.bgm-list-wrap.scrollable::after { content:""; position:absolute; left:0; right:0; bottom:0; height:34px; pointer-events:none; background:linear-gradient(180deg,rgba(255,255,255,0),#fff 82%); }
+.bgm-list { height:100%; overflow-y:auto; padding:2px 2px 22px 0; display:flex; flex-direction:column; gap:8px; box-sizing:border-box; }
+.bgm-row { display:grid; grid-template-columns:auto auto minmax(0,1fr) auto auto; align-items:center; gap:11px; padding:10px 11px; border:1px solid #eef2f7; border-radius:14px; cursor:pointer; transition:.12s; background:#fff; }
+.bgm-row:hover { border-color:#bfdbfe; background:#f8fbff; }
+.bgm-row.active { border-color:#2563eb; background:rgba(37,99,235,.07); box-shadow:inset 0 0 0 1px rgba(37,99,235,.18); }
+.bgm-play { flex:none; width:44px; height:34px; border:none; border-radius:10px; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:900; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.bgm-play.playing { background:#0f172a; color:#fff; }
+.bgm-wave { width:42px; height:24px; display:flex; align-items:center; justify-content:center; gap:3px; }
+.bgm-wave i { display:block; width:3px; border-radius:999px; background:#93c5fd; }
+.bgm-wave i:nth-child(1) { height:9px; }
+.bgm-wave i:nth-child(2) { height:17px; }
+.bgm-wave i:nth-child(3) { height:22px; }
+.bgm-wave i:nth-child(4) { height:14px; }
+.bgm-wave i:nth-child(5) { height:19px; }
+.bgm-row.active .bgm-wave i { background:#2563eb; }
+.bgm-meta { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.bgm-title { font-size:14px; font-weight:800; color:var(--color-text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .bgm-sub { font-size:12px; color:var(--color-text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.bgm-badge { flex:none; font-size:11px; padding:3px 8px; border-radius:999px; background:#f1f5f9; color:var(--color-text-secondary); }
-.bgm-badge.hot { background:rgba(239,68,68,.12); color:#ef4444; font-weight:600; }
-.bgm-check { flex:none; color:var(--color-primary); font-weight:700; }
+.bgm-badge { flex:none; font-size:11px; padding:3px 8px; border-radius:999px; background:#f1f5f9; color:#475569; white-space:nowrap; }
+.bgm-badge.hot { background:rgba(239,68,68,.1); color:#dc2626; font-weight:800; }
+.bgm-use { flex:none; min-width:72px; text-align:right; color:#2563eb; font-size:12px; font-weight:900; white-space:nowrap; }
+.bgm-row.active .bgm-use { color:#0f172a; }
 .bgm-empty { text-align:center; color:var(--color-text-tertiary); font-size:13px; padding:30px 10px; }
+@media (max-width:640px) {
+  .bgm-modal { height:min(780px,90vh); }
+  .bgm-current { grid-template-columns:1fr; align-items:start; }
+  .bgm-workspace { grid-template-columns:1fr; padding:12px 14px 14px; }
+  .bgm-rail { border-right:none; border-bottom:1px solid #eef2f7; padding:0 0 12px; flex-direction:row; overflow-x:auto; }
+  .bgm-rail button { min-width:150px; }
+  .bgm-panel { padding:12px 0 0; }
+  .bgm-preset-wrap, .bgm-preset-grid.compact { grid-template-columns:1fr; }
+  .bgm-bar { flex-direction:column; }
+  .bgm-bar button { min-height:38px; }
+  .bgm-row { grid-template-columns:auto minmax(0,1fr) auto; }
+  .bgm-wave, .bgm-badge { display:none; }
+}
 .voice-trigger {
   display:flex; align-items:center; gap:10px; width:100%; padding:11px 14px; text-align:left;
   border:1px solid var(--color-border); border-radius:var(--radius-md); background:rgba(255,255,255,.85);
